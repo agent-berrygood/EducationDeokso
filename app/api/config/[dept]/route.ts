@@ -6,10 +6,12 @@ import { queryOne, query } from '@/lib/db';
  */
 export async function GET(
   request: Request,
-  { params }: { params: { dept: string } }
+  { params }: { params: Promise<{ dept: string }> }
 ) {
+  let department: string = '';
   try {
-    const department = params.dept;
+    const { dept } = await params;
+    department = dept;
 
     const config = await queryOne(
       `SELECT
@@ -36,7 +38,7 @@ export async function GET(
       }
     });
   } catch (error) {
-    console.error(`GET /config/${params.dept} 오류:`, error);
+    console.error(`GET /config/${department} 오류:`, error);
     return Response.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
@@ -47,10 +49,12 @@ export async function GET(
  */
 export async function POST(
   request: Request,
-  { params }: { params: { dept: string } }
+  { params }: { params: Promise<{ dept: string }> }
 ) {
+  let department: string = '';
   try {
-    const department = params.dept;
+    const { dept } = await params;
+    department = dept;
     const body = await request.json();
     const {
       title, subtitle, scripture, primaryColor, bgColor,
@@ -111,7 +115,7 @@ export async function POST(
 
     return Response.json({ success: true, message: '설정 저장 완료' }, { status: 200 });
   } catch (error) {
-    console.error(`POST /config/${params.dept} 오류:`, error);
+    console.error(`POST /config/${department} 오류:`, error);
     return Response.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
