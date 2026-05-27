@@ -91,6 +91,7 @@ const DepartmentCard = ({ href, title, subtitle, className, glowColor }: Departm
 
 export default function HomePage() {
   const [showApplicationForm, setShowApplicationForm] = useState(false);
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
 
   const departments: DepartmentCardProps[] = [
     {
@@ -120,11 +121,11 @@ export default function HomePage() {
     <>
       {/* Application Form Modal */}
       {showApplicationForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4" onClick={() => setShowApplicationForm(false)}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4" onClick={() => { setShowApplicationForm(false); setSelectedDepartment(null); }}>
           <div className="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-700" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-end p-3 pb-0 shrink-0">
               <button
-                onClick={() => setShowApplicationForm(false)}
+                onClick={() => { setShowApplicationForm(false); setSelectedDepartment(null); }}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 hover:bg-red-500 text-slate-400 hover:text-white text-lg transition-all duration-200"
                 aria-label="Close application form"
               >
@@ -132,7 +133,29 @@ export default function HomePage() {
               </button>
             </div>
             <div className="p-8 pt-2 overflow-y-auto">
-              <ApplicationForm onClose={() => setShowApplicationForm(false)} />
+              {!selectedDepartment ? (
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-6 text-center">부서 선택</h2>
+                  <div className="grid grid-cols-1 gap-4">
+                    {[
+                      { id: 'kinder', label: 'Now Kinder', sub: '영아부 - 유치부' },
+                      { id: 'kids', label: 'Now Kids', sub: '유년부 - 초등부' },
+                      { id: 'teens', label: 'Now Teens', sub: '중등부 - 고등부' },
+                    ].map((dept) => (
+                      <button
+                        key={dept.id}
+                        onClick={() => setSelectedDepartment(dept.id)}
+                        className="w-full p-4 bg-slate-700 hover:bg-cyan-600 text-white rounded-xl text-left transition-colors"
+                      >
+                        <div className="font-bold text-lg">{dept.label}</div>
+                        <div className="text-sm text-slate-300">{dept.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <ApplicationForm department={selectedDepartment} onClose={() => { setShowApplicationForm(false); setSelectedDepartment(null); }} />
+              )}
             </div>
           </div>
         </div>
