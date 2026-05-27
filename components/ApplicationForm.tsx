@@ -30,6 +30,14 @@ interface Child {
 
 const ALLERGY_OPTIONS = ['계란', '우유', '견과류', '밀', '복숭아', '대두', '갑각류'];
 
+// 연락처 자동 하이픈 포맷 함수 (숫자만 허용, 010-XXXX-XXXX)
+const formatPhoneNumber = (value: string): string => {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length < 4) return digits;
+  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+};
+
 interface ApplicationFormProps {
   department: string;
   onClose?: () => void;
@@ -229,9 +237,11 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
             />
             <input
               type="tel"
-              placeholder="부모 연락처"
+              placeholder="010-0000-0000"
               value={parentInfo.parentPhone}
-              onChange={(e) => setParentInfo({ ...parentInfo, parentPhone: e.target.value })}
+              onChange={(e) => setParentInfo({ ...parentInfo, parentPhone: formatPhoneNumber(e.target.value) })}
+              inputMode="numeric"
+              maxLength={13}
               className="w-full px-4 py-2 border rounded-lg"
             />
             <input

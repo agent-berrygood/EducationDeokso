@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import RichTextEditor from '@/components/RichTextEditor';
+import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 
 interface Application {
   id: string;
@@ -13,6 +16,7 @@ interface Application {
 }
 
 interface PaymentStatus {
+  id: string;
   application_id: string;
   kinder_paid: boolean;
   kids_paid: boolean;
@@ -20,39 +24,38 @@ interface PaymentStatus {
   waterpark_paid: boolean;
 }
 
-interface CustomField {
-  id: string;
-  label: string;
-  type: 'text' | 'textarea' | 'select' | 'checkbox';
-  required: boolean;
-  options?: string[];
-  columnIndex: number;
-}
-
 interface AdminDashboardProps {
-  department: string;
+  department: 'kinder' | 'kids' | 'teens' | string;
 }
 
 export default function AdminDashboard({ department }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState('applications');
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<'applications' | 'settings' | 'payment' | 'surveys' | string>('applications');
   const [applications, setApplications] = useState<Application[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<string, PaymentStatus>>({});
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  
+  // 페이징, 검색 및 정렬 상태 추가
   const [offset, setOffset] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<'childName' | 'age' | 'createdAt'>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<any>({
     title: '',
     subtitle: '',
     scripture: '',
-    primaryColor: '#3B82F6',
-    bgColor: '#DBEAFE',
+    primaryColor: department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E',
+    bgColor: department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A',
     tshirtSizes: [],
     customFields: [],
     subDepartments: [],
   });
+  
   const [newTshirtSize, setNewTshirtSize] = useState('');
   const [newCustomField, setNewCustomField] = useState<any>({
     label: '',
@@ -62,14 +65,25 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     columnIndex: 1,
   });
 
+  const deptNames: Record<string, string> = {
+    kinder: '나우킨더 (미취학)',
+    kids: '나우키즈 (초등부)',
+    teens: '나우틴즈 (중고등부)',
+  };
+
   const loadApplications = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}`);
+      setError('');
+      // PostgreSQL API 연동 호출
+      const sqlSortBy = sortField === 'childName' ? 'parent_name' : 'created_at';
+      const sqlSortOrder = sortDirection.toUpperCase();
+      const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}&sortBy=${sqlSortBy}&sortOrder=${sqlSortOrder}`);
+      if (!res.ok) throw new Error('Fetch failed');
       const { data } = await res.json();
-      setApplications(data);
+      setApplications(data || []);
     } catch (err) {
-      setError('신청서 로드 실패');
+      setError('신청서 데이터를 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -78,21 +92,23 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
   const loadConfig = async () => {
     try {
       setLoading(true);
+      setError('');
       const res = await fetch(`/api/config/${department}`);
+      if (!res.ok) throw new Error('Fetch failed');
       const { data } = await res.json();
       setConfig(data);
       setSettingsForm({
         title: data.title || '',
         subtitle: data.subtitle || '',
         scripture: data.scripture || '',
-        primaryColor: data.primary_color || '#3B82F6',
-        bgColor: data.bg_color || '#DBEAFE',
+        primaryColor: data.primary_color || (department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E'),
+        bgColor: data.bg_color || (department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A'),
         tshirtSizes: data.tshirtSizes || [],
         customFields: data.customFieldMappings || [],
         subDepartments: data.subDepartments || [],
       });
     } catch (err) {
-      setError('설정 로드 실패');
+      setError('CMS 설정을 로드하는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -102,8 +118,12 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     try {
       for (const app of applications) {
         const res = await fetch(`/api/payment?applicationId=${app.id}`);
-        const { data } = await res.json();
-        setPaymentStatuses((prev) => ({ ...prev, [app.id]: data }));
+        if (res.ok) {
+          const { data } = await res.json();
+          if (data) {
+            setPaymentStatuses((prev) => ({ ...prev, [app.id]: data }));
+          }
+        }
       }
     } catch (err) {
       console.error('결제 상태 로드 실패:', err);
@@ -116,22 +136,23 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     } else if (activeTab === 'settings') {
       loadConfig();
     }
-  }, [activeTab, offset]);
+  }, [activeTab, offset, department, sortField, sortDirection]);
 
   useEffect(() => {
     if (activeTab === 'applications' && applications.length > 0) {
       loadPaymentStatuses();
     }
-  }, [applications]);
+  }, [applications, activeTab]);
 
   const deleteApplication = async (id: string) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return;
+    if (!confirm('정말 이 신청 정보 및 동반 자녀 데이터를 삭제하시겠습니까? 관련 데이터가 영구히 제거됩니다.')) return;
     try {
-      await fetch(`/api/applications?id=${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/applications?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      alert('데이터가 성공적으로 제거되었습니다.');
       loadApplications();
-      alert('삭제되었습니다');
     } catch (err) {
-      alert('삭제 실패');
+      alert('삭제 도중 에러가 발생했습니다.');
     }
   };
 
@@ -147,28 +168,29 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
         [applicationId]: { ...prev[applicationId], [field]: value },
       }));
     } catch (err) {
-      alert('결제 상태 업데이트 실패');
+      alert('수납 상태 업데이트에 실패했습니다.');
     }
   };
 
   const exportExcel = async () => {
     try {
       const res = await fetch(`/api/export?department=${department}`);
+      if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `신청현황_${department}.xlsx`;
+      a.download = `신청현황_${department}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
     } catch (err) {
-      alert('엑셀 추출 실패');
+      alert('엑셀 파일 생성에 실패했습니다.');
     }
   };
 
   const saveSettings = async () => {
     try {
-      setLoading(true);
-      await fetch(`/api/config/${department}`, {
+      setIsSaving(true);
+      const res = await fetch(`/api/config/${department}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,12 +204,13 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           subDepartments: settingsForm.subDepartments,
         }),
       });
-      alert('설정이 저장되었습니다');
+      if (!res.ok) throw new Error('Save failed');
+      alert('CMS 테마 및 행사 설정이 반영되었습니다.');
       loadConfig();
     } catch (err) {
-      alert('설정 저장 실패');
+      alert('설정 저장 도중 문제가 발생했습니다.');
     } finally {
-      setLoading(false);
+      setIsSaving(false);
     }
   };
 
@@ -195,7 +218,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     if (!newTshirtSize.trim()) return;
     setSettingsForm((prev: any) => ({
       ...prev,
-      tshirtSizes: [...prev.tshirtSizes, newTshirtSize],
+      tshirtSizes: [...prev.tshirtSizes, newTshirtSize.trim().toUpperCase()],
     }));
     setNewTshirtSize('');
   };
@@ -212,7 +235,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     const field = {
       ...newCustomField,
       id: `field_${Date.now()}`,
-      options: newCustomField.options ? newCustomField.options.split(',').map((o: string) => o.trim()) : [],
+      options: newCustomField.options ? newCustomField.options.split(',').map((o: string) => o.trim()).filter(Boolean) : [],
     };
     setSettingsForm((prev: any) => ({
       ...prev,
@@ -228,351 +251,615 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     }));
   };
 
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return 0;
+    try {
+      const birthYear = new Date(birthDate).getFullYear();
+      const currentYear = new Date().getFullYear();
+      return currentYear - birthYear + 1;
+    } catch (e) {
+      return 0;
+    }
+  };
+
+  // 아이 단위(자녀 중심)의 리스토어 평탄화 연산
+  const processedChildren = useMemo(() => {
+    const rows: any[] = [];
+    applications.forEach(app => {
+      if (app.children) {
+        app.children.forEach(child => {
+          if (child.department === department || !child.department) {
+            rows.push({
+              appId: app.id,
+              parentName: app.parent_name,
+              parentPhone: app.parent_phone,
+              depositorName: app.depositor_name || app.parent_name,
+              childName: child.name,
+              birthDate: child.birthDate,
+              age: calculateAge(child.birthDate),
+              tshirtSize: child.tshirtSize,
+              allergies: Array.isArray(child.allergies) ? child.allergies : JSON.parse(child.allergies || '[]'),
+              customAllergy: child.customAllergy || '',
+              attendsWaterpark: !!child.attendsWaterpark,
+              grandTotal: app.grand_total,
+              createdAt: app.created_at,
+              originalChild: child
+            });
+          }
+        });
+      }
+    });
+
+    // 1. 검색어 필터링
+    let filtered = rows;
+    if (searchQuery.trim()) {
+      const queryStr = searchQuery.toLowerCase().trim();
+      filtered = rows.filter(row => 
+        row.childName.toLowerCase().includes(queryStr) ||
+        row.parentName.toLowerCase().includes(queryStr) ||
+        row.parentPhone.includes(queryStr) ||
+        row.depositorName.toLowerCase().includes(queryStr)
+      );
+    }
+
+    // 2. 클라이언트 정렬
+    filtered.sort((a, b) => {
+      let valA: any = a.createdAt;
+      let valB: any = b.createdAt;
+
+      if (sortField === 'childName') {
+        valA = a.childName;
+        valB = b.childName;
+      } else if (sortField === 'age') {
+        valA = a.age;
+        valB = b.age;
+      }
+
+      if (typeof valA === 'string') {
+        return sortDirection === 'asc' 
+          ? valA.localeCompare(valB, 'ko') 
+          : valB.localeCompare(valA, 'ko');
+      } else {
+        return sortDirection === 'asc' 
+          ? (valA > valB ? 1 : -1) 
+          : (valB > valA ? 1 : -1);
+      }
+    });
+
+    return filtered;
+  }, [applications, department, searchQuery, sortField, sortDirection]);
+
+  const handleLogout = async () => {
+    if (confirm("로그아웃 하시겠습니까?")) {
+      await fetch('/api/admin/logout', { method: 'POST' });
+      router.push(`/admin/login?dept=${department}`);
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-6">
-      {/* Tabs */}
-      <div className="flex gap-4 mb-6 border-b overflow-x-auto">
-        {['applications', 'settings', 'payment', 'surveys'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 font-semibold whitespace-nowrap ${
-              activeTab === tab
-                ? 'text-blue-600 border-b-2 border-blue-600'
-                : 'text-gray-600 hover:text-gray-800'
-            }`}
-          >
-            {tab === 'applications' && '신청 현황'}
-            {tab === 'settings' && '설정'}
-            {tab === 'payment' && '결제 관리'}
-            {tab === 'surveys' && '설문'}
-          </button>
-        ))}
-      </div>
-
-      {error && <div className="bg-red-100 text-red-700 p-4 rounded-lg mb-4">{error}</div>}
-
-      {/* Applications Tab */}
-      {activeTab === 'applications' && (
-        <div>
-          <div className="flex gap-4 mb-4">
-            <button
-              onClick={exportExcel}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              📊 엑셀 다운로드
-            </button>
+    <div 
+      className={`min-h-screen pb-20 ${department === 'teens' ? 'bg-slate-950 text-white' : 'bg-gray-50 text-gray-900'}`}
+      style={{
+        '--primary-color': settingsForm.primaryColor,
+        '--bg-color': settingsForm.bgColor,
+      } as React.CSSProperties}
+    >
+      {/* Header Bar */}
+      <header className={`border-b p-6 flex flex-col md:flex-row justify-between items-center gap-4 ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+        <div className="flex items-center gap-3">
+          <span className="text-3xl">🔑</span>
+          <div>
+            <h1 className="text-2xl font-bold">{deptNames[department] || department} 관리자 패널</h1>
+            <p className="text-sm text-gray-400">교사 전용 성경학교 및 여름 수련회 실시간 CMS 통합 대시보드</p>
           </div>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={exportExcel}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer"
+          >
+            📥 엑셀 내보내기 (xlsx)
+          </button>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-sm font-semibold rounded-lg transition duration-200 cursor-pointer"
+          >
+            🔒 로그아웃
+          </button>
+        </div>
+      </header>
 
-          {loading ? (
-            <div>로드 중...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border px-4 py-2">부모</th>
-                    <th className="border px-4 py-2">연락처</th>
-                    <th className="border px-4 py-2">자녀</th>
-                    <th className="border px-4 py-2">합계</th>
-                    <th className="border px-4 py-2">신청일</th>
-                    <th className="border px-4 py-2">삭제</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {applications.map((app) => (
-                    <tr key={app.id} className="hover:bg-gray-50">
-                      <td className="border px-4 py-2">{app.parent_name}</td>
-                      <td className="border px-4 py-2">{app.parent_phone}</td>
-                      <td className="border px-4 py-2">{app.children?.map((c) => c.name).join(', ')}</td>
-                      <td className="border px-4 py-2 font-semibold">{app.grand_total.toLocaleString()}원</td>
-                      <td className="border px-4 py-2">{new Date(app.created_at).toLocaleDateString('ko-KR')}</td>
-                      <td className="border px-4 py-2 text-center">
-                        <button
-                          onClick={() => deleteApplication(app.id)}
-                          className="text-red-600 hover:text-red-800 font-semibold"
-                        >
-                          삭제
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <div className="container mx-auto px-6 mt-8">
+        {/* Navigation Tabs */}
+        <div className="flex border-b border-gray-300 dark:border-slate-800 gap-4 overflow-x-auto whitespace-nowrap">
+          {[
+            { id: 'applications', label: `📝 신청 현황 (${processedChildren.length}명)` },
+            { id: 'settings', label: '🎨 CMS & 스킨 설정' },
+            { id: 'payment', label: '💳 수납 확인 모니터' },
+            { id: 'surveys', label: '📊 설문조사 관리 (Phase 2)' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`pb-4 px-4 font-bold border-b-2 text-lg transition duration-200 cursor-pointer ${
+                activeTab === tab.id
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <div className="mt-6 p-4 bg-red-50 border-l-4 border-red-400 text-red-700 rounded-r-xl">
+            {error}
+          </div>
+        )}
+
+        {/* Tab Contents */}
+        <div className="mt-8">
+          
+          {/* 1. Applications Tab */}
+          {activeTab === 'applications' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div className="relative w-full sm:max-w-md">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="자녀 이름, 부모 성함, 연락처 검색..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-gray-900 shadow-sm transition"
+                  />
+                </div>
+                <div className="text-sm text-gray-400">
+                  검색 결과: <strong className="text-indigo-600 font-bold">{processedChildren.length}</strong>명
+                </div>
+              </div>
+
+              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+                {loading ? (
+                  <div className="p-12 text-center text-gray-400">데이터를 스트리밍 중입니다...</div>
+                ) : !processedChildren.length ? (
+                  <div className="p-12 text-center text-gray-400">조건에 일치하는 자녀 정보가 존재하지 않습니다.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                          <th 
+                            className="p-4 cursor-pointer hover:bg-gray-100/50 select-none transition"
+                            onClick={() => {
+                              if (sortField === 'childName') {
+                                setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('childName');
+                                setSortDirection('asc');
+                              }
+                            }}
+                          >
+                            자녀 이름 {sortField === 'childName' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                          </th>
+                          <th 
+                            className="p-4 cursor-pointer hover:bg-gray-100/50 select-none transition"
+                            onClick={() => {
+                              if (sortField === 'age') {
+                                setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('age');
+                                setSortDirection('desc');
+                              }
+                            }}
+                          >
+                            연령 (나이) {sortField === 'age' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                          </th>
+                          <th className="p-4">단체티 사이즈</th>
+                          <th className="p-4">알레르기 및 기타 특이사항</th>
+                          <th className="p-4">보호자 / 연락처</th>
+                          <th className="p-4 text-center">워터파크 참가</th>
+                          <th 
+                            className="p-4 cursor-pointer hover:bg-gray-100/50 select-none transition"
+                            onClick={() => {
+                              if (sortField === 'createdAt') {
+                                setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('createdAt');
+                                setSortDirection('desc');
+                              }
+                            }}
+                          >
+                            신청일시 {sortField === 'createdAt' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                          </th>
+                          <th className="p-4 text-center">작업</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
+                        {processedChildren.map((row, idx) => (
+                          <tr key={`${row.appId}-${idx}`} className={`${department === 'teens' ? 'hover:bg-slate-800/40' : 'hover:bg-gray-50/50'}`}>
+                            <td className="p-4 font-bold text-base text-indigo-600 dark:text-indigo-400">
+                              {row.childName}
+                            </td>
+                            <td className="p-4 text-sm">
+                              <span className="px-2.5 py-1 font-semibold rounded bg-slate-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200">
+                                {row.age}세 ({row.birthDate})
+                              </span>
+                            </td>
+                            <td className="p-4 font-semibold text-gray-900 dark:text-white">
+                              {row.tshirtSize || '미선택'}
+                            </td>
+                            <td className="p-4 text-xs text-red-500 font-medium">
+                              <div>⚠️ 알러지: {row.allergies.join(', ') || '없음'}</div>
+                              {row.customAllergy && <div className="mt-1 text-gray-400">기타: {row.customAllergy}</div>}
+                            </td>
+                            <td className="p-4 text-sm">
+                              <div className="font-semibold">{row.parentName}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{row.parentPhone}</div>
+                              {row.depositorName !== row.parentName && (
+                                <div className="text-[11px] text-gray-500">입금자: {row.depositorName}</div>
+                              )}
+                            </td>
+                            <td className="p-4 text-center">
+                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                                row.attendsWaterpark
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30'
+                                  : 'bg-gray-100 text-gray-400 dark:bg-slate-800'
+                              }`}>
+                                {row.attendsWaterpark ? '참가' : '미참가'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-xs text-gray-400">
+                              {new Date(row.createdAt).toLocaleString('ko-KR')}
+                            </td>
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => deleteApplication(row.appId)}
+                                className="px-3 py-1 bg-red-500 hover:bg-red-650 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer"
+                              >
+                                🗑️ 삭제
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Paging Buttons */}
+              <div className="flex justify-center gap-4 mt-6">
+                <button
+                  onClick={() => setOffset(Math.max(0, offset - 100))}
+                  disabled={offset === 0}
+                  className="px-4 py-2 bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 disabled:opacity-50 text-sm font-semibold rounded-lg transition"
+                >
+                  이전 페이지
+                </button>
+                <button
+                  onClick={() => setOffset(offset + 100)}
+                  disabled={applications.length < 100}
+                  className="px-4 py-2 bg-gray-200 dark:bg-slate-800 hover:bg-gray-300 disabled:opacity-50 text-sm font-semibold rounded-lg transition"
+                >
+                  다음 페이지
+                </button>
+              </div>
             </div>
           )}
 
-          <div className="flex gap-4 mt-6">
-            <button
-              onClick={() => setOffset(Math.max(0, offset - 100))}
-              disabled={offset === 0}
-              className="px-4 py-2 bg-gray-400 text-white rounded-lg disabled:opacity-50"
-            >
-              이전
-            </button>
-            <button
-              onClick={() => setOffset(offset + 100)}
-              disabled={applications.length < 100}
-              className="px-4 py-2 bg-gray-400 text-white rounded-lg disabled:opacity-50"
-            >
-              다음
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Settings Tab */}
-      {activeTab === 'settings' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">기본 정보</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block font-medium mb-2">행사 제목</label>
-                <input
-                  type="text"
-                  value={settingsForm.title}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-2">부제목</label>
-                <input
-                  type="text"
-                  value={settingsForm.subtitle}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, subtitle: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-2">성경 구절</label>
-                <input
-                  type="text"
-                  value={settingsForm.scripture}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, scripture: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">색상 설정</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block font-medium mb-2">주 색상</label>
-                <input
-                  type="color"
-                  value={settingsForm.primaryColor}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, primaryColor: e.target.value })}
-                  className="w-full h-12 border rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block font-medium mb-2">배경 색상</label>
-                <input
-                  type="color"
-                  value={settingsForm.bgColor}
-                  onChange={(e) => setSettingsForm({ ...settingsForm, bgColor: e.target.value })}
-                  className="w-full h-12 border rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">셔츠 사이즈</h3>
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                placeholder="사이즈 입력 (예: XL, 2XL)"
-                value={newTshirtSize}
-                onChange={(e) => setNewTshirtSize(e.target.value)}
-                className="flex-1 px-4 py-2 border rounded-lg"
-              />
-              <button
-                onClick={addTshirtSize}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                추가
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {settingsForm.tshirtSizes.map((size: string) => (
-                <div
-                  key={size}
-                  className="flex items-center gap-2 bg-blue-100 px-3 py-1 rounded-full"
-                >
-                  <span>{size}</span>
-                  <button
-                    onClick={() => removeTshirtSize(size)}
-                    className="text-red-600 hover:text-red-800 font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border">
-            <h3 className="text-lg font-semibold mb-4">커스텀 필드</h3>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block font-medium mb-2">필드명</label>
-                <input
-                  type="text"
-                  placeholder="필드명 입력"
-                  value={newCustomField.label}
-                  onChange={(e) => setNewCustomField({ ...newCustomField, label: e.target.value })}
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-medium mb-2">필드 타입</label>
-                  <select
-                    value={newCustomField.type}
-                    onChange={(e) => setNewCustomField({ ...newCustomField, type: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg"
-                  >
-                    <option value="text">텍스트</option>
-                    <option value="textarea">긴 텍스트</option>
-                    <option value="select">선택</option>
-                    <option value="checkbox">체크박스</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block font-medium mb-2">필수 여부</label>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={newCustomField.required}
-                      onChange={(e) => setNewCustomField({ ...newCustomField, required: e.target.checked })}
-                      className="w-4 h-4"
-                    />
-                    필수
-                  </label>
-                </div>
-              </div>
-              {(newCustomField.type === 'select' || newCustomField.type === 'checkbox') && (
-                <div>
-                  <label className="block font-medium mb-2">옵션 (쉼표로 구분)</label>
-                  <input
-                    type="text"
-                    placeholder="옵션1, 옵션2, 옵션3"
-                    value={newCustomField.options}
-                    onChange={(e) => setNewCustomField({ ...newCustomField, options: e.target.value })}
-                    className="w-full px-4 py-2 border rounded-lg"
-                  />
-                </div>
-              )}
-              <button
-                onClick={addCustomField}
-                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-              >
-                필드 추가
-              </button>
-            </div>
-
-            <div className="space-y-2">
-              {settingsForm.customFields.map((field: any, idx: number) => (
-                <div key={field.id} className="flex items-center justify-between bg-gray-50 p-4 rounded-lg">
-                  <div>
-                    <p className="font-medium">{field.label}</p>
-                    <p className="text-sm text-gray-600">
-                      {field.type} {field.required && '(필수)'}
-                    </p>
+          {/* 2. Settings Tab */}
+          {activeTab === 'settings' && (
+            <div className="space-y-8">
+              <form onSubmit={(e) => { e.preventDefault(); saveSettings(); }} className="space-y-8">
+                
+                {/* 기본 정보 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">🎨 기본 행사 정보 설정</h3>
+                  <div className="grid grid-cols-1 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">공식 행사 명칭</label>
+                      <input
+                        type="text"
+                        value={settingsForm.title}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                        placeholder="예: 2026 나우킨더 여름성경학교"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">행사 주제 (Theme Slogan) - 리치 텍스트</label>
+                      <RichTextEditor
+                        value={settingsForm.subtitle}
+                        onChange={(html) => setSettingsForm({ ...settingsForm, subtitle: html })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">성경 구절 (Scripture Verse) - 리치 텍스트</label>
+                      <RichTextEditor
+                        value={settingsForm.scripture}
+                        onChange={(html) => setSettingsForm({ ...settingsForm, scripture: html })}
+                      />
+                    </div>
                   </div>
+                </div>
+
+                {/* 테마 컬러 제어 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">🎨 배너 & 테마 스킨 제어</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">메인 테마 컬러 (Hex)</label>
+                      <input
+                        type="color"
+                        value={settingsForm.primaryColor}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, primaryColor: e.target.value })}
+                        className="w-full h-12 border rounded-lg p-1 bg-white cursor-pointer"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">배경 톤 컬러 (Hex)</label>
+                      <input
+                        type="color"
+                        value={settingsForm.bgColor}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, bgColor: e.target.value })}
+                        className="w-full h-12 border rounded-lg p-1 bg-white cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 단체티 사이즈 관리 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">👕 부서별 티셔츠 사이즈 옵션 관리</h3>
+                  <div className="flex gap-3 mb-4">
+                    <input
+                      type="text"
+                      placeholder="추가할 사이즈 입력 (예: L, 100, 2XL)"
+                      value={newTshirtSize}
+                      onChange={(e) => setNewTshirtSize(e.target.value)}
+                      className="flex-1 px-4 py-2 border rounded-lg bg-white text-gray-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={addTshirtSize}
+                      className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow cursor-pointer"
+                    >
+                      옵션 추가
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {settingsForm.tshirtSizes.length === 0 ? (
+                      <p className="text-sm text-gray-400">등록된 커스텀 사이즈가 없습니다. (기본 사이즈가 드롭다운에 노출됩니다)</p>
+                    ) : (
+                      settingsForm.tshirtSizes.map((size: string) => (
+                        <div
+                          key={size}
+                          className="flex items-center gap-2 bg-indigo-50 border border-indigo-150 px-3.5 py-1.5 rounded-full text-indigo-700 font-semibold text-sm"
+                        >
+                          <span>{size}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeTshirtSize(size)}
+                            className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 추가 맞춤 문항 질문 설정 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <div className="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 className="text-xl font-bold">📋 신청서 추가 수집 질문 문항 설정</h3>
+                    <button
+                      type="button"
+                      onClick={addCustomField}
+                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow cursor-pointer"
+                    >
+                      ➕ 새 문항 임시 추가
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-800/40">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">문항 질문 제목 (Label)</label>
+                        <input
+                          type="text"
+                          placeholder="예: 셔틀버스를 어디서 타시나요?"
+                          value={newCustomField.label}
+                          onChange={(e) => setNewCustomField({ ...newCustomField, label: e.target.value })}
+                          className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1">입력 컨트롤 타입 (Type)</label>
+                        <select
+                          value={newCustomField.type}
+                          onChange={(e) => setNewCustomField({ ...newCustomField, type: e.target.value as any })}
+                          className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
+                        >
+                          <option value="text">단답형 텍스트</option>
+                          <option value="textarea">장문형 텍스트</option>
+                          <option value="select">드롭다운 선택 (Select)</option>
+                          <option value="checkbox">동의/체크박스 (Checkbox)</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center pt-5">
+                        <label className="flex items-center space-x-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={newCustomField.required}
+                            onChange={(e) => setNewCustomField({ ...newCustomField, required: e.target.checked })}
+                            className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                          />
+                          <span className="text-sm font-semibold">필수 응답 항목 지정</span>
+                        </label>
+                      </div>
+                      {(newCustomField.type === 'select' || newCustomField.type === 'checkbox') && (
+                        <div className="md:col-span-3 pt-2 border-t border-dashed border-gray-200">
+                          <label className="block text-xs font-semibold text-gray-500 mb-1">선택지 옵션 리스트 (콤마 , 로 구분)</label>
+                          <input
+                            type="text"
+                            placeholder="예: 덕소역 탑승, 삼패동 탑승, 개별 이동"
+                            value={newCustomField.options}
+                            onChange={(e) => setNewCustomField({ ...newCustomField, options: e.target.value })}
+                            className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 등록된 추가 질문 리스트 */}
+                  <div className="space-y-3">
+                    {settingsForm.customFields.length === 0 ? (
+                      <p className="text-center p-6 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400">추가적으로 수집할 맞춤 질문이 없습니다.</p>
+                    ) : (
+                      settingsForm.customFields.map((field: any, idx: number) => (
+                        <div key={field.id} className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800">
+                          <div>
+                            <p className="font-bold text-base flex items-center gap-1.5">
+                              <span>❓</span> {field.label} {field.required && <span className="text-red-500 font-bold text-xs">*필수</span>}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              타입: {field.type === 'text' ? '단답형' : field.type === 'textarea' ? '장문형' : field.type === 'select' ? '드롭다운' : '체크박스'}
+                              {field.options && field.options.length > 0 && ` | 선택지: [${field.options.join(', ')}]`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeCustomField(field.id)}
+                            className="px-3 py-1.5 bg-red-500 hover:bg-red-650 text-white text-xs font-bold rounded shadow transition cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2">
                   <button
-                    onClick={() => removeCustomField(field.id)}
-                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700"
+                    type="submit"
+                    disabled={isSaving}
+                    className="px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg transition duration-200 disabled:opacity-50 cursor-pointer transform active:scale-95"
                   >
-                    삭제
+                    {isSaving ? '설정 데이터 동기화 중...' : '💾 CMS 설정 최종 적용'}
                   </button>
                 </div>
-              ))}
+              </form>
             </div>
-          </div>
+          )}
 
-          <div className="flex gap-4">
-            <button
-              onClick={saveSettings}
-              disabled={loading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-            >
-              {loading ? '저장 중...' : '설정 저장'}
-            </button>
-          </div>
-        </div>
-      )}
+          {/* 3. Payment Status Tab */}
+          {activeTab === 'payment' && (
+            <div className="space-y-4">
+              <h3 className="text-xl font-bold">💳 실시간 수납 및 입금자 확인 모니터</h3>
+              <p className="text-sm text-gray-500">신청서에서 부모님이 자가 체크한 입금 상태를 대조하고 교사 확인 상태로 직접 토글합니다.</p>
+              
+              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-sm">
+                    <thead>
+                      <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                        <th className="p-4">보호자명</th>
+                        <th className="p-4">연락처</th>
+                        <th className="p-4">입금자명</th>
+                        <th className="p-4 text-center">나우킨더 회비</th>
+                        <th className="p-4 text-center">나우키즈 회비</th>
+                        <th className="p-4 text-center">나우틴즈 회비</th>
+                        <th className="p-4 text-center">워터파크 비용</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
+                      {applications.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-12 text-center text-gray-400">수납 확인 대상 신청 정보가 존재하지 않습니다.</td>
+                        </tr>
+                      ) : (
+                        applications.map((app) => {
+                          const payment = paymentStatuses[app.id] || {
+                            kinder_paid: false,
+                            kids_paid: false,
+                            teens_paid: false,
+                            waterpark_paid: false
+                          };
+                          return (
+                            <tr key={app.id} className={`${department === 'teens' ? 'hover:bg-slate-800/40' : 'hover:bg-gray-50/50'}`}>
+                              <td className="p-4 font-bold">{app.parent_name}</td>
+                              <td className="p-4 text-gray-400 text-xs">{app.parent_phone}</td>
+                              <td className="p-4 text-indigo-700 font-semibold dark:text-indigo-400">{app.depositor_name || app.parent_name}</td>
+                              <td className="p-4 text-center">
+                                <label className="inline-flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={payment.kinder_paid || false}
+                                    onChange={(e) => updatePaymentStatus(app.id, 'kinder_paid', e.target.checked)}
+                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-xs">수납</span>
+                                </label>
+                              </td>
+                              <td className="p-4 text-center">
+                                <label className="inline-flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={payment.kids_paid || false}
+                                    onChange={(e) => updatePaymentStatus(app.id, 'kids_paid', e.target.checked)}
+                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-xs">수납</span>
+                                </label>
+                              </td>
+                              <td className="p-4 text-center">
+                                <label className="inline-flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={payment.teens_paid || false}
+                                    onChange={(e) => updatePaymentStatus(app.id, 'teens_paid', e.target.checked)}
+                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-xs">수납</span>
+                                </label>
+                              </td>
+                              <td className="p-4 text-center">
+                                <label className="inline-flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={payment.waterpark_paid || false}
+                                    onChange={(e) => updatePaymentStatus(app.id, 'waterpark_paid', e.target.checked)}
+                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
+                                  />
+                                  <span className="text-xs">수납</span>
+                                </label>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
 
-      {/* Payment Tab */}
-      {activeTab === 'payment' && (
-        <div>
-          <h3 className="text-lg font-semibold mb-4">결제 현황 관리</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-4 py-2">부모</th>
-                  <th className="border px-4 py-2">킨더</th>
-                  <th className="border px-4 py-2">키즈</th>
-                  <th className="border px-4 py-2">틴즈</th>
-                  <th className="border px-4 py-2">물놀이</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((app) => {
-                  const payment = paymentStatuses[app.id];
-                  if (!payment) return null;
-                  return (
-                    <tr key={app.id} className="hover:bg-gray-50">
-                      <td className="border px-4 py-2">{app.parent_name}</td>
-                      <td className="border px-4 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={payment.kinder_paid || false}
-                          onChange={(e) => updatePaymentStatus(app.id, 'kinder_paid', e.target.checked)}
-                        />
-                      </td>
-                      <td className="border px-4 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={payment.kids_paid || false}
-                          onChange={(e) => updatePaymentStatus(app.id, 'kids_paid', e.target.checked)}
-                        />
-                      </td>
-                      <td className="border px-4 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={payment.teens_paid || false}
-                          onChange={(e) => updatePaymentStatus(app.id, 'teens_paid', e.target.checked)}
-                        />
-                      </td>
-                      <td className="border px-4 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={payment.waterpark_paid || false}
-                          onChange={(e) => updatePaymentStatus(app.id, 'waterpark_paid', e.target.checked)}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+          {/* 4. Surveys Tab */}
+          {activeTab === 'surveys' && (
+            <SurveyFormPlaceholder department={department as 'kinder' | 'kids' | 'teens'} />
+          )}
 
-      {/* Surveys Tab */}
-      {activeTab === 'surveys' && (
-        <div className="bg-white p-6 rounded-lg border text-center">
-          <p className="text-gray-600">설문 기능은 추후 업데이트될 예정입니다.</p>
         </div>
-      )}
+      </div>
     </div>
   );
 }
