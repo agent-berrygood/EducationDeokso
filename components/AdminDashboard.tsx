@@ -9,6 +9,14 @@ interface AdminDashboardProps {
   department: 'kinder' | 'kids' | 'teens';
 }
 
+interface CustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'checkbox';
+  required: boolean;
+  options?: string[];
+}
+
 interface Application {
   id: string;
   parentInfo: {
@@ -24,6 +32,7 @@ interface Application {
     allergies: string[];
     customAllergy: string;
     attendsWaterpark: boolean;
+    customValues?: { [key: string]: any };
   }>;
   fees: {
     kinderTotal: number;
@@ -48,6 +57,7 @@ interface EventConfig {
   scripture: string;
   primaryColor?: string;
   bgColor?: string;
+  customFields?: CustomField[];
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) => {
@@ -65,6 +75,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
     scripture: '',
     primaryColor: department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E',
     bgColor: department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A',
+    customFields: [],
   });
 
   const deptNames = {
@@ -108,7 +119,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
         const docRef = doc(db, 'config', `events_${department}`);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setEventConfig((prev) => ({ ...prev, ...docSnap.data() }));
+          const data = docSnap.data();
+          setEventConfig((prev) => ({
+            ...prev,
+            ...data,
+            customFields: data.customFields || [],
+          }));
         }
       } catch (err) {
         console.error("Error fetching event CMS configuration:", err);
@@ -123,7 +139,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
     try {
       const docRef = doc(db, 'config', `events_${department}`);
       await setDoc(docRef, eventConfig, { merge: true });
-      alert("행사 CMS 설정이 데이터베이스에 실시간으로 안전하게 저장되었습니다!");
+      alert("행사 CMS 설정(맞춤 수집 항목 포함)이 데이터베이스에 실시간으로 안전하게 저장되었습니다!");
     } catch (err) {
       console.error(err);
       alert("설정 저장에 실패했습니다.");
@@ -145,9 +161,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
       return;
     }
 
+    const fields = eventConfig.customFields || [];
     let csvContent = "\uFEFF"; // UTF-8 BOM
-    csvContent += "신청자ID,보호자 성함,보호자 연락처,입금자명,자녀이름,생년월일,사이즈,알레르기,워터파크동반,입금상태,총회비,신청일시\n";
+    
+    // Header
+    let headers = ["신청자ID", "보호자 성함", "보호자 연락처", "입금자명", "자녀이름", "생년월일", "사이즈", "알레르기", "워터파크동반"];
+    fields.forEach(f => {
+      headers.push(`[추가] ${f.label}`);
+    });
+    headers.push("입금상태", "총회비", "신청일시");
+    csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
 
+    // Rows
     applications.forEach((app) => {
       app.children.forEach((child) => {
         if (child.department === department) {
@@ -155,7 +180,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
           const paidStatus = app.paymentStatus[department as keyof typeof app.paymentStatus] ? "입금확인" : "대기";
           const allergies = child.allergies.join(' / ') + (child.customAllergy ? ` (${child.customAllergy})` : '');
           
-          csvContent += `"${app.id}","${app.parentInfo.parentName}","${app.parentInfo.parentPhone}","${app.parentInfo.depositorName || app.parentInfo.parentName}","${child.name}","${child.birthDate}","${child.tshirtSize}","${allergies}","${attendsWaterpark}","${paidStatus}","${app.fees.grandTotal}","${app.createdAt}"\n`;
+          let rowData = [
+            app.id,
+            app.parentInfo.parentName,
+            app.parentInfo.parentPhone,
+            app.parentInfo.depositorName || app.parentInfo.parentName,
+            child.name,
+            child.birthDate,
+            child.tshirtSize,
+            allergies,
+            attendsWaterpark
+          ];
+
+          // Map custom fields
+          fields.forEach(f => {
+            const val = child.customValues ? child.customValues[f.id] : '';
+            rowData.push(val !== undefined && val !== null ? String(val) : '');
+          });
+
+          rowData.push(paidStatus, `${app.fees.grandTotal}원`, app.createdAt);
+          csvContent += rowData.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',') + '\n';
         }
       });
     });
@@ -268,9 +312,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
                                 <span className="text-red-500 ml-1">
                                   알러지: {child.allergies.join(',') || '없음'}{child.customAllergy && ` (${child.customAllergy})`}
                                 </span> |
-                                <span className="text-blue-500 ml-1">
+                                <span className="text-blue-500 ml-1 font-semibold">
                                   워터풀: {child.attendsWaterpark ? '참가' : '불참'}
                                 </span>
+                                {child.customValues && Object.keys(child.customValues).length > 0 && (
+                                  <div className="mt-2 pt-2 border-t border-dashed border-gray-300 text-xs text-gray-600 dark:text-slate-400 space-y-1">
+                                    <div className="font-semibold text-indigo-600">📌 추가 맞춤 정보:</div>
+                                    {eventConfig.customFields?.map(field => {
+                                      const val = child.customValues?.[field.id];
+                                      if (val === undefined || val === null || val === '') return null;
+                                      return (
+                                        <div key={field.id} className="flex gap-1">
+                                          <span className="font-semibold">{field.label}:</span>
+                                          <span>{String(val)}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </td>
@@ -355,6 +414,122 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
                     value={eventConfig.scripture}
                     onChange={(html) => setEventConfig({ ...eventConfig, scripture: html })}
                   />
+                </div>
+
+                {/* --- Custom Fields Management Section --- */}
+                <div className="border-t border-gray-200 dark:border-slate-800 pt-6 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="text-xl font-bold">📋 신청서 추가 수집 정보 항목 설정</h4>
+                      <p className="text-sm text-gray-500 mt-1">부서 맞춤형 신청서 질문(차량탑승 여부, 특이사항, 기도제목 등)을 자유롭게 추가하고 수집할 수 있습니다.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newFields = [...(eventConfig.customFields || [])];
+                        newFields.push({
+                          id: 'f_' + Date.now(),
+                          label: '새로운 질문 항목',
+                          type: 'text',
+                          required: false,
+                          options: []
+                        });
+                        setEventConfig({ ...eventConfig, customFields: newFields });
+                      }}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold text-sm rounded-lg shadow transition cursor-pointer"
+                    >
+                      ➕ 질문 항목 추가
+                    </button>
+                  </div>
+
+                  {(!eventConfig.customFields || eventConfig.customFields.length === 0) ? (
+                    <div className="p-6 text-center border-2 border-dashed border-gray-300 dark:border-slate-700 rounded-xl text-gray-400">
+                      추가 수집 항목이 설정되지 않았습니다. 필요할 경우 질문 항목을 추가해 보세요.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {eventConfig.customFields.map((field, fIdx) => (
+                        <div key={field.id} className="p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800 relative space-y-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newFields = eventConfig.customFields?.filter((_, i) => i !== fIdx) || [];
+                              setEventConfig({ ...eventConfig, customFields: newFields });
+                            }}
+                            className="absolute top-3 right-3 text-red-500 hover:text-red-700 font-bold"
+                          >
+                            삭제
+                          </button>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">질문/문항 제목 (Label)</label>
+                              <input
+                                type="text"
+                                value={field.label}
+                                onChange={(e) => {
+                                  const newFields = [...(eventConfig.customFields || [])];
+                                  newFields[fIdx].label = e.target.value;
+                                  setEventConfig({ ...eventConfig, customFields: newFields });
+                                }}
+                                className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
+                                placeholder="예: 차량 탑승 위치를 적어주세요"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">입력 타입 (Type)</label>
+                              <select
+                                value={field.type}
+                                onChange={(e) => {
+                                  const newFields = [...(eventConfig.customFields || [])];
+                                  newFields[fIdx].type = e.target.value as any;
+                                  setEventConfig({ ...eventConfig, customFields: newFields });
+                                }}
+                                className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
+                              >
+                                <option value="text">단답형 텍스트</option>
+                                <option value="textarea">장문형 텍스트</option>
+                                <option value="select">드롭다운 선택 (Select)</option>
+                                <option value="checkbox">동의/체크박스 (Checkbox)</option>
+                              </select>
+                            </div>
+                            <div className="flex items-center pt-5">
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={field.required}
+                                  onChange={(e) => {
+                                    const newFields = [...(eventConfig.customFields || [])];
+                                    newFields[fIdx].required = e.target.checked;
+                                    setEventConfig({ ...eventConfig, customFields: newFields });
+                                  }}
+                                  className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                                />
+                                <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">필수 응답 항목 지정</span>
+                              </label>
+                            </div>
+                          </div>
+
+                          {field.type === 'select' && (
+                            <div className="pt-2 border-t border-dashed border-gray-200">
+                              <label className="block text-xs font-semibold text-gray-500 mb-1">선택지 옵션 리스트 (콤마 , 로 구분해서 여러 개 입력)</label>
+                              <input
+                                type="text"
+                                value={field.options?.join(', ') || ''}
+                                onChange={(e) => {
+                                  const newFields = [...(eventConfig.customFields || [])];
+                                  newFields[fIdx].options = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                  setEventConfig({ ...eventConfig, customFields: newFields });
+                                }}
+                                className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
+                                placeholder="예: 덕소역 탑승, 삼패동 탑승, 개별 이동"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <button

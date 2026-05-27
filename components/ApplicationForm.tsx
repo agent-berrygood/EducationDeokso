@@ -9,6 +9,14 @@ interface ParentInfo {
   depositorName: string;
 }
 
+interface CustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'checkbox';
+  required: boolean;
+  options?: string[];
+}
+
 interface Child {
   name: string;
   birthDate: string;
@@ -17,6 +25,7 @@ interface Child {
   allergies: string[];
   customAllergy: string;
   attendsWaterpark: boolean;
+  customValues?: { [key: string]: any };
 }
 
 interface Fees {
@@ -45,6 +54,7 @@ const initialChildState: Child = {
   allergies: [],
   customAllergy: '',
   attendsWaterpark: false,
+  customValues: {},
 };
 
 const FALLBACK_FEES: Fees = {
@@ -154,6 +164,7 @@ const ApplicationForm: FC = () => {
 
   const [children, setChildren] = useState<Child[]>([initialChildState]);
   const [fees, setFees] = useState<Fees>(FALLBACK_FEES);
+  const [deptConfigs, setDeptConfigs] = useState<{ [key: string]: { customFields?: CustomField[] } }>({});
 
   const [paymentChecks, setPaymentChecks] = useState<PaymentChecks>({
     kinder: false,
@@ -163,7 +174,7 @@ const ApplicationForm: FC = () => {
   });
 
   useEffect(() => {
-    const fetchFees = async () => {
+    const fetchFeesAndConfigs = async () => {
       try {
         const feeDocRef = doc(db, 'config', 'fees');
         const feeDocSnap = await getDoc(feeDocRef);
@@ -172,12 +183,26 @@ const ApplicationForm: FC = () => {
         } else {
           console.warn("Fee document not found, using fallback values.");
         }
+
+        // Fetch each department's custom fields
+        const depts = ['kinder', 'kids', 'teens'];
+        const configs: typeof deptConfigs = {};
+        for (const dept of depts) {
+          const docRef = doc(db, 'config', `events_${dept}`);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            configs[dept] = { customFields: snap.data().customFields || [] };
+          } else {
+            configs[dept] = { customFields: [] };
+          }
+        }
+        setDeptConfigs(configs);
       } catch (err) {
-        console.error("Error fetching fees:", err);
-        setError("회비 정보를 불러오는 데 실패했습니다. 기본값으로 진행합니다.");
+        console.error("Error fetching fees or configs:", err);
+        setError("회비 정보 및 수집 문항 정보를 불러오는 데 실패했습니다. 기본값으로 진행합니다.");
       }
     };
-    fetchFees();
+    fetchFeesAndConfigs();
   }, []);
 
   const handleParentInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,7 +221,24 @@ const ApplicationForm: FC = () => {
       }
     } else {
       newChildren[index] = { ...newChildren[index], [field]: value };
+      // Reset customValues if department changes
+      if (field === 'department') {
+        newChildren[index].customValues = {};
+      }
     }
+    setChildren(newChildren);
+  };
+
+  const handleCustomValueChange = (childIndex: number, fieldId: string, value: any) => {
+    const newChildren = [...children];
+    const currentValues = newChildren[childIndex].customValues || {};
+    newChildren[childIndex] = {
+      ...newChildren[childIndex],
+      customValues: {
+        ...currentValues,
+        [fieldId]: value
+      }
+    };
     setChildren(newChildren);
   };
 
@@ -210,7 +252,30 @@ const ApplicationForm: FC = () => {
     }
   };
 
-  const nextStep = () => setStep((prev) => prev + 1);
+  const nextStep = () => {
+    // 2단계 자녀정보 단계일 경우 동적 커스텀 필드 필수 체크 유효성 검사 수행
+    if (step === 2) {
+      for (let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if (!child.name || !child.birthDate || !child.department || !child.tshirtSize) {
+          alert(`자녀 ${i + 1}의 모든 기본 정보를 올바르게 입력해주세요.`);
+          return;
+        }
+
+        const customFields = deptConfigs[child.department]?.customFields || [];
+        for (const field of customFields) {
+          if (field.required) {
+            const val = child.customValues?.[field.id];
+            if (val === undefined || val === null || val === '' || val === false) {
+              alert(`자녀 ${i + 1}의 추가 질문 [${field.label}]은 필수 항목입니다.`);
+              return;
+            }
+          }
+        }
+      }
+    }
+    setStep((prev) => prev + 1);
+  };
   const prevStep = () => setStep((prev) => prev - 1);
 
   const calculatedFees = useMemo(() => {
@@ -331,6 +396,79 @@ const ApplicationForm: FC = () => {
                     <Checkbox label="워터파크에 참여합니다." checked={child.attendsWaterpark} onChange={(e) => handleChildChange(index, 'attendsWaterpark', e.target.checked)} />
                     <p className="text-sm text-blue-700 mt-2 ml-8">워터파크 참여 시 보호자 1인 동반이 필수입니다. (보호자 비용 별도)</p>
                   </div>
+
+                  {/* --- 동적 맞춤 질문 (Custom Fields) 렌더링 영역 --- */}
+                  {child.department && deptConfigs[child.department]?.customFields && deptConfigs[child.department].customFields!.length > 0 && (
+                    <div className="md:col-span-2 border-t border-gray-200 pt-6 mt-2 space-y-5">
+                      <h4 className="font-bold text-gray-800 text-base flex items-center gap-1.5">
+                        <span>📝</span> {child.department === 'kinder' ? '유치부' : child.department === 'kids' ? '아동부' : '청소년부'} 추가 맞춤 정보 입력
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {deptConfigs[child.department].customFields!.map((field) => {
+                          const value = child.customValues?.[field.id] || '';
+                          const isRequiredText = field.required ? ' *' : '';
+                          const labelWithRequired = `${field.label}${isRequiredText}`;
+
+                          if (field.type === 'text') {
+                            return (
+                              <Input
+                                key={field.id}
+                                label={labelWithRequired}
+                                value={value}
+                                onChange={(e) => handleCustomValueChange(index, field.id, e.target.value)}
+                                placeholder="답변을 적어주세요"
+                              />
+                            );
+                          }
+
+                          if (field.type === 'textarea') {
+                            return (
+                              <div key={field.id} className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">{labelWithRequired}</label>
+                                <textarea
+                                  value={value}
+                                  onChange={(e) => handleCustomValueChange(index, field.id, e.target.value)}
+                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out bg-white text-gray-900"
+                                  rows={3}
+                                  placeholder="자세히 적어주세요"
+                                />
+                              </div>
+                            );
+                          }
+
+                          if (field.type === 'select') {
+                            return (
+                              <Select
+                                key={field.id}
+                                label={labelWithRequired}
+                                value={value}
+                                onChange={(e) => handleCustomValueChange(index, field.id, e.target.value)}
+                              >
+                                <option value="">선택해주세요</option>
+                                {field.options?.map((opt) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </Select>
+                            );
+                          }
+
+                          if (field.type === 'checkbox') {
+                            return (
+                              <div key={field.id} className="md:col-span-2 pt-2">
+                                <Checkbox
+                                  label={labelWithRequired}
+                                  checked={!!value}
+                                  onChange={(e) => handleCustomValueChange(index, field.id, e.target.checked)}
+                                />
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
