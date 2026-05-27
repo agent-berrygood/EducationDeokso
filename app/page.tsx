@@ -132,7 +132,7 @@ export default function HomePage() {
               </button>
             </div>
             <div className="p-8 pt-2 overflow-y-auto">
-              <ApplicationForm />
+              <ApplicationForm onClose={() => setShowApplicationForm(false)} />
             </div>
           </div>
         </div>

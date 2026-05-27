@@ -43,8 +43,14 @@ interface PaymentChecks {
 }
 
 // --- Constants ---
-const ALLERGY_OPTIONS = ['Eggs', 'Milk', 'Nuts', 'Wheat', 'Peach', 'Soy', 'Shellfish'];
-const TSHIRT_SIZES: Child['tshirtSize'][] = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
+const ALLERGY_OPTIONS = ['계란', '우유', '견과류', '밀', '복숭아', '대두', '갑각류'];
+const DEFAULT_TSHIRT_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
+
+const DEPT_NAMES: { [key: string]: string } = {
+  kinder: '나우킨더',
+  kids: '나우키즈',
+  teens: '나우틴즈',
+};
 
 const initialChildState: Child = {
   name: '',
@@ -65,10 +71,10 @@ const FALLBACK_FEES: Fees = {
 };
 
 const BANK_ACCOUNTS = {
-  kinder: { name: 'Now Kinder Camp', account: 'Shinhan 110-123-456789' },
-  kids: { name: 'Now Kids Camp', account: 'Kookmin 220-123-456789' },
-  teens: { name: 'Now Teens Camp', account: 'Hana 330-123-456789' },
-  waterpark: { name: 'Now Generation Waterpark', account: 'Woori 1002-123-456789' },
+  kinder: { name: '나우킨더 캠프', account: '신한은행 110-123-456789' },
+  kids: { name: '나우키즈 캠프', account: '국민은행 220-123-456789' },
+  teens: { name: '나우틴즈 캠프', account: '하나은행 330-123-456789' },
+  waterpark: { name: '지금세대 워터파크', account: '우리은행 1002-123-456789' },
 };
 
 // --- Helper Components ---
@@ -150,8 +156,12 @@ const StepIndicator: FC<{ currentStep: number }> = ({ currentStep }) => (
 );
 
 
+interface ApplicationFormProps {
+  onClose?: () => void;
+}
+
 // --- Main ApplicationForm Component ---
-const ApplicationForm: FC = () => {
+const ApplicationForm: FC<ApplicationFormProps> = ({ onClose }) => {
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +174,7 @@ const ApplicationForm: FC = () => {
 
   const [children, setChildren] = useState<Child[]>([initialChildState]);
   const [fees, setFees] = useState<Fees>(FALLBACK_FEES);
-  const [deptConfigs, setDeptConfigs] = useState<{ [key: string]: { customFields?: CustomField[] } }>({});
+  const [deptConfigs, setDeptConfigs] = useState<{ [key: string]: { customFields?: CustomField[]; tshirtSizes?: string[] } }>({});
 
   const [paymentChecks, setPaymentChecks] = useState<PaymentChecks>({
     kinder: false,
@@ -191,15 +201,18 @@ const ApplicationForm: FC = () => {
           const docRef = doc(db, 'config', `events_${dept}`);
           const snap = await getDoc(docRef);
           if (snap.exists()) {
-            configs[dept] = { customFields: snap.data().customFields || [] };
+            const data = snap.data();
+            configs[dept] = {
+              customFields: data.customFields || [],
+              tshirtSizes: data.tshirtSizes || [],
+            };
           } else {
-            configs[dept] = { customFields: [] };
+            configs[dept] = { customFields: [], tshirtSizes: [] };
           }
         }
         setDeptConfigs(configs);
       } catch (err) {
-        console.error("Error fetching fees or configs:", err);
-        setError("회비 정보 및 수집 문항 정보를 불러오는 데 실패했습니다. 기본값으로 진행합니다.");
+        console.warn("설정 로드 중 문제 발생, 기본값 사용:", err);
       }
     };
     fetchFeesAndConfigs();
@@ -375,13 +388,16 @@ const ApplicationForm: FC = () => {
                   <Input label="생년월일" value={child.birthDate} onChange={(e) => handleChildChange(index, 'birthDate', e.target.value)} type="date" />
                   <Select label="소속 부서" value={child.department} onChange={(e) => handleChildChange(index, 'department', e.target.value)}>
                     <option value="">부서를 선택하세요</option>
-                    <option value="kinder">유치부</option>
-                    <option value="kids">아동부</option>
-                    <option value="teens">청소년부</option>
+                    <option value="kinder">나우킨더</option>
+                    <option value="kids">나우키즈</option>
+                    <option value="teens">나우틴즈</option>
                   </Select>
                   <Select label="단체티 사이즈" value={child.tshirtSize} onChange={(e) => handleChildChange(index, 'tshirtSize', e.target.value)}>
                     <option value="">사이즈를 선택하세요</option>
-                    {TSHIRT_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
+                    {(child.department && deptConfigs[child.department]?.tshirtSizes && deptConfigs[child.department].tshirtSizes!.length > 0
+                      ? deptConfigs[child.department].tshirtSizes!
+                      : DEFAULT_TSHIRT_SIZES
+                    ).map(size => <option key={size} value={size}>{size}</option>)}
                   </Select>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-2">알러지 정보 (해당하는 것 모두 선택)</label>
@@ -401,7 +417,7 @@ const ApplicationForm: FC = () => {
                   {child.department && deptConfigs[child.department]?.customFields && deptConfigs[child.department].customFields!.length > 0 && (
                     <div className="md:col-span-2 border-t border-gray-200 pt-6 mt-2 space-y-5">
                       <h4 className="font-bold text-gray-800 text-base flex items-center gap-1.5">
-                        <span>📝</span> {child.department === 'kinder' ? '유치부' : child.department === 'kids' ? '아동부' : '청소년부'} 추가 맞춤 정보 입력
+                        <span>📝</span> {DEPT_NAMES[child.department] || child.department} 추가 맞춤 정보 입력
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {deptConfigs[child.department].customFields!.map((field) => {
@@ -487,9 +503,9 @@ const ApplicationForm: FC = () => {
             <h2 className="text-3xl font-bold text-center text-gray-800">3. 최종 확인 및 결제</h2>
             <div className="p-6 bg-white rounded-xl shadow-md space-y-4">
               <h3 className="text-xl font-semibold border-b pb-3 mb-4 text-gray-800">회비 내역</h3>
-              {kinderTotal > 0 && <p className="flex justify-between"><span>유치부 회비:</span> <span>{kinderTotal.toLocaleString()}원</span></p>}
-              {kidsTotal > 0 && <p className="flex justify-between"><span>아동부 회비:</span> <span>{kidsTotal.toLocaleString()}원</span></p>}
-              {teensTotal > 0 && <p className="flex justify-between"><span>청소년부 회비:</span> <span>{teensTotal.toLocaleString()}원</span></p>}
+              {kinderTotal > 0 && <p className="flex justify-between"><span>나우킨더 회비:</span> <span>{kinderTotal.toLocaleString()}원</span></p>}
+              {kidsTotal > 0 && <p className="flex justify-between"><span>나우키즈 회비:</span> <span>{kidsTotal.toLocaleString()}원</span></p>}
+              {teensTotal > 0 && <p className="flex justify-between"><span>나우틴즈 회비:</span> <span>{teensTotal.toLocaleString()}원</span></p>}
               {waterparkTotal > 0 && <p className="flex justify-between"><span>워터파크 (보호자):</span> <span>{waterparkTotal.toLocaleString()}원</span></p>}
               <hr />
               <p className="flex justify-between text-2xl font-bold text-indigo-600"><span>총 합계:</span> <span>{grandTotal.toLocaleString()}원</span></p>
@@ -505,7 +521,7 @@ const ApplicationForm: FC = () => {
                     <p className="font-bold">{BANK_ACCOUNTS.kinder.name} ({kinderTotal.toLocaleString()}원)</p>
                     <p className="text-sm text-gray-600">{BANK_ACCOUNTS.kinder.account}</p>
                   </div>
-                  <Checkbox label="입금 확인" checked={paymentChecks.kinder} onChange={() => handlePaymentCheck('kinder')} />
+                  <Checkbox label="입금 완료했어요" checked={paymentChecks.kinder} onChange={() => handlePaymentCheck('kinder')} />
                 </div>
               )}
               {kidsTotal > 0 && (
@@ -514,7 +530,7 @@ const ApplicationForm: FC = () => {
                     <p className="font-bold">{BANK_ACCOUNTS.kids.name} ({kidsTotal.toLocaleString()}원)</p>
                     <p className="text-sm text-gray-600">{BANK_ACCOUNTS.kids.account}</p>
                   </div>
-                  <Checkbox label="입금 확인" checked={paymentChecks.kids} onChange={() => handlePaymentCheck('kids')} />
+                  <Checkbox label="입금 완료했어요" checked={paymentChecks.kids} onChange={() => handlePaymentCheck('kids')} />
                 </div>
               )}
               {teensTotal > 0 && (
@@ -523,7 +539,7 @@ const ApplicationForm: FC = () => {
                     <p className="font-bold">{BANK_ACCOUNTS.teens.name} ({teensTotal.toLocaleString()}원)</p>
                     <p className="text-sm text-gray-600">{BANK_ACCOUNTS.teens.account}</p>
                   </div>
-                  <Checkbox label="입금 확인" checked={paymentChecks.teens} onChange={() => handlePaymentCheck('teens')} />
+                  <Checkbox label="입금 완료했어요" checked={paymentChecks.teens} onChange={() => handlePaymentCheck('teens')} />
                 </div>
               )}
               {waterparkTotal > 0 && (
@@ -532,7 +548,7 @@ const ApplicationForm: FC = () => {
                     <p className="font-bold">{BANK_ACCOUNTS.waterpark.name} ({waterparkTotal.toLocaleString()}원)</p>
                     <p className="text-sm text-gray-600">{BANK_ACCOUNTS.waterpark.account}</p>
                   </div>
-                  <Checkbox label="입금 확인" checked={paymentChecks.waterpark} onChange={() => handlePaymentCheck('waterpark')} />
+                  <Checkbox label="입금 완료했어요" checked={paymentChecks.waterpark} onChange={() => handlePaymentCheck('waterpark')} />
                 </div>
               )}
             </div>
@@ -569,7 +585,16 @@ const ApplicationForm: FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative">
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors text-3xl font-bold cursor-pointer z-50 p-2"
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      )}
       <div className="max-w-4xl w-full mx-auto">
         <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
           {step < 4 && <StepIndicator currentStep={step} />}

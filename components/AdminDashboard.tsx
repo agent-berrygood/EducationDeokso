@@ -58,6 +58,7 @@ interface EventConfig {
   primaryColor?: string;
   bgColor?: string;
   customFields?: CustomField[];
+  tshirtSizes?: string[];
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) => {
@@ -76,6 +77,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
     primaryColor: department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E',
     bgColor: department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A',
     customFields: [],
+    tshirtSizes: ['S', 'M', 'L', 'XL', '2XL', '3XL'],
   });
 
   const deptNames = {
@@ -414,6 +416,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
                     value={eventConfig.scripture}
                     onChange={(html) => setEventConfig({ ...eventConfig, scripture: html })}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">부서 단체티 사이즈 설정 (쉼표 ','로 구분하여 입력)</label>
+                  <input
+                    type="text"
+                    value={eventConfig.tshirtSizes?.join(', ') || ''}
+                    onChange={(e) => {
+                      const sizes = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      setEventConfig({ ...eventConfig, tshirtSizes: sizes });
+                    }}
+                    placeholder="예: S, M, L, XL, 2XL, 3XL"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-slate-400">여기에 입력한 사이즈 목록이 신청서 단체티 선택 드롭다운에 실시간 반영됩니다.</p>
                 </div>
 
                 {/* --- Custom Fields Management Section --- */}
