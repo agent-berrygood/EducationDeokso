@@ -120,16 +120,18 @@ export default function HomePage() {
     <>
       {/* Application Form Modal */}
       {showApplicationForm && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative border border-slate-700">
-            <button
-              onClick={() => setShowApplicationForm(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white text-3xl transition-colors z-10"
-              aria-label="Close application form"
-            >
-              &times;
-            </button>
-            <div className="p-8">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4" onClick={() => setShowApplicationForm(false)}>
+          <div className="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-700" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-end p-3 pb-0 shrink-0">
+              <button
+                onClick={() => setShowApplicationForm(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-700 hover:bg-red-500 text-slate-400 hover:text-white text-lg transition-all duration-200"
+                aria-label="Close application form"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-8 pt-2 overflow-y-auto">
               <ApplicationForm />
             </div>
           </div>
