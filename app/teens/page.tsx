@@ -49,7 +49,7 @@ export default function TeensPage() {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4">
           <div className="bg-slate-800 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto relative border border-slate-700 text-white">
             <div className="p-8">
-              <ApplicationForm onClose={() => setShowForm(false)} />
+              <ApplicationForm department="teens" onClose={() => setShowForm(false)} />
             </div>
           </div>
         </div>
