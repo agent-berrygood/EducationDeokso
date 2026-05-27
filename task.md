@@ -18,11 +18,16 @@
 - [x] 구현 계획 수립 및 문서 복제 (`implementation_plan.md` 워크스페이스 저장)
 - [x] IDE 공유용 진행 현황판 초기설정 (`task.md` 생성)
 
-### 2단계: 프로젝트 빌드 및 환경 설정 (대기)
-- [ ] Next.js (App Router, Tailwind v4, TS/JS) 스켈레톤 프로젝트 초기 생성
-- [ ] Firebase Client SDK 설정 및 `lib/firebase.js` Firestore 연동 코드 빌드
-- [ ] `.env.local` 환경 변수 관리자 패스워드 및 Firebase Secrets 매칭 설정
-- [ ] 부서별 핵심 폴더 및 글로벌 CSS 레이아웃 구조 세팅
+### 2단계: 프로젝트 빌드 및 환경 설정 (진행 중)
+- [x] [Task 1] Next.js (App Router, Tailwind v4, TS/JS) 스켈레톤 프로젝트 초기 생성 및 환경 변수 구성
+- [x] Firebase CLI 로그인 연결 완료 (berryberry1120@gmail.com 계정 연동 성공)
+- [x] Gemini CLI 연결 및 작동 테스트 완료 (로컬 쉘 작동 확인 완료)
+- [x] [Task 2] Firebase SDK 설치 및 Firestore 커넥터 구현 (`lib/firebase.js`)
+- [x] [Task 3] Tiptap 에디터 모듈 설치 및 공용 리치텍스트 컴포넌트 개발 (`components/RichTextEditor.js`)
+- [x] [Task 4] 공용 3단계 위저드 신청서(Step-by-Step Wizard) 개발 (`components/ApplicationForm.js`)
+- [x] [Task 5] 메인 홈 및 부서별 특화 페이지 & 동적 CSS 스킨 렌더러 구현
+- [x] [Task 6] JWT 암호화 API 및 어드민 세션 보호 미들웨어 구축 (`app/api/admin/login/route.js`, `middleware.js`)
+- [/] [Task 7] 부서별 관리자(Admin) 대시보드 및 설문조사 확장 기틀 빌드 (`app/kinder/admin/page.tsx` 등)
 
 ### 3단계: 신청서 폼 & 비즈니스 로직 개발 (대기)
 - [ ] 자녀 정보(티셔츠, 알레르기 다중 선택, 워터파크 참석여부) 모델 구현

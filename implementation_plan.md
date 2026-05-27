@@ -24,15 +24,26 @@
     *   **부서별 분리된 입금 및 자가 확인**:
         *   캠프 회비는 전체 합산하지 않고, 자녀가 속한 부서(킨더/키즈/틴즈)별로 해당하는 개별 은행 계좌번호와 함께 각각의 총액을 화면에 분리 노출.
         *   3단계 화면에서 각 입금 안내 항목 옆에 **`[입금 완료]` 스위치/버튼**을 배치하여, 신청서 제출 시 해당 입금 여부 체크 데이터를 Firebase에 함께 전송 (`paidKinder: true`, `paidKids: true`, `paidWaterpark: true` 등).
+        *   **제출 제한 및 안내 문구 강제화**: 3단계 하단에 *"실제 이체 완료 후 각 계좌 옆의 [입금 완료] 버튼을 꼭 눌러주셔야 최종 신청이 완료됩니다"*라는 눈에 띄는 안내 문구를 배치합니다. **실제로 화면에 활성화되어 청구된 모든 계좌의 `[입금 완료]` 버튼을 누르지 않으면 최종 [신청서 제출] 버튼이 활성화되지 않도록 강력한 클라이언트 유효성 검사(Validation)**를 구현합니다. (신청하지 않은 부서의 미활성화 계좌는 제외 처리)
+    *   **부서별 테마 디자인 및 동적 스킨 제어 (Dynamic Theme System)**:
+        *   **기본 부서별 컬러 아이덴티티**:
+            *   **나우킨더** (미취학): 따뜻하고 아기자기한 **노란색(Yellow)** 파스텔 테마.
+            *   **나우키즈** (초등부): 활기차고 역동적인 **파란색(Blue)** 프리미엄 테마.
+            *   **나우틴즈** (중고등부): 세련되고 트렌디한 **초록색(Green)** 네온/다크모드 테마.
+        *   **어드민 동적 스킨 관리자 (SaaS형 테마 엔진)**:
+            *   각 부서별 화면의 메인 색상, 배경 톤, 버튼 디자인 등을 하드코딩하지 않고, **CSS Custom Properties (CSS 변수 - `--primary-color`, `--bg-color` 등)**로 처리합니다.
+            *   테마 설정 데이터는 Firestore `config/themes` 또는 각 부서 설정에 저장되며, Next.js Layout 단에서 이를 실시간으로 로드하여 root 스타일에 동적 바인딩합니다.
+            *   어드민 대시보드 내에 **[스킨/테마 관리] 섹션**을 마련하여, 관리자가 **기본 테마 프리셋(킨더 노랑, 키즈 파랑, 틴즈 초록) 또는 계절별 특화 프리셋(여름 캠프 에디션, 겨울 캠프 에디션)을 선택하거나 직접 메인 HEX 색상 코드를 입력하여 전체 사이트의 스킨을 어드민에서 실시간으로 스위칭**할 수 있는 최고급 확장 기능을 구현합니다.
+    *   **부서별 동적 콘텐츠 관리 시스템 (Dynamic CMS Engine)**:
+        *   **부서별 명칭 이원화**: 나우킨더/나우키즈는 **'여름성경학교'**, 나우틴즈는 **'여름수련회'**로 부서 성격에 맞는 명칭이 헤더, 배너 및 데이터 구조에 동적으로 반영됩니다.
+        *   **Tiptap 리치 텍스트 에디터 도입 (초고품격 UX)**: 각 부서 Admin 페이지(`/kinder/admin` 등) 내에 **[행사/주제 설정] 코너**를 개설하고 Next.js 환경에 최적화된 헤드리스 에디터인 **Tiptap**을 연동합니다.
+        *   **선택 영역(Selection Range) 완벽 보존**: 볼드(Bold), 글자 색상, 밑줄 등 툴바 버튼 클릭 시 **텍스트 선택 영역 포커스가 끊기지 않고 완벽하게 유지**되도록 Tiptap의 내장 엔진을 최적화(툴바 버튼에 `mousedown` `preventDefault()` 적용 등)하여 교사들에게 스트레스 없는 최고급 편집 경험을 제공합니다.
+        *   **동적 비주얼 렌더링**: 어드민에서 편집한 성구 및 주제 텍스트는 퍼블릭 홈페이지 메인 배너/히어로 섹션에 **디코딩된 HTML/Markdown 서식 스타일을 그대로 적용**하여 한 폭의 기획 포스터와 같은 프리미엄 비주얼로 실시간 렌더링됩니다.
 *   **보안 및 트래픽 관리**:
     *   **쿠키 보안 및 암호화**: F12 개발자 도구 유출을 방지하기 위해 **HttpOnly 및 Secure** 쿠키 제어 적용. 세션 정보는 **서버사이드에서 암호화(JWE 또는 AES-GCM) 및 서명된 JWT**를 담고 있어 F12로 보아도 임의의 해석 불가능한 암호화 문자열로만 노출되며, 클라이언트 사이드 JS 스크립트 접근이 완전히 차단됩니다.
     *   **개인정보 수집 및 동의**: 필수 개인정보 제공 동의 체크 적용. 관리 편의성을 위해 어드민에서는 마스킹 처리 없이 전체 데이터의 직관적인 조회 지원.
     *   **중복 제출 방지**: 제출 버튼 Debounce 제어 및 제출 중 로딩 스피너 작동으로 중복 문서 생성 원천 방지.
     *   **Firebase 보안 규칙**: 쓰기 권한은 대중에게 오픈하고, 상세 데이터 형식 검증은 프론트엔드의 빈틈없는 유효성 검사(Validation)에 위임하여 속도와 유연성 확보.
-*   **부서별 테마 디자인**:
-    *   **나우킨더** (미취학): 따뜻하고 아기자기한 파스텔톤 컬러셋
-    *   **나우키즈** (초등부): 활기차고 역동적인 비비드/원색 컬러셋
-    *   **나우틴즈** (중고등부): 감각적이고 트렌디한 다크모드 & 네온 컬러셋
 
 ---
 
@@ -47,88 +58,64 @@
 
 ---
 
-## 3. 상세 구현 계획 및 파일 구조
+## 3. 세부 마이크로 태스크 및 제미나이 CLI 위임 계획
 
-### 3.1. [NEW] 프로젝트 초기화 및 환경 설정
-*   **작업 내용**:
-    *   `npx --yes create-next-app@latest ./` 명령어를 활용하여 workspace에 Next.js 프로젝트 생성.
-    *   옵션: TypeScript 사용, ESLint 사용, Tailwind CSS v4 사용, `src/` 디렉토리 사용 안 함, App Router 사용.
-    *   Firebase SDK 설치 및 초기화 파일 (`lib/firebase.js`) 구성.
-    *   환경 변수 설정 (`.env.local`).
+작업당 컨텍스트 크기를 보존하고 결합도 높은 코드 작성을 위해 단계를 극도로 세분화하고 의존 관계를 명확히 정의합니다.
 
-### 3.2. [NEW] 데이터베이스 모델 및 API 연동
-*   `lib/firebase.js`에서 Firestore DB 초기화.
-*   `applications` 컬렉션 구조 설계:
-    ```typescript
-    interface Application {
-      id: string; // 자동 생성 문서 ID
-      parentName: string;
-      parentPhone: string;
-      depositorName: string; // 입금자명
-      submittedAt: string; // ISO 타임스탬프
-      selfPaymentStatus: {
-        kinder?: boolean;    // 킨더 회비 입금 체크 여부
-        kids?: boolean;      // 키즈 회비 입금 체크 여부
-        teens?: boolean;     // 틴즈 회비 입금 체크 여부
-        waterpark?: boolean; // 워터파크 회비 입금 체크 여부
-      };
-      children: Array<{
-        name: string;
-        birthDate: string;
-        department: 'kinder' | 'kids' | 'teens';
-        tshirtSize: string;
-        allergies: string[];
-        customAllergy?: string;
-        attendsWaterpark: boolean; // 워터풀 선데이 참석 여부
-      }>;
-      status: 'pending' | 'confirmed' | 'cancelled';
-    }
-    ```
+### 🧱 [Task 1] Next.js 초기 프로젝트 구축 및 환경 변수 구성
+*   **의존성**: 없음
+*   **주요 대상 파일**: `package.json`, `.env.local` [NEW], `next.config.js`
+*   **역할 분담**:
+    *   **Antigravity (메인 에이전트)**: `npx --yes create-next-app@latest ./ --ts --eslint --app --src-dir=false --import-alias="@/*"` 스켈레톤 초기 생성 및 의존성 주도.
+    *   **Gemini CLI (로컬 위임)**: `.env.local` 내 Firebase API 키 및 관리자 비밀번호(`NEXT_PUBLIC_ADMIN_PASSWORD`) 환경 변수 파일 템플릿 생성 위임.
 
-### 3.3. [NEW] 향후 부서별 설문조사(Survey) 운영을 위한 데이터 스키마 설계 (확장성 확보)
-당장 전체 화면을 구현하지는 않으나, 어드민에서 언제든 설문조사를 개설하고 수집할 수 있도록 Firestore 구조 설계를 선제적으로 완료합니다.
-*   **`surveys`** (부서별 설문조사 개설 데이터):
-    ```typescript
-    interface Survey {
-      surveyId: string; // 문서 ID
-      department: 'kinder' | 'kids' | 'teens';
-      title: string;
-      description?: string;
-      questions: Array<{
-        questionId: string;
-        type: 'text' | 'single-choice' | 'multi-choice';
-        title: string;
-        options?: string[]; // 선택형 문항일 때의 보기 리스트
-        required: boolean;
-      }>;
-      active: boolean; // 활성화 여부
-      createdAt: string;
-    }
-    ```
-*   **`survey_responses`** (설문조사 응답 수집 데이터):
-    ```typescript
-    interface SurveyResponse {
-      responseId: string;
-      surveyId: string;
-      department: 'kinder' | 'kids' | 'teens';
-      answers: Record<string, any>; // questionId -> 응답값 (String 또는 Array)
-      submittedAt: string;
-    }
-    ```
+### 🔗 [Task 2] Firebase SDK 설치 및 Firestore 커넥터 구현
+*   **의존성**: Task 1
+*   **주요 대상 파일**: `package.json` [MODIFY], `lib/firebase.js` [NEW]
+*   **연관 결합 요인**: Firebase 환경 변수(`.env.local`) 정보를 활용하므로 한 번에 연동 테스트가 되어야 함.
+*   **역할 분담**:
+    *   **Antigravity**: `npm install firebase` 의존성 모듈 설치 실행.
+    *   **Gemini CLI**: 환경 변수를 안전하게 로드하여 Firestore 및 Auth 클라이언트를 싱글톤 패턴으로 초기화하는 `lib/firebase.js` 모듈 코딩 위임.
 
-### 3.4. [NEW] 페이지 및 라우팅 구조 (`app/` 디렉토리)
-*   `app/page.js`: 메인 홈 (**2026 여름 바이블 캠프** 테마)
-*   `app/kinder/page.js` & `app/kinder/admin/page.js` (나우킨더 홈 & 어드민 - *메뉴 내 설문조사 관리(/kinder/admin/surveys) 플레이스홀더 준비*)
-*   `app/kids/page.js` & `app/kids/admin/page.js` (나우키즈 홈 & 어드민 - *메뉴 내 설문조사 관리(/kids/admin/surveys) 플레이스홀더 준비*)
-*   `app/teens/page.js` & `app/teens/admin/page.js` (나우틴즈 홈 & 어드민 - *메뉴 내 설문조사 관리(/teens/admin/surveys) 플레이스홀더 준비*)
-*   `components/ApplicationForm.js`: 다중 자녀 동시 등록이 가능한 공용 신청서 컴포넌트
-*   `components/SurveyFormPlaceholder.js`: 향후 설문조사 확장을 위한 공용 설문조사 플레이스홀더 컴포넌트구축
+### 📝 [Task 3] Tiptap 에디터 모듈 설치 및 공용 리치텍스트 컴포넌트 개발
+*   **의존성**: Task 1, 2
+*   **주요 대상 파일**: `package.json` [MODIFY], `components/RichTextEditor.js` [NEW]
+*   **연관 결합 요인**: Tiptap 패키지 구성요소와 툴바 UX(mousedown 기본 동작 차단을 통한 Selection 유지)가 강력하게 연결됨.
+*   **역할 분담**:
+    *   **Antigravity**: Tiptap 필수 의존성 패키지 (`@tiptap/react`, `@tiptap/starter-kit`) 직접 설치.
+    *   **Gemini CLI**: `components/RichTextEditor.js` 컴포넌트 생성. 툴바 버튼 클릭 시 `event.preventDefault()`를 수동 핸들링하여 텍스트 선택 영역이 F12 포커스 누수로 해제되지 않게 설계하는 Tiptap 에디터 로직 코딩 위임.
 
-### 3.5. [NEW] 부서별 비주얼 디자인 시스템 (Tailwind v4 테마)
-*   `app/globals.css` 및 페이지별 전용 스타일 가이드를 통해 각기 다른 무드 구현:
-    *   **나우킨더**: `bg-pink-50`, `text-pink-600`, 파스텔 라운드 카드
-    *   **나우키즈**: `bg-yellow-50`, `text-blue-600`, 역동적인 비주얼 패턴
-    *   **나우틴즈**: `bg-slate-900`, `text-emerald-400`, 다크 네온 카드 및 세련된 폰트
+### 📋 [Task 4] 공용 3단계 위저드 신청서(Step-by-Step Wizard) 개발
+*   **의존성**: Task 1, 2
+*   **주요 대상 파일**: `components/ApplicationForm.js` [NEW]
+*   **연관 결합 요인**: 다중 자녀 동적 가변 상태, 알레르기 다중 체크, 워터풀 선데이 및 동반 부모비 자동 합산, 각 부서별 고유 계좌 분리 표출, 입금 완료 스위치 필수 체크 로직이 단일 흐름(React Context/State)으로 완전 결합됨.
+*   **역할 분담**:
+    *   **Antigravity**: 신청 정보 폼 데이터 및 유효성 검사 구조 기획.
+    *   **Gemini CLI**: `components/ApplicationForm.js` 코딩 위임. (3단계 자가 입금 스위치가 청구된 부서 개수만큼 활성화 시에만 최종 제출 버튼이 풀리도록 하는 React State 비즈니스 로직 작성)
+
+### 🎨 [Task 5] 메인 홈 및 부서별 특화 페이지 & 동적 CSS 스킨 렌더러 구현
+*   **의존성**: Task 1, 2, 4
+*   **주요 대상 파일**: `app/page.js` [MODIFY], `app/kinder/page.js` [NEW], `app/kids/page.js` [NEW], `app/teens/page.js` [NEW]
+*   **연관 결합 요인**: 각 페이지의 비주얼 컨셉(노랑, 파랑, 초록 네온)과 Firestore 테마/성구 CMS 데이터가 유기적으로 엮여 dynamic CSS 변수로 DOM에 주입됨.
+*   **역할 분담**:
+    *   **Antigravity**: 컬러칩 구조 검토 및 페이지 레이아웃 가이드라인 수립.
+    *   **Gemini CLI**: 홈(`page.js`) 배너 구현, 킨더/키즈/틴즈 부서별 페이지 내 테마 데이터 바인딩 및 동적 스킨 변수 적용 마크업 코딩 위임.
+
+### 🔒 [Task 6] JWT 암호화 API 및 어드민 세션 보호 미들웨어 구축
+*   **의존성**: Task 1, 2
+*   **주요 대상 파일**: `app/api/admin/login/route.js` [NEW], `middleware.js` [NEW]
+*   **연관 결합 요인**: 로그인 시 발급되는 HttpOnly JWT와 미들웨어가 쿠키를 매개로 강하게 결합됨.
+*   **역할 분담**:
+    *   **Antigravity**: AES-GCM 키 생성 및 JWT 만료 주기 암호학 보안 검토.
+    *   **Gemini CLI**: 로그인 라우트 구현(환경 변수 패스워드 대조 후 AES 암호화된 JWT 쿠키 발급) 및 `middleware.js`에서의 JWT 복호화 검증을 통한 특정 어드민 라우트 보호 코드 작성 위임.
+
+### ⚙️ [Task 7] 부서별 관리자(Admin) 대시보드 및 설문조사 확장 기틀 빌드
+*   **의존성**: Task 2, 3, 5, 6
+*   **주요 대상 파일**: `app/kinder/admin/page.js` [NEW], `app/kids/admin/page.js` [NEW], `app/teens/admin/page.js` [NEW], `components/SurveyFormPlaceholder.js` [NEW]
+*   **연관 결합 요인**: Firestore 실시간 수련회 신청 스트리밍 목록, Tiptap 기반 행사 테마 CMS 수정 제어판, 미래 설문조사를 위한 데이터 스키마 준비가 상호 작용함.
+*   **역할 분담**:
+    *   **Antigravity**: 설문조사 확장 영역 스키마 매핑 확인.
+    *   **Gemini CLI**: 대시보드 UI, Tiptap CMS 데이터 수정 전송 기능, 설문조사 플레이스홀더 라우트 준비 위임.
 
 ---
 
