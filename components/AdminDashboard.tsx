@@ -16,12 +16,20 @@ interface Application {
 }
 
 interface PaymentStatus {
-  id: string;
   application_id: string;
   kinder_paid: boolean;
   kids_paid: boolean;
   teens_paid: boolean;
   waterpark_paid: boolean;
+}
+
+interface CustomField {
+  id: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'checkbox';
+  required: boolean;
+  options?: string[];
+  columnIndex: number;
 }
 
 interface AdminDashboardProps {
@@ -75,10 +83,9 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     try {
       setLoading(true);
       setError('');
-      // PostgreSQL API 연동 호출
-      const sqlSortBy = sortField === 'childName' ? 'parent_name' : 'created_at';
-      const sqlSortOrder = sortDirection.toUpperCase();
-      const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}&sortBy=${sqlSortBy}&sortOrder=${sqlSortOrder}`);
+      // 어드민 SQL 페이징 및 정렬 연동 호출
+      const sqlSortField = sortField === 'childName' ? 'parentName' : 'createdAt'; // API 바인딩 호환
+      const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}&sortBy=${sqlSortField}&sortOrder=${sortDirection.toUpperCase()}`);
       if (!res.ok) throw new Error('Fetch failed');
       const { data } = await res.json();
       setApplications(data || []);
@@ -737,7 +744,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                           <button
                             type="button"
                             onClick={() => removeCustomField(field.id)}
-                            className="px-3 py-1.5 bg-red-500 hover:bg-red-650 text-white text-xs font-bold rounded shadow transition cursor-pointer"
+                            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded shadow transition cursor-pointer"
                           >
                             삭제
                           </button>
