@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc, setDoc, getDocs, limit, startAfter, orderBy, deleteDoc } from 'firebase/firestore';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 
@@ -86,33 +86,158 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
     teens: '나우틴즈 (중고등부)',
   };
 
-  // 1. Fetch applications in real-time
-  useEffect(() => {
-    setIsLoading(true);
-    const q = query(
-      collection(db, 'applications')
-    );
+  // 1. Fetch applications 100 at a time (Paging)
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortField, setSortField] = useState<'childName' | 'age' | 'createdAt'>('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allApps = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Application[];
-
-      // Filter applications that have at least one child in the current department
-      const filtered = allApps.filter((app) => 
-        app.children && app.children.some((child) => child.department === department)
+  const fetchApplications = async (isNext = false) => {
+    if (!isNext) {
+      setIsLoading(true);
+    }
+    try {
+      let q = query(
+        collection(db, 'applications'),
+        orderBy('createdAt', 'desc'),
+        limit(100)
       );
 
-      setApplications(filtered);
-      setIsLoading(false);
-    }, (err) => {
+      if (isNext && lastVisible) {
+        q = query(
+          collection(db, 'applications'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisible),
+          limit(100)
+        );
+      }
+
+      const snapshot = await getDocs(q);
+      const fetchedApps = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Application[];
+
+      if (snapshot.docs.length > 0) {
+        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+      }
+      setHasMore(snapshot.docs.length === 100);
+
+      setApplications(prev => isNext ? [...prev, ...fetchedApps] : fetchedApps);
+    } catch (err) {
       console.error("Error fetching applications:", err);
+    } finally {
       setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setLastVisible(null);
+    setHasMore(true);
+    fetchApplications(false);
+  }, [department]);
+
+  const handleDelete = async (appId: string) => {
+    if (!confirm("정말로 이 신청서를 영구 삭제하시겠습니까? 신청 부모와 동반 자녀 정보가 전부 삭제됩니다.")) {
+      return;
+    }
+    try {
+      await deleteDoc(doc(db, 'applications', appId));
+      alert("신청서가 데이터베이스에서 안전하게 삭제되었습니다.");
+      setApplications(prev => prev.filter(app => app.id !== appId));
+    } catch (err) {
+      console.error("Error deleting application:", err);
+      alert("삭제에 실패했습니다. 권한이 없거나 네트워크 문제가 발생했습니다.");
+    }
+  };
+
+  const calculateAge = (birthDate: string) => {
+    if (!birthDate) return 0;
+    try {
+      const birthYear = new Date(birthDate).getFullYear();
+      const currentYear = new Date().getFullYear();
+      return currentYear - birthYear + 1;
+    } catch (e) {
+      return 0;
+    }
+  };
+
+  const processedChildren = useMemo(() => {
+    const rows: Array<{
+      appId: string;
+      parentName: string;
+      parentPhone: string;
+      depositorName: string;
+      childName: string;
+      birthDate: string;
+      age: number;
+      tshirtSize: string;
+      allergies: string[];
+      customAllergy: string;
+      attendsWaterpark: boolean;
+      customValues?: { [key: string]: any };
+      paymentStatus: boolean;
+      createdAt: string;
+      grandTotal: number;
+    }> = [];
+
+    applications.forEach(app => {
+      if (app.children) {
+        app.children.forEach(child => {
+          if (child.department === department) {
+            rows.push({
+              appId: app.id,
+              parentName: app.parentInfo.parentName,
+              parentPhone: app.parentInfo.parentPhone,
+              depositorName: app.parentInfo.depositorName || app.parentInfo.parentName,
+              childName: child.name,
+              birthDate: child.birthDate,
+              age: calculateAge(child.birthDate),
+              tshirtSize: child.tshirtSize,
+              allergies: child.allergies || [],
+              customAllergy: child.customAllergy || '',
+              attendsWaterpark: child.attendsWaterpark || false,
+              customValues: child.customValues,
+              paymentStatus: !!app.paymentStatus[department as keyof typeof app.paymentStatus],
+              createdAt: app.createdAt,
+              grandTotal: app.fees.grandTotal,
+            });
+          }
+        });
+      }
     });
 
-    return () => unsubscribe();
-  }, [department]);
+    // 1. 검색어 필터링
+    let filtered = rows;
+    if (searchQuery.trim()) {
+      const queryStr = searchQuery.toLowerCase().trim();
+      filtered = rows.filter(row => 
+        row.childName.toLowerCase().includes(queryStr) ||
+        row.parentName.toLowerCase().includes(queryStr) ||
+        row.parentPhone.includes(queryStr) ||
+        row.depositorName.toLowerCase().includes(queryStr)
+      );
+    }
+
+    // 2. 정렬
+    filtered.sort((a, b) => {
+      let valA: any = a[sortField];
+      let valB: any = b[sortField];
+
+      if (typeof valA === 'string') {
+        return sortDirection === 'asc' 
+          ? valA.localeCompare(valB, 'ko') 
+          : valB.localeCompare(valA, 'ko');
+      } else {
+        return sortDirection === 'asc' 
+          ? (valA > valB ? 1 : -1) 
+          : (valB > valA ? 1 : -1);
+      }
+    });
+
+    return filtered;
+  }, [applications, department, searchQuery, sortField, sortDirection]);
 
   // 2. Fetch current event CMS configuration
   useEffect(() => {
@@ -281,75 +406,172 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ department }) =>
         {/* Tab Contents */}
         <div className="mt-8">
           {activeTab === 'applications' && (
-            <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
-              {isLoading ? (
-                <div className="p-12 text-center text-gray-400">데이터를 스트리밍하는 중입니다...</div>
-              ) : !applications.length ? (
-                <div className="p-12 text-center text-gray-400">접수된 신청서가 아직 없습니다.</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
-                        <th className="p-4">보호자 / 연락처</th>
-                        <th className="p-4">입금자명</th>
-                        <th className="p-4">신청 자녀 정보 (부서/사이즈/알레르기/워터파크)</th>
-                        <th className="p-4 text-center">총 회비</th>
-                        <th className="p-4 text-center">수납 확인</th>
-                        <th className="p-4">신청일시</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {applications.map((app) => (
-                        <tr key={app.id} className={`${department === 'teens' ? 'hover:bg-slate-800/40 divide-slate-800' : 'hover:bg-gray-50/50 divide-gray-100'}`}>
-                          <td className="p-4 font-medium">
-                            <div>{app.parentInfo.parentName}</div>
-                            <div className="text-xs text-gray-400 mt-1">{app.parentInfo.parentPhone}</div>
-                          </td>
-                          <td className="p-4">{app.parentInfo.depositorName || app.parentInfo.parentName}</td>
-                          <td className="p-4 space-y-2">
-                            {app.children.map((child, idx) => (
-                              <div key={idx} className="p-2 border rounded-lg text-sm bg-gray-50/50">
-                                <strong>{child.name}</strong> ({child.birthDate}) | 티셔츠: {child.tshirtSize || '미선택'} |
-                                <span className="text-red-500 ml-1">
-                                  알러지: {child.allergies.join(',') || '없음'}{child.customAllergy && ` (${child.customAllergy})`}
-                                </span> |
-                                <span className="text-blue-500 ml-1 font-semibold">
-                                  워터풀: {child.attendsWaterpark ? '참가' : '불참'}
-                                </span>
-                                {child.customValues && Object.keys(child.customValues).length > 0 && (
-                                  <div className="mt-2 pt-2 border-t border-dashed border-gray-300 text-xs text-gray-600 dark:text-slate-400 space-y-1">
-                                    <div className="font-semibold text-indigo-600">📌 추가 맞춤 정보:</div>
-                                    {eventConfig.customFields?.map(field => {
-                                      const val = child.customValues?.[field.id];
-                                      if (val === undefined || val === null || val === '') return null;
-                                      return (
-                                        <div key={field.id} className="flex gap-1">
-                                          <span className="font-semibold">{field.label}:</span>
-                                          <span>{String(val)}</span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </td>
-                          <td className="p-4 text-center font-bold text-indigo-600">{app.fees.grandTotal.toLocaleString()}원</td>
-                          <td className="p-4 text-center">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              app.paymentStatus[department as keyof typeof app.paymentStatus]
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {app.paymentStatus[department as keyof typeof app.paymentStatus] ? '자가확인 완료' : '대기'}
-                            </span>
-                          </td>
-                          <td className="p-4 text-xs text-gray-400">{new Date(app.createdAt).toLocaleString()}</td>
+            <div className="space-y-4">
+              {/* 검색 및 정렬 컨트롤러 바 */}
+              <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+                <div className="relative w-full sm:max-w-md">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="아이 이름, 보호자명, 연락처 검색..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-gray-900 shadow-sm"
+                  />
+                </div>
+                <div className="text-sm text-gray-500">
+                  검색 결과: <strong className="text-indigo-600 font-bold">{processedChildren.length}</strong>명
+                </div>
+              </div>
+
+              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+                {isLoading ? (
+                  <div className="p-12 text-center text-gray-400">데이터를 불러오는 중입니다...</div>
+                ) : !processedChildren.length ? (
+                  <div className="p-12 text-center text-gray-400">조건에 부합하는 신청 자녀 정보가 없습니다.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                          <th 
+                            className="p-4 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-slate-850/50 select-none transition"
+                            onClick={() => {
+                              if (sortField === 'childName') {
+                                setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('childName');
+                                setSortDirection('asc');
+                              }
+                            }}
+                          >
+                            자녀 이름 {sortField === 'childName' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                          </th>
+                          <th 
+                            className="p-4 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-slate-850/50 select-none transition"
+                            onClick={() => {
+                              if (sortField === 'age') {
+                                setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('age');
+                                setSortDirection('desc'); // 나이는 역순(나이가 많은 순)이 기본값으로 유용
+                              }
+                            }}
+                          >
+                            연령 (나이) {sortField === 'age' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                          </th>
+                          <th className="p-4">단체티 사이즈</th>
+                          <th className="p-4">알레르기 & 특이사항</th>
+                          <th className="p-4">보호자 정보</th>
+                          <th className="p-4 text-center">수납 / 워터파크</th>
+                          <th 
+                            className="p-4 cursor-pointer hover:bg-gray-100/50 dark:hover:bg-slate-850/50 select-none transition"
+                            onClick={() => {
+                              if (sortField === 'createdAt') {
+                                setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+                              } else {
+                                setSortField('createdAt');
+                                setSortDirection('desc');
+                              }
+                            }}
+                          >
+                            신청일시 {sortField === 'createdAt' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
+                          </th>
+                          <th className="p-4 text-center">작업</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
+                        {processedChildren.map((row, idx) => (
+                          <tr key={`${row.appId}-${idx}`} className={`${department === 'teens' ? 'hover:bg-slate-800/40 divide-slate-800' : 'hover:bg-gray-50/50 divide-gray-100'}`}>
+                            <td className="p-4 font-bold text-base text-indigo-700 dark:text-indigo-400">
+                              {row.childName}
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2.5 py-1 text-xs font-semibold rounded-md bg-slate-100 dark:bg-slate-850 text-gray-800 dark:text-gray-200">
+                                {row.age}세 ({row.birthDate})
+                              </span>
+                            </td>
+                            <td className="p-4 font-medium text-gray-900 dark:text-white">
+                              {row.tshirtSize || '미선택'}
+                            </td>
+                            <td className="p-4 space-y-1">
+                              <div className="text-red-500 font-semibold text-xs">
+                                ⚠️ 알러지: {row.allergies.join(', ') || '없음'}
+                                {row.customAllergy && ` (${row.customAllergy})`}
+                              </div>
+                              {row.customValues && Object.keys(row.customValues).length > 0 && (
+                                <div className="mt-1 pt-1.5 border-t border-dashed border-gray-200 dark:border-slate-800 text-xs text-gray-600 dark:text-slate-400 space-y-0.5">
+                                  <div className="font-semibold text-indigo-600">📌 추가 맞춤 문항 답변:</div>
+                                  {eventConfig.customFields?.map(field => {
+                                    const val = row.customValues?.[field.id];
+                                    if (val === undefined || val === null || val === '') return null;
+                                    return (
+                                      <div key={field.id} className="flex gap-1">
+                                        <span className="font-medium text-gray-500">{field.label}:</span>
+                                        <span>{String(val)}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-4 text-sm">
+                              <div className="font-semibold">{row.parentName}</div>
+                              <div className="text-xs text-gray-400 mt-0.5">{row.parentPhone}</div>
+                              {row.depositorName !== row.parentName && (
+                                <div className="text-xs text-gray-500">입금자: {row.depositorName}</div>
+                              )}
+                            </td>
+                            <td className="p-4 text-center space-y-1.5">
+                              <div>
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                  row.paymentStatus
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                }`}>
+                                  {row.paymentStatus ? '입금 확인' : '대기'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
+                                  row.attendsWaterpark
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                    : 'bg-gray-100 text-gray-500 dark:bg-slate-800 dark:text-gray-400'
+                                }`}>
+                                  워터파크: {row.attendsWaterpark ? '참가' : '미참가'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-4 text-xs text-gray-400">
+                              {new Date(row.createdAt).toLocaleString()}
+                            </td>
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => handleDelete(row.appId)}
+                                className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded shadow transition cursor-pointer"
+                              >
+                                🗑️ 삭제
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 100개 더 보기 버튼 */}
+              {hasMore && !isLoading && (
+                <div className="flex justify-center pt-4">
+                  <button
+                    onClick={() => fetchApplications(true)}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow-md transition cursor-pointer"
+                  >
+                    🔄 신청 목록 100개 더 불러오기
+                  </button>
                 </div>
               )}
             </div>
