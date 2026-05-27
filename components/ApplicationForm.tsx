@@ -87,9 +87,10 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
         const { data } = await res.json();
 
         setConfig(data);
-        setSubDepartments(JSON.parse(data.subDepartments || '[]'));
-        setCustomFields(JSON.parse(data.customFieldMappings || '[]'));
-        setTshirtSizes(JSON.parse(data.tshirtSizes || '[]'));
+        // API가 이미 JSON.parse된 배열을 반환하므로 직접 할당
+        setSubDepartments(Array.isArray(data.subDepartments) ? data.subDepartments : []);
+        setCustomFields(Array.isArray(data.customFieldMappings) ? data.customFieldMappings : []);
+        setTshirtSizes(Array.isArray(data.tshirtSizes) ? data.tshirtSizes : []);
 
         // 요금 로드
         const feesRes = await fetch('/api/fees');

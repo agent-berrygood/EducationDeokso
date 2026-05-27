@@ -58,9 +58,9 @@ export async function GET(request: Request) {
       LEFT JOIN payment_status ps ON a.id = ps.application_id
     `;
 
-    // 부서별 필터
+    // 부서별 필터: 해당 부서 자녀가 있는 신청서만 정확히 반환
     if (department) {
-      sql += ` WHERE ac.department = $1 OR ac.department IS NULL`;
+      sql += ` WHERE ac.department = $1`;
     }
 
     sql += ` GROUP BY a.id, ps.id`;

@@ -84,7 +84,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
       setLoading(true);
       setError('');
       // 어드민 SQL 페이징 및 정렬 연동 호출
-      const sqlSortField = sortField === 'childName' ? 'parentName' : 'createdAt'; // API 바인딩 호환
+      const sqlSortField = sortField === 'childName' ? 'parentName' : 'createdAt'; // API가 'createdAt' 외의 값은 parent_name 정렬로 처리
       const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}&sortBy=${sqlSortField}&sortOrder=${sortDirection.toUpperCase()}`);
       if (!res.ok) throw new Error('Fetch failed');
       const { data } = await res.json();
