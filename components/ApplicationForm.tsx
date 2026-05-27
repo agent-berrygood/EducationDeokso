@@ -1,12 +1,10 @@
-import { useState, useEffect, useMemo, FC } from 'react';
-import { db } from '../lib/firebase'; // Assuming firebase is initialized in this file
-import { doc, getDoc, addDoc, collection } from 'firebase/firestore';
+'use client';
 
-// --- TypeScript Interfaces ---
-interface ParentInfo {
-  parentName: string;
-  parentPhone: string;
-  depositorName: string;
+import { useState, useEffect } from 'react';
+
+interface SubDepartment {
+  id: string;
+  label: string;
 }
 
 interface CustomField {
@@ -15,594 +13,459 @@ interface CustomField {
   type: 'text' | 'textarea' | 'select' | 'checkbox';
   required: boolean;
   options?: string[];
+  columnIndex: number;
 }
 
 interface Child {
   name: string;
   birthDate: string;
-  department: 'kinder' | 'kids' | 'teens' | '';
-  tshirtSize: 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL' | '';
-  allergies: string[];
+  department: string;
+  subDepartment: string;
+  tshirtSize: string;
+  allergies: string;
   customAllergy: string;
   attendsWaterpark: boolean;
-  customValues?: { [key: string]: any };
+  customFields: { [key: string]: any };
 }
 
-interface Fees {
-  kinder: number;
-  kids: number;
-  teens: number;
-  parentWaterpark: number;
-}
-
-interface PaymentChecks {
-  kinder: boolean;
-  kids: boolean;
-  teens: boolean;
-  waterpark: boolean;
-}
-
-// --- Constants ---
 const ALLERGY_OPTIONS = ['계란', '우유', '견과류', '밀', '복숭아', '대두', '갑각류'];
-const DEFAULT_TSHIRT_SIZES = ['S', 'M', 'L', 'XL', '2XL', '3XL'];
-
-const DEPT_NAMES: { [key: string]: string } = {
-  kinder: '나우킨더',
-  kids: '나우키즈',
-  teens: '나우틴즈',
-};
-
-const initialChildState: Child = {
-  name: '',
-  birthDate: '',
-  department: '',
-  tshirtSize: '',
-  allergies: [],
-  customAllergy: '',
-  attendsWaterpark: false,
-  customValues: {},
-};
-
-const FALLBACK_FEES: Fees = {
-  kinder: 10000,
-  kids: 15000,
-  teens: 20000,
-  parentWaterpark: 30000,
-};
-
-const BANK_ACCOUNTS = {
-  kinder: { name: '나우킨더 캠프', account: '신한은행 110-123-456789' },
-  kids: { name: '나우키즈 캠프', account: '국민은행 220-123-456789' },
-  teens: { name: '나우틴즈 캠프', account: '하나은행 330-123-456789' },
-  waterpark: { name: '지금세대 워터파크', account: '우리은행 1002-123-456789' },
-};
-
-// --- Helper Components ---
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-}
-const Input: React.FC<InputProps> = ({ label, ...props }) => (
-  <div>
-    {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
-    <input
-      className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out"
-      {...props}
-    />
-  </div>
-);
-
-interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
-  label: string;
-}
-const Select: React.FC<SelectProps> = ({ label, children, ...props }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-    <select
-      className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out"
-      {...props}
-    >
-      {children}
-    </select>
-  </div>
-);
-
-interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label: string;
-}
-const Checkbox: React.FC<CheckboxProps> = ({ label, ...props }) => (
-  <label className="flex items-center space-x-3">
-    <input
-      type="checkbox"
-      className="h-5 w-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-      {...props}
-    />
-    <span className="text-gray-700">{label}</span>
-  </label>
-);
-
-interface ButtonProps {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger';
-}
-const Button: React.FC<ButtonProps> = ({ children, onClick, disabled = false, variant = 'primary' }) => {
-  const baseClasses = "w-full px-6 py-3 text-base font-semibold rounded-lg shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200";
-  const variants = {
-    primary: 'bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-500',
-    secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400',
-    danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-400',
-  };
-  const disabledClasses = 'disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed';
-
-  return (
-    <button onClick={onClick} disabled={disabled} className={`${baseClasses} ${variants[variant]} ${disabledClasses}`}>
-      {children}
-    </button>
-  );
-};
-
-const StepIndicator: FC<{ currentStep: number }> = ({ currentStep }) => (
-  <div className="flex justify-center items-center space-x-4 mb-12">
-    {[1, 2, 3].map((step) => (
-      <div key={step} className="flex items-center">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-all duration-300 ${currentStep >= step ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-          {step}
-        </div>
-        {step < 3 && <div className={`h-1 w-24 transition-all duration-300 ${currentStep > step ? 'bg-indigo-600' : 'bg-gray-200'}`}></div>}
-      </div>
-    ))}
-  </div>
-);
-
 
 interface ApplicationFormProps {
+  department: string;
   onClose?: () => void;
 }
 
-// --- Main ApplicationForm Component ---
-const ApplicationForm: FC<ApplicationFormProps> = ({ onClose }) => {
-  const [step, setStep] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function ApplicationForm({ department, onClose }: ApplicationFormProps) {
+  const [step, setStep] = useState(1); // 1: 부모, 2: 자녀, 3: 확인
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const [parentInfo, setParentInfo] = useState<ParentInfo>({
+  // 설정
+  const [config, setConfig] = useState<any>(null);
+  const [subDepartments, setSubDepartments] = useState<SubDepartment[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [tshirtSizes, setTshirtSizes] = useState<string[]>([]);
+
+  // 폼 데이터
+  const [parentInfo, setParentInfo] = useState({
     parentName: '',
     parentPhone: '',
-    depositorName: '',
+    depositorName: ''
   });
 
-  const [children, setChildren] = useState<Child[]>([initialChildState]);
-  const [fees, setFees] = useState<Fees>(FALLBACK_FEES);
-  const [deptConfigs, setDeptConfigs] = useState<{ [key: string]: { customFields?: CustomField[]; tshirtSizes?: string[] } }>({});
+  const [children, setChildren] = useState<Child[]>([
+    {
+      name: '',
+      birthDate: '',
+      department,
+      subDepartment: '',
+      tshirtSize: '',
+      allergies: '',
+      customAllergy: '',
+      attendsWaterpark: false,
+      customFields: {}
+    }
+  ]);
 
-  const [paymentChecks, setPaymentChecks] = useState<PaymentChecks>({
-    kinder: false,
-    kids: false,
-    teens: false,
-    waterpark: false,
-  });
+  const [fees, setFees] = useState<any>(null);
+  const [grandTotal, setGrandTotal] = useState(0);
 
+  // 부서 설정 로드
   useEffect(() => {
-    const fetchFeesAndConfigs = async () => {
+    const loadConfig = async () => {
       try {
-        const feeDocRef = doc(db, 'config', 'fees');
-        const feeDocSnap = await getDoc(feeDocRef);
-        if (feeDocSnap.exists()) {
-          setFees(feeDocSnap.data() as Fees);
-        } else {
-          console.warn("Fee document not found, using fallback values.");
-        }
+        setLoading(true);
+        const res = await fetch(`/api/config/${department}`);
+        const { data } = await res.json();
 
-        // Fetch each department's custom fields
-        const depts = ['kinder', 'kids', 'teens'];
-        const configs: typeof deptConfigs = {};
-        for (const dept of depts) {
-          const docRef = doc(db, 'config', `events_${dept}`);
-          const snap = await getDoc(docRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            configs[dept] = {
-              customFields: data.customFields || [],
-              tshirtSizes: data.tshirtSizes || [],
-            };
-          } else {
-            configs[dept] = { customFields: [], tshirtSizes: [] };
-          }
-        }
-        setDeptConfigs(configs);
+        setConfig(data);
+        setSubDepartments(JSON.parse(data.subDepartments || '[]'));
+        setCustomFields(JSON.parse(data.customFieldMappings || '[]'));
+        setTshirtSizes(JSON.parse(data.tshirtSizes || '[]'));
+
+        // 요금 로드
+        const feesRes = await fetch('/api/fees');
+        const { data: feesData } = await feesRes.json();
+        setFees(feesData);
       } catch (err) {
-        console.warn("설정 로드 중 문제 발생, 기본값 사용:", err);
+        setError('설정 로드 실패');
+      } finally {
+        setLoading(false);
       }
     };
-    fetchFeesAndConfigs();
-  }, []);
+    loadConfig();
+  }, [department]);
 
-  const handleParentInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setParentInfo((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleChildChange = (index: number, field: keyof Child, value: any) => {
+  // 자녀 정보 업데이트
+  const updateChild = (index: number, field: string, value: any) => {
     const newChildren = [...children];
-    if (field === 'allergies') {
-      const currentAllergies = newChildren[index].allergies;
-      if (currentAllergies.includes(value)) {
-        newChildren[index].allergies = currentAllergies.filter((a) => a !== value);
-      } else {
-        newChildren[index].allergies.push(value);
-      }
+    if (field.startsWith('custom_')) {
+      newChildren[index].customFields[field] = value;
     } else {
-      newChildren[index] = { ...newChildren[index], [field]: value };
-      // Reset customValues if department changes
-      if (field === 'department') {
-        newChildren[index].customValues = {};
-      }
+      (newChildren[index] as any)[field] = value;
     }
     setChildren(newChildren);
   };
 
-  const handleCustomValueChange = (childIndex: number, fieldId: string, value: any) => {
-    const newChildren = [...children];
-    const currentValues = newChildren[childIndex].customValues || {};
-    newChildren[childIndex] = {
-      ...newChildren[childIndex],
-      customValues: {
-        ...currentValues,
-        [fieldId]: value
-      }
-    };
-    setChildren(newChildren);
-  };
-
+  // 자녀 추가
   const addChild = () => {
-    setChildren([...children, { ...initialChildState }]);
-  };
-
-  const removeChild = (index: number) => {
-    if (children.length > 1) {
-      setChildren(children.filter((_, i) => i !== index));
-    }
-  };
-
-  const nextStep = () => {
-    // 2단계 자녀정보 단계일 경우 동적 커스텀 필드 필수 체크 유효성 검사 수행
-    if (step === 2) {
-      for (let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if (!child.name || !child.birthDate || !child.department || !child.tshirtSize) {
-          alert(`자녀 ${i + 1}의 모든 기본 정보를 올바르게 입력해주세요.`);
-          return;
-        }
-
-        const customFields = deptConfigs[child.department]?.customFields || [];
-        for (const field of customFields) {
-          if (field.required) {
-            const val = child.customValues?.[field.id];
-            if (val === undefined || val === null || val === '' || val === false) {
-              alert(`자녀 ${i + 1}의 추가 질문 [${field.label}]은 필수 항목입니다.`);
-              return;
-            }
-          }
-        }
+    setChildren([
+      ...children,
+      {
+        name: '',
+        birthDate: '',
+        department,
+        subDepartment: '',
+        tshirtSize: '',
+        allergies: '',
+        customAllergy: '',
+        attendsWaterpark: false,
+        customFields: {}
       }
-    }
-    setStep((prev) => prev + 1);
+    ]);
   };
-  const prevStep = () => setStep((prev) => prev - 1);
 
-  const calculatedFees = useMemo(() => {
-    let kinderTotal = 0;
-    let kidsTotal = 0;
-    let teensTotal = 0;
-    let waterparkTotal = 0;
+  // 자녀 제거
+  const removeChild = (index: number) => {
+    setChildren(children.filter((_, i) => i !== index));
+  };
 
+  // 요금 계산
+  useEffect(() => {
+    if (!fees) return;
+    let total = 0;
     children.forEach(child => {
-      if (child.department === 'kinder') kinderTotal += fees.kinder;
-      if (child.department === 'kids') kidsTotal += fees.kids;
-      if (child.department === 'teens') teensTotal += fees.teens;
+      const deptFees: any = {
+        kinder: fees.kinder,
+        kids: fees.kids,
+        teens: fees.teens
+      };
+      total += deptFees[child.department] || 0;
+      if (child.attendsWaterpark) total += fees.parent_waterpark;
     });
-
-    const isWaterparkAttended = children.some(c => c.attendsWaterpark);
-    if (isWaterparkAttended) {
-      waterparkTotal = fees.parentWaterpark;
-    }
-
-    const grandTotal = kinderTotal + kidsTotal + teensTotal + waterparkTotal;
-
-    return { kinderTotal, kidsTotal, teensTotal, waterparkTotal, grandTotal, isWaterparkAttended };
+    setGrandTotal(total);
   }, [children, fees]);
 
-  const handlePaymentCheck = (account: keyof PaymentChecks) => {
-    setPaymentChecks(prev => ({ ...prev, [account]: !prev[account] }));
-  };
-
-  const isSubmitDisabled = useMemo(() => {
-    if (isLoading) return true;
-    const { kinderTotal, kidsTotal, teensTotal, waterparkTotal } = calculatedFees;
-    if (kinderTotal > 0 && !paymentChecks.kinder) return true;
-    if (kidsTotal > 0 && !paymentChecks.kids) return true;
-    if (teensTotal > 0 && !paymentChecks.teens) return true;
-    if (waterparkTotal > 0 && !paymentChecks.waterpark) return true;
-    return false;
-  }, [paymentChecks, calculatedFees, isLoading]);
-
+  // 신청서 제출
   const handleSubmit = async () => {
-    setIsLoading(true);
-    setError(null);
     try {
-      const applicationData = {
-        parentInfo,
-        children,
-        fees: {
-          ...calculatedFees,
-          breakdown: {
-            kinder: calculatedFees.kinderTotal,
-            kids: calculatedFees.kidsTotal,
-            teens: calculatedFees.teensTotal,
-            waterpark: calculatedFees.waterparkTotal,
-          }
-        },
-        totalFee: calculatedFees.grandTotal,
-        paymentStatus: paymentChecks,
-        createdAt: new Date().toISOString(),
-      };
+      setLoading(true);
+      setError('');
 
-      await addDoc(collection(db, 'applications'), applicationData);
-      setStep(4); // Success step
+      // API에 맞춰 데이터 변환
+      const formattedChildren = children.map(child => ({
+        name: child.name,
+        birthDate: child.birthDate,
+        department: child.department,
+        subDepartment: child.subDepartment,
+        tshirtSize: child.tshirtSize,
+        allergies: child.allergies,
+        customAllergy: child.customAllergy,
+        attendsWaterpark: child.attendsWaterpark,
+        custom1: child.customFields.custom_1 || null,
+        custom2: child.customFields.custom_2 || null,
+        custom3: child.customFields.custom_3 || null,
+        custom4: child.customFields.custom_4 || null,
+        custom5: child.customFields.custom_5 || null,
+        custom6: child.customFields.custom_6 || null,
+        custom7: child.customFields.custom_7 || null,
+        custom8: child.customFields.custom_8 || null,
+        custom9: child.customFields.custom_9 || null,
+        custom10: child.customFields.custom_10 || null,
+        custom11: child.customFields.custom_11 || null,
+        custom12: child.customFields.custom_12 || null,
+        custom13: child.customFields.custom_13 || null,
+        custom14: child.customFields.custom_14 || null,
+        custom15: child.customFields.custom_15 || null,
+        custom16: child.customFields.custom_16 || null,
+        custom17: child.customFields.custom_17 || null,
+        custom18: child.customFields.custom_18 || null,
+        custom19: child.customFields.custom_19 || null,
+        custom20: child.customFields.custom_20 || null
+      }));
+
+      const response = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parentName: parentInfo.parentName,
+          parentPhone: parentInfo.parentPhone,
+          depositorName: parentInfo.depositorName,
+          children: formattedChildren,
+          grandTotal
+        })
+      });
+
+      if (response.ok) {
+        alert('✅ 신청이 완료되었습니다!');
+        onClose?.();
+      } else {
+        setError('신청 제출 실패');
+      }
     } catch (err) {
-      console.error("Error submitting application:", err);
-      setError("신청서 제출에 실패했습니다. 다시 시도해주세요.");
+      setError('오류 발생');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const renderStep = () => {
-    switch (step) {
-      case 1: // Parent Info
-        return (
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-center text-gray-800">1. 보호자 정보</h2>
-            <div className="space-y-4">
-              <Input label="보호자 성함" name="parentName" value={parentInfo.parentName} onChange={handleParentInfoChange} placeholder="홍길동" />
-              <Input label="연락처" name="parentPhone" value={parentInfo.parentPhone} onChange={handleParentInfoChange} placeholder="010-1234-5678" type="tel" />
-              <Input label="입금자명" name="depositorName" value={parentInfo.depositorName} onChange={handleParentInfoChange} placeholder="보호자 성함과 동일시 비워두셔도 됩니다" />
-            </div>
-            <Button onClick={nextStep} disabled={!parentInfo.parentName || !parentInfo.parentPhone}>다음</Button>
-          </div>
-        );
-
-      case 2: // Children Info
-        return (
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-center text-gray-800">2. 자녀 정보</h2>
-            {children.map((child, index) => (
-              <div key={index} className="p-6 border border-gray-200 rounded-xl shadow-sm bg-white relative">
-                {children.length > 1 && (
-                  <button onClick={() => removeChild(index)} className="absolute top-4 right-4 text-red-500 hover:text-red-700 font-bold text-2xl">&times;</button>
-                )}
-                <h3 className="text-xl font-semibold mb-4 text-indigo-700">자녀 {index + 1}</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Input label="이름" value={child.name} onChange={(e) => handleChildChange(index, 'name', e.target.value)} placeholder="김열정" />
-                  <Input label="생년월일" value={child.birthDate} onChange={(e) => handleChildChange(index, 'birthDate', e.target.value)} type="date" />
-                  <Select label="소속 부서" value={child.department} onChange={(e) => handleChildChange(index, 'department', e.target.value)}>
-                    <option value="">부서를 선택하세요</option>
-                    <option value="kinder">나우킨더</option>
-                    <option value="kids">나우키즈</option>
-                    <option value="teens">나우틴즈</option>
-                  </Select>
-                  <Select label="단체티 사이즈" value={child.tshirtSize} onChange={(e) => handleChildChange(index, 'tshirtSize', e.target.value)}>
-                    <option value="">사이즈를 선택하세요</option>
-                    {(child.department && deptConfigs[child.department]?.tshirtSizes && deptConfigs[child.department].tshirtSizes!.length > 0
-                      ? deptConfigs[child.department].tshirtSizes!
-                      : DEFAULT_TSHIRT_SIZES
-                    ).map(size => <option key={size} value={size}>{size}</option>)}
-                  </Select>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">알러지 정보 (해당하는 것 모두 선택)</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {ALLERGY_OPTIONS.map(allergy => (
-                        <Checkbox key={allergy} label={allergy} checked={child.allergies.includes(allergy)} onChange={() => handleChildChange(index, 'allergies', allergy)} />
-                      ))}
-                    </div>
-                    <Input type="text" placeholder="기타 알러지 정보를 입력하세요" value={child.customAllergy} onChange={(e) => handleChildChange(index, 'customAllergy', e.target.value)} className="mt-3" />
-                  </div>
-                  <div className="md:col-span-2 bg-blue-50 p-4 rounded-lg">
-                    <Checkbox label="워터파크에 참여합니다." checked={child.attendsWaterpark} onChange={(e) => handleChildChange(index, 'attendsWaterpark', e.target.checked)} />
-                    <p className="text-sm text-blue-700 mt-2 ml-8">워터파크 참여 시 보호자 1인 동반이 필수입니다. (보호자 비용 별도)</p>
-                  </div>
-
-                  {/* --- 동적 맞춤 질문 (Custom Fields) 렌더링 영역 --- */}
-                  {child.department && deptConfigs[child.department]?.customFields && deptConfigs[child.department].customFields!.length > 0 && (
-                    <div className="md:col-span-2 border-t border-gray-200 pt-6 mt-2 space-y-5">
-                      <h4 className="font-bold text-gray-800 text-base flex items-center gap-1.5">
-                        <span>📝</span> {DEPT_NAMES[child.department] || child.department} 추가 맞춤 정보 입력
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {deptConfigs[child.department].customFields!.map((field) => {
-                          const value = child.customValues?.[field.id] || '';
-                          const isRequiredText = field.required ? ' *' : '';
-                          const labelWithRequired = `${field.label}${isRequiredText}`;
-
-                          if (field.type === 'text') {
-                            return (
-                              <Input
-                                key={field.id}
-                                label={labelWithRequired}
-                                value={value}
-                                onChange={(e) => handleCustomValueChange(index, field.id, e.target.value)}
-                                placeholder="답변을 적어주세요"
-                              />
-                            );
-                          }
-
-                          if (field.type === 'textarea') {
-                            return (
-                              <div key={field.id} className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{labelWithRequired}</label>
-                                <textarea
-                                  value={value}
-                                  onChange={(e) => handleCustomValueChange(index, field.id, e.target.value)}
-                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ease-in-out bg-white text-gray-900"
-                                  rows={3}
-                                  placeholder="자세히 적어주세요"
-                                />
-                              </div>
-                            );
-                          }
-
-                          if (field.type === 'select') {
-                            return (
-                              <Select
-                                key={field.id}
-                                label={labelWithRequired}
-                                value={value}
-                                onChange={(e) => handleCustomValueChange(index, field.id, e.target.value)}
-                              >
-                                <option value="">선택해주세요</option>
-                                {field.options?.map((opt) => (
-                                  <option key={opt} value={opt}>{opt}</option>
-                                ))}
-                              </Select>
-                            );
-                          }
-
-                          if (field.type === 'checkbox') {
-                            return (
-                              <div key={field.id} className="md:col-span-2 pt-2">
-                                <Checkbox
-                                  label={labelWithRequired}
-                                  checked={!!value}
-                                  onChange={(e) => handleCustomValueChange(index, field.id, e.target.checked)}
-                                />
-                              </div>
-                            );
-                          }
-
-                          return null;
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            <Button onClick={addChild} variant="secondary">+ 자녀 추가</Button>
-            <div className="flex justify-between space-x-4">
-              <Button onClick={prevStep} variant="secondary">이전</Button>
-              <Button onClick={nextStep}>다음</Button>
-            </div>
-          </div>
-        );
-
-      case 3: // Payment
-        const { kinderTotal, kidsTotal, teensTotal, waterparkTotal, grandTotal } = calculatedFees;
-        return (
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-center text-gray-800">3. 최종 확인 및 결제</h2>
-            <div className="p-6 bg-white rounded-xl shadow-md space-y-4">
-              <h3 className="text-xl font-semibold border-b pb-3 mb-4 text-gray-800">회비 내역</h3>
-              {kinderTotal > 0 && <p className="flex justify-between"><span>나우킨더 회비:</span> <span>{kinderTotal.toLocaleString()}원</span></p>}
-              {kidsTotal > 0 && <p className="flex justify-between"><span>나우키즈 회비:</span> <span>{kidsTotal.toLocaleString()}원</span></p>}
-              {teensTotal > 0 && <p className="flex justify-between"><span>나우틴즈 회비:</span> <span>{teensTotal.toLocaleString()}원</span></p>}
-              {waterparkTotal > 0 && <p className="flex justify-between"><span>워터파크 (보호자):</span> <span>{waterparkTotal.toLocaleString()}원</span></p>}
-              <hr />
-              <p className="flex justify-between text-2xl font-bold text-indigo-600"><span>총 합계:</span> <span>{grandTotal.toLocaleString()}원</span></p>
-            </div>
-
-            <div className="space-y-6">
-              <h3 className="text-xl font-semibold text-center text-gray-800">입금 계좌 안내</h3>
-              <p className="text-center text-gray-600">해당하는 항목의 금액을 아래 계좌로 입금하신 후, 각 항목의 [입금 확인] 버튼을 눌러주세요.</p>
-              
-              {kinderTotal > 0 && (
-                <div className="p-4 border rounded-lg flex justify-between items-center bg-gray-50">
-                  <div>
-                    <p className="font-bold">{BANK_ACCOUNTS.kinder.name} ({kinderTotal.toLocaleString()}원)</p>
-                    <p className="text-sm text-gray-600">{BANK_ACCOUNTS.kinder.account}</p>
-                  </div>
-                  <Checkbox label="입금 완료했어요" checked={paymentChecks.kinder} onChange={() => handlePaymentCheck('kinder')} />
-                </div>
-              )}
-              {kidsTotal > 0 && (
-                <div className="p-4 border rounded-lg flex justify-between items-center bg-gray-50">
-                  <div>
-                    <p className="font-bold">{BANK_ACCOUNTS.kids.name} ({kidsTotal.toLocaleString()}원)</p>
-                    <p className="text-sm text-gray-600">{BANK_ACCOUNTS.kids.account}</p>
-                  </div>
-                  <Checkbox label="입금 완료했어요" checked={paymentChecks.kids} onChange={() => handlePaymentCheck('kids')} />
-                </div>
-              )}
-              {teensTotal > 0 && (
-                <div className="p-4 border rounded-lg flex justify-between items-center bg-gray-50">
-                  <div>
-                    <p className="font-bold">{BANK_ACCOUNTS.teens.name} ({teensTotal.toLocaleString()}원)</p>
-                    <p className="text-sm text-gray-600">{BANK_ACCOUNTS.teens.account}</p>
-                  </div>
-                  <Checkbox label="입금 완료했어요" checked={paymentChecks.teens} onChange={() => handlePaymentCheck('teens')} />
-                </div>
-              )}
-              {waterparkTotal > 0 && (
-                <div className="p-4 border rounded-lg flex justify-between items-center bg-gray-50">
-                  <div>
-                    <p className="font-bold">{BANK_ACCOUNTS.waterpark.name} ({waterparkTotal.toLocaleString()}원)</p>
-                    <p className="text-sm text-gray-600">{BANK_ACCOUNTS.waterpark.account}</p>
-                  </div>
-                  <Checkbox label="입금 완료했어요" checked={paymentChecks.waterpark} onChange={() => handlePaymentCheck('waterpark')} />
-                </div>
-              )}
-            </div>
-
-            {error && <p className="text-red-500 text-center">{error}</p>}
-
-            <div className="flex justify-between space-x-4 pt-4">
-              <Button onClick={prevStep} variant="secondary" disabled={isLoading}>이전</Button>
-              <Button onClick={handleSubmit} disabled={isSubmitDisabled}>
-                {isLoading ? '제출 중...' : '최종 제출'}
-              </Button>
-            </div>
-            {isSubmitDisabled && !isLoading && <p className="text-center text-sm text-red-600 mt-2">모든 해당 항목에 대해 입금 확인을 체크해야 제출이 가능합니다.</p>}
-          </div>
-        );
-
-      case 4: // Success
-        return (
-          <div className="text-center py-20">
-            <svg className="mx-auto h-24 w-24 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <h2 className="mt-6 text-4xl font-extrabold text-gray-900">신청이 완료되었습니다!</h2>
-            <p className="mt-4 text-lg text-gray-600">참여해주셔서 감사합니다. 곧 확인 후 연락드리겠습니다.</p>
-            <div className="mt-10">
-              <Button onClick={() => window.location.reload()}>새로운 신청서 작성</Button>
-            </div>
-          </div>
-        );
-
-      default:
-        return <div>잘못된 단계입니다.</div>;
-    }
-  };
+  if (loading && !config) {
+    return <div className="text-center py-8">로드 중...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 sm:p-6 lg:p-8 relative">
-      {onClose && (
-        <button
-          onClick={onClose}
-          className="absolute top-6 right-6 text-gray-400 hover:text-gray-600 transition-colors text-3xl font-bold cursor-pointer z-50 p-2"
-          aria-label="Close"
-        >
-          ✕
-        </button>
-      )}
-      <div className="max-w-4xl w-full mx-auto">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
-          {step < 4 && <StepIndicator currentStep={step} />}
-          {renderStep()}
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
+      {/* Step 1: 부모 정보 */}
+      {step === 1 && (
+        <div>
+          <h2 className="text-2xl font-bold mb-6">부모 정보</h2>
+          <div className="space-y-4">
+            <input
+              type="text"
+              placeholder="부모 이름"
+              value={parentInfo.parentName}
+              onChange={(e) => setParentInfo({ ...parentInfo, parentName: e.target.value })}
+              className="w-full px-4 py-2 border rounded-lg"
+            />
+            <input
+              type="tel"
+              placeholder="부모 연락처"
+              value={parentInfo.parentPhone}
+              onChange={(e) => setParentInfo({ ...parentInfo, parentPhone: e.target.value })}
+              className="w-full px-4 py-2 border rounded-lg"
+            />
+            <input
+              type="text"
+              placeholder="입금자 이름"
+              value={parentInfo.depositorName}
+              onChange={(e) => setParentInfo({ ...parentInfo, depositorName: e.target.value })}
+              className="w-full px-4 py-2 border rounded-lg"
+            />
+          </div>
+          <button
+            onClick={() => setStep(2)}
+            className="mt-6 w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+          >
+            다음
+          </button>
         </div>
-      </div>
+      )}
+
+      {/* Step 2: 자녀 정보 */}
+      {step === 2 && (
+        <div>
+          <h2 className="text-2xl font-bold mb-6">자녀 정보</h2>
+          {children.map((child, idx) => (
+            <div key={idx} className="border-b pb-6 mb-6">
+              <h3 className="text-lg font-semibold mb-4">자녀 {idx + 1}</h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* 이름 */}
+                <input
+                  type="text"
+                  placeholder="이름"
+                  value={child.name}
+                  onChange={(e) => updateChild(idx, 'name', e.target.value)}
+                  className="px-4 py-2 border rounded-lg"
+                />
+
+                {/* 생년월일 */}
+                <input
+                  type="date"
+                  value={child.birthDate}
+                  onChange={(e) => updateChild(idx, 'birthDate', e.target.value)}
+                  className="px-4 py-2 border rounded-lg"
+                />
+
+                {/* 하위 부서 */}
+                <select
+                  value={child.subDepartment}
+                  onChange={(e) => updateChild(idx, 'subDepartment', e.target.value)}
+                  className="px-4 py-2 border rounded-lg"
+                >
+                  <option value="">하위 부서 선택</option>
+                  {subDepartments.map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.label}
+                    </option>
+                  ))}
+                </select>
+
+                {/* 셔츠 사이즈 */}
+                <select
+                  value={child.tshirtSize}
+                  onChange={(e) => updateChild(idx, 'tshirtSize', e.target.value)}
+                  className="px-4 py-2 border rounded-lg"
+                >
+                  <option value="">셔츠 사이즈</option>
+                  {tshirtSizes.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 알러지 */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium mb-2">알러지</label>
+                <div className="flex flex-wrap gap-2">
+                  {ALLERGY_OPTIONS.map((allergy) => (
+                    <label key={allergy} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={child.allergies.includes(allergy)}
+                        onChange={(e) => {
+                          const allergies = child.allergies.split(',').filter(Boolean);
+                          if (e.target.checked) {
+                            allergies.push(allergy);
+                          } else {
+                            allergies.splice(allergies.indexOf(allergy), 1);
+                          }
+                          updateChild(idx, 'allergies', allergies.join(','));
+                        }}
+                        className="mr-2"
+                      />
+                      {allergy}
+                    </label>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  placeholder="기타 알러지"
+                  value={child.customAllergy}
+                  onChange={(e) => updateChild(idx, 'customAllergy', e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg mt-2"
+                />
+              </div>
+
+              {/* 물놀이 참석 */}
+              <label className="mt-4 flex items-center">
+                <input
+                  type="checkbox"
+                  checked={child.attendsWaterpark}
+                  onChange={(e) => updateChild(idx, 'attendsWaterpark', e.target.checked)}
+                  className="mr-2"
+                />
+                물놀이 참석 (추가 {fees?.parent_waterpark || 30000}원)
+              </label>
+
+              {/* 커스텀 필드 */}
+              {customFields.map((field) => (
+                <div key={field.id} className="mt-4">
+                  <label className="block text-sm font-medium mb-2">
+                    {field.label} {field.required && '*'}
+                  </label>
+                  {field.type === 'text' && (
+                    <input
+                      type="text"
+                      value={child.customFields[`custom_${field.columnIndex}`] || ''}
+                      onChange={(e) =>
+                        updateChild(idx, `custom_${field.columnIndex}`, e.target.value)
+                      }
+                      className="w-full px-4 py-2 border rounded-lg"
+                    />
+                  )}
+                  {field.type === 'textarea' && (
+                    <textarea
+                      value={child.customFields[`custom_${field.columnIndex}`] || ''}
+                      onChange={(e) =>
+                        updateChild(idx, `custom_${field.columnIndex}`, e.target.value)
+                      }
+                      className="w-full px-4 py-2 border rounded-lg"
+                    />
+                  )}
+                  {field.type === 'select' && (
+                    <select
+                      value={child.customFields[`custom_${field.columnIndex}`] || ''}
+                      onChange={(e) =>
+                        updateChild(idx, `custom_${field.columnIndex}`, e.target.value)
+                      }
+                      className="w-full px-4 py-2 border rounded-lg"
+                    >
+                      <option value="">선택</option>
+                      {field.options?.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+
+              {/* 자녀 제거 버튼 */}
+              {children.length > 1 && (
+                <button
+                  onClick={() => removeChild(idx)}
+                  className="mt-4 text-red-500 hover:text-red-700"
+                >
+                  이 자녀 제거
+                </button>
+              )}
+            </div>
+          ))}
+
+          <button
+            onClick={addChild}
+            className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 mb-4"
+          >
+            자녀 추가
+          </button>
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => setStep(1)}
+              className="flex-1 bg-gray-400 text-white py-2 rounded-lg hover:bg-gray-500"
+            >
+              이전
+            </button>
+            <button
+              onClick={() => setStep(3)}
+              className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600"
+            >
+              다음
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: 확인 */}
+      {step === 3 && (
+        <div>
+          <h2 className="text-2xl font-bold mb-6">신청 확인</h2>
+          <div className="bg-gray-50 p-4 rounded-lg mb-6">
+            <p>
+              <strong>부모:</strong> {parentInfo.parentName} ({parentInfo.parentPhone})
+            </p>
+            <p>
+              <strong>입금자:</strong> {parentInfo.depositorName}
+            </p>
+            <p className="mt-2">
+              <strong>자녀 {children.length}명</strong>
+            </p>
+            <p className="text-2xl font-bold text-red-600 mt-4">합계: {grandTotal.toLocaleString()}원</p>
+          </div>
+
+          {error && <div className="text-red-600 mb-4">{error}</div>}
+
+          <div className="flex gap-4">
+            <button
+              onClick={() => setStep(2)}
+              className="flex-1 bg-gray-400 text-white py-2 rounded-lg hover:bg-gray-500"
+            >
+              이전
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {loading ? '제출 중...' : '신청 완료'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default ApplicationForm;
+}
