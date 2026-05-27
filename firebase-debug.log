@@ -1,0 +1,34 @@
+[debug] [2026-05-27T07:27:34.647Z] ----------------------------------------------------------------------
+[debug] [2026-05-27T07:27:34.650Z] Command:       C:\nvm4w\nodejs\node.exe C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js dataconnect:sql:diff
+[debug] [2026-05-27T07:27:34.651Z] CLI Version:   15.0.0
+[debug] [2026-05-27T07:27:34.651Z] Platform:      win32
+[debug] [2026-05-27T07:27:34.651Z] Node Version:  v20.19.3
+[debug] [2026-05-27T07:27:34.651Z] Time:          Wed May 27 2026 16:27:34 GMT+0900 (대한민국 표준시)
+[debug] [2026-05-27T07:27:34.651Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-27T07:27:35.245Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-27T07:27:35.246Z] > authorizing via signed-in user (berryberry1120@gmail.com)
+[debug] [2026-05-27T07:27:35.246Z] [iam] checking project educationdeokso for permissions ["firebase.projects.get","firebasedataconnect.schemas.list","firebasedataconnect.schemas.update","firebasedataconnect.services.list"]
+[debug] [2026-05-27T07:27:35.247Z] Checked if tokens are valid: true, expires at: 1779869970300
+[debug] [2026-05-27T07:27:35.247Z] Checked if tokens are valid: true, expires at: 1779869970300
+[debug] [2026-05-27T07:27:35.248Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/educationdeokso:testIamPermissions [none]
+[debug] [2026-05-27T07:27:35.248Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/educationdeokso:testIamPermissions x-goog-quota-user=projects/educationdeokso
+[debug] [2026-05-27T07:27:35.248Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/educationdeokso:testIamPermissions {"permissions":["firebase.projects.get","firebasedataconnect.schemas.list","firebasedataconnect.schemas.update","firebasedataconnect.services.list"]}
+[debug] [2026-05-27T07:27:35.545Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/educationdeokso:testIamPermissions 200
+[debug] [2026-05-27T07:27:35.545Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/educationdeokso:testIamPermissions {"permissions":["firebase.projects.get","firebasedataconnect.schemas.list","firebasedataconnect.schemas.update","firebasedataconnect.services.list"]}
+[debug] [2026-05-27T07:27:35.545Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-27T07:27:35.546Z] > authorizing via signed-in user (berryberry1120@gmail.com)
+[info] i  dataconnect: ensuring required API firebasedataconnect.googleapis.com is enabled... 
+[info] i  dataconnect: ensuring required API sqladmin.googleapis.com is enabled... 
+[debug] [2026-05-27T07:27:35.823Z] TypeError: Cannot read properties of undefined (reading 'instanceId')
+    at toDatasource (C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\dataconnect\types.js:16:113)
+    at C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\dataconnect\load.js:51:52
+    at async Promise.all (index 0)
+    at async load (C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\dataconnect\load.js:46:21)
+    at async Promise.all (index 0)
+    at async loadAll (C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\dataconnect\load.js:38:12)
+    at async pickServices (C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\dataconnect\load.js:22:26)
+    at async pickOneService (C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\dataconnect\load.js:13:22)
+    at async Command.actionFn (C:\Users\Administrator\AppData\Roaming\npm\node_modules\firebase-tools\lib\commands\dataconnect-sql-diff.js:26:25)
+[error] 
+[error] Error: An unexpected error has occurred.

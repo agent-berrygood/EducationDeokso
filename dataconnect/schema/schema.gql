@@ -1,0 +1,142 @@
+# ============================================================
+# Firebase SQL Connect Schema - Neon PostgreSQL
+# 높은뜻덕소교회 지금세대교육부 신청 시스템
+# ============================================================
+
+# ----------------------------------------------------------
+# 1. 요금 설정 (글로벌)
+# ----------------------------------------------------------
+type FeesConfig @table(name: "fees_config") {
+  id: UUID! @col(name: "id")
+  kinder: Float! @col(name: "kinder") @default(expr: "10000")
+  kids: Float! @col(name: "kids") @default(expr: "15000")
+  teens: Float! @col(name: "teens") @default(expr: "20000")
+  parentWaterpark: Float! @col(name: "parent_waterpark") @default(expr: "30000")
+  updatedAt: DateTime! @col(name: "updated_at") @default(expr: "now()")
+}
+
+# ----------------------------------------------------------
+# 2. 이벤트 설정 (부서별)
+# ----------------------------------------------------------
+type EventConfig @table(name: "event_configs") {
+  id: UUID! @col(name: "id")
+  department: String! @col(name: "department")
+  title: String! @col(name: "title")
+  eventType: String! @col(name: "event_type")
+  subtitle: String @col(name: "subtitle")
+  scripture: String @col(name: "scripture")
+  primaryColor: String @col(name: "primary_color")
+  bgColor: String @col(name: "bg_color")
+
+  # JSON 필드들
+  subDepartments: String! @col(name: "sub_departments") @default(expr: "'[]'")
+  events: String! @col(name: "events") @default(expr: "'[]'")
+  tshirtSizes: String! @col(name: "tshirt_sizes") @default(expr: "'[\"S\",\"M\",\"L\",\"XL\",\"2XL\",\"3XL\"]'")
+  customFieldMappings: String! @col(name: "custom_field_mappings") @default(expr: "'[]'")
+
+  createdAt: DateTime! @col(name: "created_at") @default(expr: "now()")
+  updatedAt: DateTime! @col(name: "updated_at") @default(expr: "now()")
+}
+
+# ----------------------------------------------------------
+# 3. 신청서 (부모 정보)
+# ----------------------------------------------------------
+type Application @table(name: "applications") {
+  id: UUID! @col(name: "id")
+  parentName: String! @col(name: "parent_name")
+  parentPhone: String! @col(name: "parent_phone")
+  depositorName: String! @col(name: "depositor_name")
+  grandTotal: Float! @col(name: "grand_total") @default(expr: "0")
+  createdAt: DateTime! @col(name: "created_at") @default(expr: "now()")
+  updatedAt: DateTime! @col(name: "updated_at") @default(expr: "now()")
+
+  # 역참조: 해당 신청서의 모든 자녀
+  children: [ApplicationChild!]!
+  paymentStatus: PaymentStatus
+}
+
+# ----------------------------------------------------------
+# 4. 자녀 정보
+# ----------------------------------------------------------
+type ApplicationChild @table(name: "application_children") {
+  id: UUID! @col(name: "id")
+
+  # 부모 신청서 참조 (자동 FK: application_id)
+  application: Application! @col(name: "application_id")
+
+  name: String! @col(name: "name")
+  birthDate: String! @col(name: "birth_date")
+  department: String! @col(name: "department")
+  subDepartment: String! @col(name: "sub_department")
+  tshirtSize: String @col(name: "tshirt_size")
+  allergies: String @col(name: "allergies")
+  customAllergy: String @col(name: "custom_allergy")
+  attendsWaterpark: Boolean! @col(name: "attends_waterpark") @default(expr: "false")
+
+  # 동적 커스텀 필드 (최대 20개)
+  custom1: String @col(name: "custom_1")
+  custom2: String @col(name: "custom_2")
+  custom3: String @col(name: "custom_3")
+  custom4: String @col(name: "custom_4")
+  custom5: String @col(name: "custom_5")
+  custom6: String @col(name: "custom_6")
+  custom7: String @col(name: "custom_7")
+  custom8: String @col(name: "custom_8")
+  custom9: String @col(name: "custom_9")
+  custom10: String @col(name: "custom_10")
+  custom11: String @col(name: "custom_11")
+  custom12: String @col(name: "custom_12")
+  custom13: String @col(name: "custom_13")
+  custom14: String @col(name: "custom_14")
+  custom15: String @col(name: "custom_15")
+  custom16: String @col(name: "custom_16")
+  custom17: String @col(name: "custom_17")
+  custom18: String @col(name: "custom_18")
+  custom19: String @col(name: "custom_19")
+  custom20: String @col(name: "custom_20")
+
+  createdAt: DateTime! @col(name: "created_at") @default(expr: "now()")
+  updatedAt: DateTime! @col(name: "updated_at") @default(expr: "now()")
+
+  # 역참조: 해당 자녀의 모든 행사 참석 현황
+  eventAttendances: [EventAttendance!]!
+}
+
+# ----------------------------------------------------------
+# 5. 행사 참석 현황
+# ----------------------------------------------------------
+type EventAttendance @table(name: "event_attendance") {
+  id: UUID! @col(name: "id")
+
+  # 자녀 참조 (자동 FK: child_id)
+  child: ApplicationChild! @col(name: "child_id")
+
+  eventId: String! @col(name: "event_id")
+  eventTitle: String! @col(name: "event_title")
+  attendanceType: String! @col(name: "attendance_type") # "full", "partial", "absent"
+
+  # JSON: 부분 참석 날짜들
+  partialDates: String @col(name: "partial_dates")
+  notes: String @col(name: "notes")
+
+  createdAt: DateTime! @col(name: "created_at") @default(expr: "now()")
+  updatedAt: DateTime! @col(name: "updated_at") @default(expr: "now()")
+}
+
+# ----------------------------------------------------------
+# 6. 결제 상태
+# ----------------------------------------------------------
+type PaymentStatus @table(name: "payment_status") {
+  id: UUID! @col(name: "id")
+
+  # 신청서 참조 (자동 FK: application_id)
+  application: Application! @col(name: "application_id")
+
+  kinderPaid: Boolean! @col(name: "kinder_paid") @default(expr: "false")
+  kidsPaid: Boolean! @col(name: "kids_paid") @default(expr: "false")
+  teensPaid: Boolean! @col(name: "teens_paid") @default(expr: "false")
+  waterparkPaid: Boolean! @col(name: "waterpark_paid") @default(expr: "false")
+
+  createdAt: DateTime! @col(name: "created_at") @default(expr: "now()")
+  updatedAt: DateTime! @col(name: "updated_at") @default(expr: "now()")
+}

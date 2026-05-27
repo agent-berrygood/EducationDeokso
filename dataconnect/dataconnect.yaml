@@ -1,0 +1,11 @@
+specVersion: "v1beta"
+serviceId: "educationdeokso-service"
+location: "asia-northeast3"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "neondb"
+      envVar: "DATABASE_URL"
+connectorDirs:
+  - "./connector"

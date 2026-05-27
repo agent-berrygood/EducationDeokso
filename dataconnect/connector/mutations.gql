@@ -1,0 +1,250 @@
+# ============================================================
+# Mutations
+# ============================================================
+
+# 신청서 생성 (부모 + 자녀들 한번에)
+mutation CreateApplication(
+  $parentName: String!
+  $parentPhone: String!
+  $depositorName: String!
+  $grandTotal: Float!
+) @auth(level: PUBLIC) {
+  application_insert(data: {
+    parentName: $parentName
+    parentPhone: $parentPhone
+    depositorName: $depositorName
+    grandTotal: $grandTotal
+  }) {
+    id
+    parentName
+    parentPhone
+    depositorName
+    grandTotal
+    createdAt
+  }
+}
+
+# 자녀 정보 추가 (신청서 생성 후 호출)
+mutation AddChild(
+  $applicationId: UUID!
+  $name: String!
+  $birthDate: String!
+  $department: String!
+  $subDepartment: String!
+  $tshirtSize: String
+  $allergies: String
+  $customAllergy: String
+  $attendsWaterpark: Boolean!
+  $custom1: String
+  $custom2: String
+  $custom3: String
+  $custom4: String
+  $custom5: String
+  $custom6: String
+  $custom7: String
+  $custom8: String
+  $custom9: String
+  $custom10: String
+  $custom11: String
+  $custom12: String
+  $custom13: String
+  $custom14: String
+  $custom15: String
+  $custom16: String
+  $custom17: String
+  $custom18: String
+  $custom19: String
+  $custom20: String
+) @auth(level: PUBLIC) {
+  applicationChild_insert(data: {
+    applicationId: $applicationId
+    name: $name
+    birthDate: $birthDate
+    department: $department
+    subDepartment: $subDepartment
+    tshirtSize: $tshirtSize
+    allergies: $allergies
+    customAllergy: $customAllergy
+    attendsWaterpark: $attendsWaterpark
+    custom1: $custom1
+    custom2: $custom2
+    custom3: $custom3
+    custom4: $custom4
+    custom5: $custom5
+    custom6: $custom6
+    custom7: $custom7
+    custom8: $custom8
+    custom9: $custom9
+    custom10: $custom10
+    custom11: $custom11
+    custom12: $custom12
+    custom13: $custom13
+    custom14: $custom14
+    custom15: $custom15
+    custom16: $custom16
+    custom17: $custom17
+    custom18: $custom18
+    custom19: $custom19
+    custom20: $custom20
+  }) {
+    id
+    name
+    department
+    subDepartment
+  }
+}
+
+# 결제 상태 생성 (신청서 생성 후 호출)
+mutation CreatePaymentStatus(
+  $applicationId: UUID!
+) @auth(level: PUBLIC) {
+  paymentStatus_insert(data: {
+    applicationId: $applicationId
+    kinderPaid: false
+    kidsPaid: false
+    teensPaid: false
+    waterparkPaid: false
+  }) {
+    id
+    applicationId
+  }
+}
+
+# 행사 참석 현황 추가
+mutation AddEventAttendance(
+  $childId: UUID!
+  $eventId: String!
+  $eventTitle: String!
+  $attendanceType: String!
+  $partialDates: String
+  $notes: String
+) @auth(level: PUBLIC) {
+  eventAttendance_insert(data: {
+    childId: $childId
+    eventId: $eventId
+    eventTitle: $eventTitle
+    attendanceType: $attendanceType
+    partialDates: $partialDates
+    notes: $notes
+  }) {
+    id
+    eventId
+    attendanceType
+  }
+}
+
+# 행사 참석 현황 수정 (관리자)
+mutation UpdateEventAttendance(
+  $id: UUID!
+  $attendanceType: String!
+  $partialDates: String
+  $notes: String
+) @auth(level: PUBLIC) {
+  eventAttendance_update(
+    id: $id
+    data: {
+      attendanceType: $attendanceType
+      partialDates: $partialDates
+      notes: $notes
+    }
+  ) {
+    id
+    attendanceType
+    partialDates
+  }
+}
+
+# 신청서 삭제 (Cascade → 자녀, 결제상태, 참석현황 자동 삭제)
+mutation DeleteApplication($id: UUID!) @auth(level: PUBLIC) {
+  application_delete(id: $id) {
+    id
+  }
+}
+
+# 결제 상태 업데이트 (관리자)
+mutation UpdatePaymentStatus(
+  $id: UUID!
+  $kinderPaid: Boolean
+  $kidsPaid: Boolean
+  $teensPaid: Boolean
+  $waterparkPaid: Boolean
+) @auth(level: PUBLIC) {
+  paymentStatus_update(
+    id: $id
+    data: {
+      kinderPaid: $kinderPaid
+      kidsPaid: $kidsPaid
+      teensPaid: $teensPaid
+      waterparkPaid: $waterparkPaid
+    }
+  ) {
+    id
+    kinderPaid
+    kidsPaid
+    teensPaid
+    waterparkPaid
+  }
+}
+
+# 이벤트 설정 업데이트 (관리자)
+mutation UpdateEventConfig(
+  $id: UUID!
+  $title: String
+  $subtitle: String
+  $scripture: String
+  $primaryColor: String
+  $bgColor: String
+  $subDepartments: String
+  $events: String
+  $tshirtSizes: String
+  $customFieldMappings: String
+) @auth(level: PUBLIC) {
+  eventConfig_update(
+    id: $id
+    data: {
+      title: $title
+      subtitle: $subtitle
+      scripture: $scripture
+      primaryColor: $primaryColor
+      bgColor: $bgColor
+      subDepartments: $subDepartments
+      events: $events
+      tshirtSizes: $tshirtSizes
+      customFieldMappings: $customFieldMappings
+    }
+  ) {
+    id
+    department
+    title
+    subDepartments
+    events
+    tshirtSizes
+    customFieldMappings
+    updatedAt
+  }
+}
+
+# 요금 설정 업데이트 (관리자)
+mutation UpdateFeesConfig(
+  $id: UUID!
+  $kinder: Float
+  $kids: Float
+  $teens: Float
+  $parentWaterpark: Float
+) @auth(level: PUBLIC) {
+  feesConfig_update(
+    id: $id
+    data: {
+      kinder: $kinder
+      kids: $kids
+      teens: $teens
+      parentWaterpark: $parentWaterpark
+    }
+  ) {
+    id
+    kinder
+    kids
+    teens
+    parentWaterpark
+  }
+}

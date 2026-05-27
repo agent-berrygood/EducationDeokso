@@ -1,0 +1,175 @@
+# ============================================================
+# Queries
+# ============================================================
+
+# 부서 설정 조회
+query GetEventConfig($department: String!) @auth(level: PUBLIC) {
+  eventConfigs(where: { department: { eq: $department } }, limit: 1) {
+    id
+    department
+    title
+    eventType
+    subtitle
+    scripture
+    primaryColor
+    bgColor
+    subDepartments
+    events
+    tshirtSizes
+    customFieldMappings
+    updatedAt
+  }
+}
+
+# 모든 부서 설정 조회 (메인페이지용)
+query GetAllEventConfigs @auth(level: PUBLIC) {
+  eventConfigs {
+    id
+    department
+    title
+    eventType
+    subtitle
+    scripture
+    primaryColor
+    bgColor
+    subDepartments
+    events
+    tshirtSizes
+    customFieldMappings
+  }
+}
+
+# 요금 설정 조회
+query GetFeesConfig @auth(level: PUBLIC) {
+  feesConfigs(limit: 1) {
+    id
+    kinder
+    kids
+    teens
+    parentWaterpark
+  }
+}
+
+# 신청 목록 조회 (부서별, 페이징, 정렬)
+query GetApplications(
+  $department: String
+  $limit: Int
+  $offset: Int
+) @auth(level: PUBLIC) {
+  applications(
+    limit: $limit
+    offset: $offset
+    orderBy: [{ createdAt: DESC }]
+  ) {
+    id
+    parentName
+    parentPhone
+    depositorName
+    grandTotal
+    createdAt
+    applicationChildren(where: { department: { eq: $department } }) {
+      id
+      name
+      birthDate
+      department
+      subDepartment
+      tshirtSize
+      allergies
+      customAllergy
+      attendsWaterpark
+      custom1
+      custom2
+      custom3
+      custom4
+      custom5
+      custom6
+      custom7
+      custom8
+      custom9
+      custom10
+      custom11
+      custom12
+      custom13
+      custom14
+      custom15
+      custom16
+      custom17
+      custom18
+      custom19
+      custom20
+      eventAttendances {
+        id
+        eventId
+        eventTitle
+        attendanceType
+        partialDates
+        notes
+      }
+    }
+    paymentStatuses {
+      id
+      kinderPaid
+      kidsPaid
+      teensPaid
+      waterparkPaid
+    }
+  }
+}
+
+# 단일 신청서 조회
+query GetApplication($id: UUID!) @auth(level: PUBLIC) {
+  application(id: $id) {
+    id
+    parentName
+    parentPhone
+    depositorName
+    grandTotal
+    createdAt
+    applicationChildren {
+      id
+      name
+      birthDate
+      department
+      subDepartment
+      tshirtSize
+      allergies
+      customAllergy
+      attendsWaterpark
+      custom1
+      custom2
+      custom3
+      custom4
+      custom5
+      custom6
+      custom7
+      custom8
+      custom9
+      custom10
+      custom11
+      custom12
+      custom13
+      custom14
+      custom15
+      custom16
+      custom17
+      custom18
+      custom19
+      custom20
+      eventAttendances {
+        id
+        eventId
+        eventTitle
+        attendanceType
+        partialDates
+        notes
+      }
+    }
+    paymentStatuses {
+      id
+      kinderPaid
+      kidsPaid
+      teensPaid
+      waterparkPaid
+    }
+  }
+}

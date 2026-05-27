@@ -1,0 +1,6 @@
+connectorId: "educationdeokso-connector"
+authMode: PUBLIC
+generate:
+  javascriptSdk:
+    outputDir: "../../lib/dataconnect"
+    package: "@education-deokso/dataconnect"
