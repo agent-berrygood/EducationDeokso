@@ -1,5 +1,17 @@
 import { queryOne, query } from '@/lib/db';
 
+function safeParse(val: any) {
+  if (!val) return [];
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val);
+    } catch (e) {
+      return [];
+    }
+  }
+  return val;
+}
+
 /**
  * GET /api/config/[dept]
  * 부서별 설정 조회 (title, colors, custom fields, 셔츠 사이즈, 행사 등)
@@ -34,11 +46,11 @@ export async function GET(
         camp_start_date: config.camp_start_date || null,
         campType: config.camp_type || 'continuous',
         campDuration: Number(config.camp_duration || 3),
-        subDepartments: JSON.parse(config.sub_departments || '[]'),
-        events: JSON.parse(config.events || '[]'),
-        tshirtSizes: JSON.parse(config.tshirt_sizes || '[]'),
-        customFieldMappings: JSON.parse(config.custom_field_mappings || '[]'),
-        campSchedule: JSON.parse(config.camp_schedule || '[]')
+        subDepartments: safeParse(config.sub_departments),
+        events: safeParse(config.events),
+        tshirtSizes: safeParse(config.tshirt_sizes),
+        customFieldMappings: safeParse(config.custom_field_mappings),
+        campSchedule: safeParse(config.camp_schedule)
       }
     });
   } catch (error) {
