@@ -241,7 +241,7 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
         custom17: child.customFields.custom_17 || null,
         custom18: child.customFields.custom_18 || null,
         custom19: child.customFields.custom_19 || null,
-        custom20: child.customFields.custom_20 || null
+        custom20: child.customFields.custom_gender || null
       }));
 
       const response = await fetch('/api/applications', {
@@ -348,6 +348,18 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
                     </div>
                   )}
                 </div>
+
+                {/* 성별 선택 */}
+                <select
+                  value={child.customFields.custom_gender || ''}
+                  onChange={(e) => updateChild(idx, 'custom_gender', e.target.value)}
+                  className="px-4 py-2 border rounded-lg"
+                  required
+                >
+                  <option value="">성별 선택 *</option>
+                  <option value="남">남성</option>
+                  <option value="여">여성</option>
+                </select>
 
                 {/* 하위 부서 */}
                 <select

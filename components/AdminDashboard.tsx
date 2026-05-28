@@ -562,6 +562,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                           >
                             연령 (나이) {sortField === 'age' ? (sortDirection === 'asc' ? '▲' : '▼') : '↕'}
                           </th>
+                          <th className="p-4">성별</th>
                           <th className="p-4">단체티 사이즈</th>
                           <th className="p-4">알레르기 및 기타 특이사항</th>
                           <th className="p-4">보호자 / 연락처</th>
@@ -592,6 +593,9 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                               <span className="px-2.5 py-1 font-semibold rounded bg-slate-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200">
                                 {row.age}세 ({row.birthDate})
                               </span>
+                            </td>
+                            <td className="p-4 text-sm font-semibold">
+                              {row.originalChild?.custom20 || row.originalChild?.custom_20 || '-'}
                             </td>
                             <td className="p-4 font-semibold text-gray-900 dark:text-white">
                               {row.tshirtSize || '미선택'}
