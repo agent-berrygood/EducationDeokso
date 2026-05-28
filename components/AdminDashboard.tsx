@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
+import type { FeesConfig } from '@/lib/types';
 
 interface Application {
   id: string;
@@ -44,6 +45,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [applications, setApplications] = useState<Application[]>([]);
   const [paymentStatuses, setPaymentStatuses] = useState<Record<string, PaymentStatus>>({});
   const [config, setConfig] = useState<any>(null);
+  const [fees, setFees] = useState<FeesConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
@@ -162,7 +164,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   };
 
   useEffect(() => {
-    if (activeTab === 'applications') {
+    if (activeTab === 'applications' || activeTab === 'payment') {
       loadApplications();
     } else if (activeTab === 'settings') {
       loadConfig();
@@ -170,10 +172,23 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   }, [activeTab, offset, department, sortField, sortDirection]);
 
   useEffect(() => {
-    if (activeTab === 'applications' && applications.length > 0) {
+    if ((activeTab === 'applications' || activeTab === 'payment') && applications.length > 0) {
       loadPaymentStatuses();
     }
   }, [applications, activeTab]);
+
+  // 글로벌 요금 정보 로드 (수납 모니터에서 사용)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/fees');
+        const json = await res.json();
+        if (json.success) setFees(json.data);
+      } catch {
+        /* noop */
+      }
+    })();
+  }, []);
 
   const deleteApplication = async (id: string) => {
     if (!confirm('정말 이 신청 정보 및 동반 자녀 데이터를 삭제하시겠습니까? 관련 데이터가 영구히 제거됩니다.')) return;
@@ -1059,95 +1074,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
           {/* 3. Payment Status Tab */}
           {activeTab === 'payment' && (
-            <div className="space-y-4">
-              <h3 className="text-xl font-bold">💳 실시간 수납 및 입금자 확인 모니터</h3>
-              <p className="text-sm text-gray-500">신청서에서 부모님이 자가 체크한 입금 상태를 대조하고 교사 확인 상태로 직접 토글합니다.</p>
-              
-              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
-                        <th className="p-4">보호자명</th>
-                        <th className="p-4">연락처</th>
-                        <th className="p-4">입금자명</th>
-                        <th className="p-4 text-center">나우킨더 회비</th>
-                        <th className="p-4 text-center">나우키즈 회비</th>
-                        <th className="p-4 text-center">나우틴즈 회비</th>
-                        <th className="p-4 text-center">워터파크 비용</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
-                      {applications.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-12 text-center text-gray-400">수납 확인 대상 신청 정보가 존재하지 않습니다.</td>
-                        </tr>
-                      ) : (
-                        applications.map((app) => {
-                          const payment = paymentStatuses[app.id] || {
-                            kinder_paid: false,
-                            kids_paid: false,
-                            teens_paid: false,
-                            waterpark_paid: false
-                          };
-                          return (
-                            <tr key={app.id} className={`${department === 'teens' ? 'hover:bg-slate-800/40' : 'hover:bg-gray-50/50'}`}>
-                              <td className="p-4 font-bold">{app.parent_name}</td>
-                              <td className="p-4 text-gray-400 text-xs">{app.parent_phone}</td>
-                              <td className="p-4 text-indigo-700 font-semibold dark:text-indigo-400">{app.depositor_name || app.parent_name}</td>
-                              <td className="p-4 text-center">
-                                <label className="inline-flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={payment.kinder_paid || false}
-                                    onChange={(e) => updatePaymentStatus(app.id, 'kinder_paid', e.target.checked)}
-                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                                  />
-                                  <span className="text-xs">수납</span>
-                                </label>
-                              </td>
-                              <td className="p-4 text-center">
-                                <label className="inline-flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={payment.kids_paid || false}
-                                    onChange={(e) => updatePaymentStatus(app.id, 'kids_paid', e.target.checked)}
-                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                                  />
-                                  <span className="text-xs">수납</span>
-                                </label>
-                              </td>
-                              <td className="p-4 text-center">
-                                <label className="inline-flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={payment.teens_paid || false}
-                                    onChange={(e) => updatePaymentStatus(app.id, 'teens_paid', e.target.checked)}
-                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                                  />
-                                  <span className="text-xs">수납</span>
-                                </label>
-                              </td>
-                              <td className="p-4 text-center">
-                                <label className="inline-flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={payment.waterpark_paid || false}
-                                    onChange={(e) => updatePaymentStatus(app.id, 'waterpark_paid', e.target.checked)}
-                                    className="h-4.5 w-4.5 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500"
-                                  />
-                                  <span className="text-xs">수납</span>
-                                </label>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+            <PaymentMonitor
+              department={department}
+              applications={applications}
+              paymentStatuses={paymentStatuses}
+              fees={fees}
+              updatePaymentStatus={updatePaymentStatus}
+            />
           )}
 
           {/* 4. Surveys Tab */}
@@ -1158,5 +1091,253 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         </div>
       </div>
     </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────
+// 수납 확인 모니터 (자녀수 × 회비 + 부서별 체크박스)
+// ────────────────────────────────────────────────────────────
+interface PaymentMonitorProps {
+  department: string;
+  applications: Application[];
+  paymentStatuses: Record<string, PaymentStatus>;
+  fees: FeesConfig | null;
+  updatePaymentStatus: (applicationId: string, field: string, value: boolean) => void | Promise<void>;
+}
+
+interface PaymentRow {
+  appId: string;
+  parentName: string;
+  parentPhone: string;
+  depositorName: string;
+  counts: { kinder: number; kids: number; teens: number };
+  waterparkChildren: number;
+  waterfallParentsCount: number;
+  childNames: string[];
+}
+
+function PaymentMonitor({
+  department, applications, paymentStatuses, fees, updatePaymentStatus,
+}: PaymentMonitorProps) {
+  const rows: PaymentRow[] = useMemo(() => {
+    return applications.map((app: any) => {
+      const counts = { kinder: 0, kids: 0, teens: 0 };
+      let waterparkChildren = 0;
+      const childNames: string[] = [];
+
+      if (Array.isArray(app.children)) {
+        app.children.forEach((c: any) => {
+          const dep = (c?.department || '') as 'kinder' | 'kids' | 'teens';
+          if (dep === 'kinder' || dep === 'kids' || dep === 'teens') {
+            counts[dep] += 1;
+          }
+          if (c?.attendsWaterpark ?? c?.attends_waterpark) waterparkChildren += 1;
+          if (c?.name) childNames.push(c.name);
+        });
+      }
+
+      const wfRaw = app.waterfall_parents;
+      const wfArr = Array.isArray(wfRaw)
+        ? wfRaw
+        : (typeof wfRaw === 'string' && wfRaw.trim().startsWith('[')
+            ? (() => { try { return JSON.parse(wfRaw); } catch { return []; } })()
+            : []);
+
+      return {
+        appId: app.id,
+        parentName: app.parent_name,
+        parentPhone: app.parent_phone,
+        depositorName: app.depositor_name || app.parent_name,
+        counts,
+        waterparkChildren,
+        waterfallParentsCount: Array.isArray(wfArr) ? wfArr.length : 0,
+        childNames,
+      };
+    });
+  }, [applications]);
+
+  const kinderUnit = Number(fees?.kinder || 0);
+  const kidsUnit = Number(fees?.kids || 0);
+  const teensUnit = Number(fees?.teens || 0);
+  const childWaterUnit = Number(fees?.child_waterpark || 0);
+  const parentWaterUnit = Number(fees?.parent_waterpark || 0);
+
+  // 합계 (현재 보이는 모든 행)
+  const totals = useMemo(() => {
+    let kinderTotal = 0, kidsTotal = 0, teensTotal = 0, waterparkTotal = 0;
+    let paidKinder = 0, paidKids = 0, paidTeens = 0, paidWater = 0;
+    rows.forEach((r) => {
+      const p = paymentStatuses[r.appId];
+      const kAmount = r.counts.kinder * kinderUnit;
+      const kdAmount = r.counts.kids * kidsUnit;
+      const tAmount = r.counts.teens * teensUnit;
+      const wAmount = r.waterparkChildren * childWaterUnit
+                    + (r.waterparkChildren > 0 ? r.waterfallParentsCount * parentWaterUnit : 0);
+      kinderTotal += kAmount;
+      kidsTotal += kdAmount;
+      teensTotal += tAmount;
+      waterparkTotal += wAmount;
+      if (p?.kinder_paid && r.counts.kinder > 0) paidKinder += kAmount;
+      if (p?.kids_paid && r.counts.kids > 0) paidKids += kdAmount;
+      if (p?.teens_paid && r.counts.teens > 0) paidTeens += tAmount;
+      if (p?.waterpark_paid && r.waterparkChildren > 0) paidWater += wAmount;
+    });
+    return {
+      kinderTotal, kidsTotal, teensTotal, waterparkTotal,
+      paidKinder, paidKids, paidTeens, paidWater,
+      grandTotal: kinderTotal + kidsTotal + teensTotal + waterparkTotal,
+      grandPaid: paidKinder + paidKids + paidTeens + paidWater,
+    };
+  }, [rows, paymentStatuses, kinderUnit, kidsUnit, teensUnit, childWaterUnit, parentWaterUnit]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
+        <div>
+          <h3 className="text-xl font-bold">💳 실시간 수납 및 입금자 확인 모니터</h3>
+          <p className="text-sm text-gray-500">
+            각 신청 건의 자녀 부서별 회비(자녀수 × 단가)와 워터풀선데이 비용을 표시합니다. 해당 항목이 있는 행만 체크 가능합니다.
+          </p>
+        </div>
+        <div className="text-right text-xs text-gray-500">
+          <div>전체 청구: <strong className="text-slate-800 dark:text-slate-200">{totals.grandTotal.toLocaleString()}원</strong></div>
+          <div>수납 완료: <strong className="text-emerald-600">{totals.grandPaid.toLocaleString()}원</strong></div>
+          <div>잔여: <strong className="text-red-600">{(totals.grandTotal - totals.grandPaid).toLocaleString()}원</strong></div>
+        </div>
+      </div>
+
+      <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
+                <th className="p-4">보호자명</th>
+                <th className="p-4">연락처</th>
+                <th className="p-4">입금자명</th>
+                <th className="p-4 text-center">나우킨더 회비<br /><span className="text-[10px] text-gray-400">@{kinderUnit.toLocaleString()}원</span></th>
+                <th className="p-4 text-center">나우키즈 회비<br /><span className="text-[10px] text-gray-400">@{kidsUnit.toLocaleString()}원</span></th>
+                <th className="p-4 text-center">나우틴즈 회비<br /><span className="text-[10px] text-gray-400">@{teensUnit.toLocaleString()}원</span></th>
+                <th className="p-4 text-center">워터풀선데이<br /><span className="text-[10px] text-gray-400">자녀 @{childWaterUnit.toLocaleString()} · 부모 @{parentWaterUnit.toLocaleString()}</span></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-12 text-center text-gray-400">수납 확인 대상 신청 정보가 존재하지 않습니다.</td>
+                </tr>
+              ) : (
+                rows.map((row) => {
+                  const payment = paymentStatuses[row.appId] || {
+                    kinder_paid: false, kids_paid: false, teens_paid: false, waterpark_paid: false,
+                  };
+                  return (
+                    <tr key={row.appId} className={`${department === 'teens' ? 'hover:bg-slate-800/40' : 'hover:bg-gray-50/50'}`}>
+                      <td className="p-4">
+                        <div className="font-bold">{row.parentName}</div>
+                        <div className="text-[11px] text-gray-400 mt-0.5">{row.childNames.join(', ')}</div>
+                      </td>
+                      <td className="p-4 text-gray-400 text-xs">{row.parentPhone}</td>
+                      <td className="p-4 text-indigo-700 font-semibold dark:text-indigo-400">{row.depositorName}</td>
+
+                      <PaymentCell
+                        count={row.counts.kinder}
+                        amount={row.counts.kinder * kinderUnit}
+                        paid={!!payment.kinder_paid}
+                        onToggle={(v) => updatePaymentStatus(row.appId, 'kinder_paid', v)}
+                      />
+                      <PaymentCell
+                        count={row.counts.kids}
+                        amount={row.counts.kids * kidsUnit}
+                        paid={!!payment.kids_paid}
+                        onToggle={(v) => updatePaymentStatus(row.appId, 'kids_paid', v)}
+                      />
+                      <PaymentCell
+                        count={row.counts.teens}
+                        amount={row.counts.teens * teensUnit}
+                        paid={!!payment.teens_paid}
+                        onToggle={(v) => updatePaymentStatus(row.appId, 'teens_paid', v)}
+                      />
+                      <PaymentCell
+                        count={row.waterparkChildren}
+                        amount={
+                          row.waterparkChildren * childWaterUnit
+                          + (row.waterparkChildren > 0 ? row.waterfallParentsCount * parentWaterUnit : 0)
+                        }
+                        paid={!!payment.waterpark_paid}
+                        onToggle={(v) => updatePaymentStatus(row.appId, 'waterpark_paid', v)}
+                        breakdown={
+                          row.waterparkChildren > 0
+                            ? `자녀 ${row.waterparkChildren} + 부모 ${row.waterfallParentsCount}`
+                            : undefined
+                        }
+                      />
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+            {rows.length > 0 && (
+              <tfoot>
+                <tr className={`font-bold text-xs ${department === 'teens' ? 'bg-slate-950/70 border-t border-slate-800' : 'bg-gray-50 border-t'}`}>
+                  <td colSpan={3} className="p-4 text-right text-gray-500 uppercase tracking-wide">합계 (수납 / 청구)</td>
+                  <TotalCell paid={totals.paidKinder} total={totals.kinderTotal} />
+                  <TotalCell paid={totals.paidKids} total={totals.kidsTotal} />
+                  <TotalCell paid={totals.paidTeens} total={totals.teensTotal} />
+                  <TotalCell paid={totals.paidWater} total={totals.waterparkTotal} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 부서별 셀: 해당 부서에 자녀가 없으면 비활성("-"), 있으면 자녀수 × 회비 + 체크박스
+function PaymentCell({
+  count, amount, paid, onToggle, breakdown,
+}: {
+  count: number;
+  amount: number;
+  paid: boolean;
+  onToggle: (next: boolean) => void;
+  breakdown?: string;
+}) {
+  if (count === 0) {
+    return <td className="p-4 text-center text-gray-300">—</td>;
+  }
+  return (
+    <td className={`p-4 text-center ${paid ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''}`}>
+      <div className="font-bold text-slate-800 dark:text-slate-100">{amount.toLocaleString()}원</div>
+      <div className="text-[10px] text-gray-500 mt-0.5">
+        {breakdown ? breakdown : `자녀 ${count}명`}
+      </div>
+      <label className="inline-flex items-center gap-2 cursor-pointer mt-2">
+        <input
+          type="checkbox"
+          checked={paid}
+          onChange={(e) => onToggle(e.target.checked)}
+          className="h-4 w-4 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500"
+        />
+        <span className={`text-xs font-semibold ${paid ? 'text-emerald-600' : 'text-gray-400'}`}>
+          {paid ? '✓ 수납' : '미수납'}
+        </span>
+      </label>
+    </td>
+  );
+}
+
+function TotalCell({ paid, total }: { paid: number; total: number }) {
+  if (total === 0) return <td className="p-4 text-center text-gray-300">—</td>;
+  const remaining = total - paid;
+  return (
+    <td className="p-4 text-center">
+      <div className="text-emerald-600 font-bold">{paid.toLocaleString()}</div>
+      <div className="text-[10px] text-gray-400">/ {total.toLocaleString()}원</div>
+      {remaining > 0 && (
+        <div className="text-[10px] text-red-600 mt-0.5">잔여 {remaining.toLocaleString()}</div>
+      )}
+    </td>
   );
 }
