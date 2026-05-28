@@ -1063,6 +1063,32 @@ function Step3({
   const showWaterparkAccount = breakdown.attendingChildren > 0;
   const waterparkSubtotal = breakdown.childWaterparkTotal + breakdown.parentWaterparkTotal;
 
+  // 송금 완료 상태 ─ 각 항목(부서별 + 워터풀)이 입금되었는지 사용자가 직접 체크
+  const transferKeys: string[] = useMemo(() => {
+    const keys: string[] = usedDepartments.map((d) => `dept:${d}`);
+    if (showWaterparkAccount) keys.push('waterpark');
+    return keys;
+  }, [usedDepartments, showWaterparkAccount]);
+  const [transferred, setTransferred] = useState<Record<string, boolean>>({});
+
+  // 입금 항목 구성이 바뀌면(부서 변경 등) 기존 체크 상태 정리
+  useEffect(() => {
+    setTransferred((prev) => {
+      const next: Record<string, boolean> = {};
+      for (const k of transferKeys) next[k] = prev[k] ?? false;
+      return next;
+    });
+  }, [transferKeys.join('|')]);
+
+  const transferredCount = transferKeys.filter((k) => transferred[k]).length;
+  const totalCount = transferKeys.length;
+  const allTransferred = totalCount > 0 && transferredCount === totalCount;
+  const canSubmit = allTransferred && !submitting;
+
+  function toggleTransferred(key: string) {
+    setTransferred((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
   return (
     <div className="space-y-6">
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
@@ -1149,42 +1175,52 @@ function Step3({
             const acc = deptAccount(fees, d);
             const count = deptCount(breakdown, d);
             const subtotal = deptTotal(breakdown, d);
+            const key = `dept:${d}`;
+            const isPaid = !!transferred[key];
             return (
-              <div key={d} className="bg-white rounded-lg p-4 border flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                  <p className="text-xs text-slate-500">{DEPT_META[d].label} 회비 입금 계좌</p>
-                  <p className="font-semibold text-slate-900 mt-1">
-                    {acc || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
-                  </p>
-                </div>
-                <div className="text-right md:min-w-[160px]">
-                  <p className="text-[10px] text-slate-400">입금 금액 ({count}명)</p>
-                  <p className="text-xl font-extrabold text-cyan-600">
-                    {subtotal.toLocaleString()}원
-                  </p>
-                </div>
-              </div>
+              <TransferCard
+                key={d}
+                title={`${DEPT_META[d].label} 회비 입금 계좌`}
+                account={acc}
+                amount={subtotal}
+                meta={`${count}명`}
+                paid={isPaid}
+                onTogglePaid={() => toggleTransferred(key)}
+              />
             );
           })}
 
           {showWaterparkAccount && (
-            <div className="bg-white rounded-lg p-4 border flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div>
-                <p className="text-xs text-slate-500">워터풀선데이 입장료 입금 계좌</p>
-                <p className="font-semibold text-slate-900 mt-1">
-                  {waterparkAccount || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  자녀 {breakdown.attendingChildren}명 + 보호자 {draft.waterfallParents.length}명
-                </p>
-              </div>
-              <div className="text-right md:min-w-[160px]">
-                <p className="text-[10px] text-slate-400">입금 금액</p>
-                <p className="text-xl font-extrabold text-cyan-600">
-                  {waterparkSubtotal.toLocaleString()}원
-                </p>
-              </div>
+            <TransferCard
+              title="워터풀선데이 입장료 입금 계좌"
+              account={waterparkAccount}
+              amount={waterparkSubtotal}
+              meta={`자녀 ${breakdown.attendingChildren}명 + 보호자 ${draft.waterfallParents.length}명`}
+              paid={!!transferred['waterpark']}
+              onTogglePaid={() => toggleTransferred('waterpark')}
+            />
+          )}
+        </div>
+
+        {/* 입금 진행률 안내 */}
+        <div className="mt-4 p-3 rounded-lg bg-white border text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-600">
+              {allTransferred
+                ? '✅ 모든 항목 송금 완료'
+                : `입금 완료 항목 ${transferredCount} / ${totalCount}`}
+            </span>
+            <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-emerald-500 transition-all"
+                style={{ width: totalCount > 0 ? `${(transferredCount / totalCount) * 100}%` : '0%' }}
+              />
             </div>
+          </div>
+          {!allTransferred && (
+            <p className="text-xs text-amber-600 mt-2">
+              ⚠ 모든 항목을 송금하신 후 각 카드의 <strong>"송금 완료"</strong> 버튼을 눌러주셔야 신청을 제출할 수 있습니다.
+            </p>
           )}
         </div>
       </section>
@@ -1201,12 +1237,61 @@ function Step3({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={submitting}
-          className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg shadow-md transition-colors disabled:bg-slate-400"
+          disabled={!canSubmit}
+          title={!allTransferred ? '모든 송금 완료 버튼을 눌러주세요.' : ''}
+          className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg shadow-md transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
-          {submitting ? '제출 중...' : '신청 완료'}
+          {submitting ? '제출 중...' : allTransferred ? '신청 완료' : '송금 완료 후 신청 가능'}
         </button>
       </div>
+    </div>
+  );
+}
+
+// ─── 입금 카드 (송금 완료 버튼 포함) ───
+function TransferCard({
+  title, account, amount, meta, paid, onTogglePaid,
+}: {
+  title: string;
+  account: string | null;
+  amount: number;
+  meta?: string;
+  paid: boolean;
+  onTogglePaid: () => void;
+}) {
+  const accountReady = !!account;
+  return (
+    <div className={`rounded-lg p-4 border-2 transition-colors ${
+      paid ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'
+    }`}>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex-1">
+          <p className="text-xs text-slate-500">{title}</p>
+          <p className="font-semibold text-slate-900 mt-1">
+            {account || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
+          </p>
+          {meta && <p className="text-[11px] text-slate-400 mt-1">{meta}</p>}
+        </div>
+        <div className="text-right md:min-w-[140px]">
+          <p className="text-[10px] text-slate-400">입금 금액</p>
+          <p className="text-xl font-extrabold text-cyan-600">
+            {amount.toLocaleString()}원
+          </p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={onTogglePaid}
+        disabled={!accountReady}
+        className={`mt-3 w-full py-2.5 rounded-lg font-bold text-sm transition-colors ${
+          paid
+            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow'
+            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
+        } ${!accountReady ? 'opacity-50 cursor-not-allowed' : ''}`}
+      >
+        {paid ? '✓ 송금 완료 (취소하려면 클릭)' : '💸 송금 완료 버튼'}
+      </button>
     </div>
   );
 }

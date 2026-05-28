@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 import type { FeesConfig } from '@/lib/types';
+import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
 
 interface Application {
   id: string;
@@ -664,7 +665,10 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                               </span>
                             </td>
                             <td className="p-4 text-sm font-semibold">
-                              {row.originalChild?.custom20 || row.originalChild?.custom_20 || '-'}
+                              {genderLabel(row.originalChild?.gender)
+                                || row.originalChild?.custom20
+                                || row.originalChild?.custom_20
+                                || '-'}
                             </td>
                             <td className="p-4 font-semibold text-gray-900 dark:text-white">
                               {row.tshirtSize || '미선택'}

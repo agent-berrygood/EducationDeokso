@@ -7,6 +7,7 @@ import {
   deriveDayCount,
   isSessionKey,
 } from '@/lib/session-grid';
+import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
 
 async function ensureSchema() {
   await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
@@ -27,9 +28,9 @@ export async function GET(request: Request) {
       return Response.json({ success: false, error: 'department 필수' }, { status: 400 });
     }
 
-    // 부서 설정 조회 (커스텀 필드 + camp_schedule + camp_duration)
+    // 부서 설정 조회 (커스텀 필드 + camp_schedule + sub_departments)
     const config = await queryOne(
-      `SELECT custom_field_mappings, camp_schedule, camp_duration
+      `SELECT custom_field_mappings, camp_schedule, camp_duration, sub_departments
          FROM event_configs WHERE department = $1`,
       [department]
     );
@@ -42,6 +43,8 @@ export async function GET(request: Request) {
 
     const customFields = safeParse(config?.custom_field_mappings);
     const campSchedule = safeParse(config?.camp_schedule);
+    const subDepartments = safeParse(config?.sub_departments);
+    const subDeptMap = buildSubDeptMap(subDepartments);
     const dayCount = deriveDayCount(campSchedule, config?.camp_duration);
 
     // 신청 + 자녀 데이터 조회 (attended_sessions 포함)
@@ -82,11 +85,11 @@ export async function GET(request: Request) {
         r.depositor_name ?? '',
         r.name ?? '',
         r.birth_date ?? '',
-        r.gender ?? '',
-        r.sub_department ?? '',
+        genderLabel(r.gender),
+        subDepartmentLabel(r.sub_department, subDeptMap),
         r.tshirt_size ?? '',
         r.allergies ?? '',
-        r.attends_waterpark ? 'Y' : 'N',
+        r.attends_waterpark ? '참석' : '불참',
         ...customFields.map((f: any) => r[`custom_${f.columnIndex}`] ?? ''),
         [
           r.kinder_paid ? '✓킨더' : '',
@@ -120,7 +123,12 @@ export async function GET(request: Request) {
         : safeParse(sessionsRaw);
       const sessionSet = new Set(sessions.filter(isSessionKey));
 
-      const dataRow: any[] = [r.name ?? '', r.parent_name ?? '', r.parent_phone ?? '', r.sub_department ?? ''];
+      const dataRow: any[] = [
+        r.name ?? '',
+        r.parent_name ?? '',
+        r.parent_phone ?? '',
+        subDepartmentLabel(r.sub_department, subDeptMap),
+      ];
       let attendCount = 0;
       for (let d = 1; d <= dayCount; d++) {
         for (const slot of SLOTS) {
