@@ -12,6 +12,7 @@ import type {
 } from '@/lib/types';
 import { suggestDepartment } from '@/lib/age-to-department';
 import { applicationSubmitSchema } from '@/lib/schemas';
+import SessionGridPicker from '@/components/SessionGridPicker';
 
 const DRAFT_KEY = 'apply_draft_v1';
 const RELATIONS: WaterfallRelation[] = ['부', '모', '조부', '조모', '기타'];
@@ -33,6 +34,7 @@ interface ChildDraft {
   allergies: string;
   customAllergy: string;
   attendsWaterpark: boolean;
+  attendedSessions: string[];
   customFields: Record<string, string>;
 }
 
@@ -66,6 +68,7 @@ function makeEmptyChild(): ChildDraft {
     allergies: '',
     customAllergy: '',
     attendsWaterpark: false,
+    attendedSessions: [],
     customFields: {},
   };
 }
@@ -269,6 +272,7 @@ export default function ApplyWizard() {
             allergies: c.allergies || undefined,
             customAllergy: c.customAllergy || undefined,
             attendsWaterpark: c.attendsWaterpark,
+            attendedSessions: c.attendedSessions,
             ...customs,
           };
         }),
@@ -675,6 +679,7 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
             onChange={(e) => patchChild(child.uid, {
               department: e.target.value as DepartmentId,
               subDepartment: '',
+              attendedSessions: [], // 부서 변경 시 시간표가 달라지므로 세션 리셋
             })}
             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
           >
@@ -782,6 +787,18 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
           </span>
         </label>
       </div>
+
+      {/* 부분 참석 세션 그리드 */}
+      {activeConfig && (
+        <div className="px-6 pb-6 border-t pt-6">
+          <SessionGridPicker
+            value={child.attendedSessions}
+            onChange={(next) => patchChild(child.uid, { attendedSessions: next })}
+            schedule={activeConfig.camp_schedule as any[]}
+            campDuration={activeConfig.camp_duration}
+          />
+        </div>
+      )}
 
       {/* 커스텀 필드 */}
       {activeConfig && activeConfig.customFieldMappings?.length > 0 && (

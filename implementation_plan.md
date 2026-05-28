@@ -211,54 +211,70 @@
 각 단계는 이전 단계 완료를 전제로 합니다. 단계마다 `npx tsc --noEmit && npm run build` 통과를 게이트로 둡니다.
 
 ### Phase 1 — 인프라 정비 (Foundation)
-- [ ] `lib/db.ts` 한글 인코딩 복구
-- [ ] Neon Branch 백업 생성 (`pre-overhaul-2026-05-28`)
-- [ ] `schema_migrations` 테이블 도입 및 마이그레이션 러너 작성
-- [ ] `lib/types.ts` 공용 타입 통합
-- [ ] zod 의존성 추가 및 공용 스키마 작성 (`lib/schemas.ts`)
+- [x] `lib/db.ts` 한글 인코딩 복구 *(마이그레이션 v4로 운영 데이터까지 자동 복구)*
+- [ ] Neon Branch 백업 생성 (`pre-overhaul-2026-05-28`) *(운영자가 수동 실행)*
+- [x] `schema_migrations` 테이블 도입 및 마이그레이션 러너 작성
+- [x] `lib/types.ts` 공용 타입 통합
+- [x] zod 의존성 추가 및 공용 스키마 작성 (`lib/schemas.ts`)
 
 ### Phase 2 — 백엔드 변경 (Backend)
-- [ ] `applications.waterfall_parents JSONB` 컬럼 추가 (마이그레이션 v1)
-- [ ] 복합 인덱스 추가 (마이그레이션 v2)
-- [ ] `POST /api/applications` 핸들러가 `waterfall_parents` 저장하도록 확장
-- [ ] `/api/poster/[dept]` 신규 엔드포인트 + 캐시 헤더
-- [ ] `/api/admin/login` JWT 발급 + 부서 claim
-- [ ] 어드민 미들웨어에서 토큰·부서 검증
+- [x] `applications.waterfall_parents JSONB` 컬럼 추가 (마이그레이션 v1)
+- [x] 복합 인덱스 추가 (마이그레이션 v2)
+- [x] `POST /api/applications` 핸들러가 `waterfall_parents` 저장하도록 확장
+- [x] `/api/poster/[dept]` 신규 엔드포인트 + 캐시 헤더
+- [x] `/api/admin/login` JWT 발급 + 부서 claim
+- [x] 어드민 미들웨어에서 토큰·부서 검증 *(applications API에 cookies 기반 권한 체크)*
+
+### Phase 2.5 — 글로벌 요금/계좌 (추가 요구사항 반영)
+- [x] 마이그레이션 v5 (`child_waterpark` + `*_account` 컬럼 4개)
+- [x] `/api/fees` GET/POST 진입 시 `ensureFeesSchema()` 자동 보장
+- [x] `components/GlobalFeesSettings.tsx` 글로벌 설정 UI
+- [x] 통합 어드민 "글로벌 설정" 탭 (전체 부서 권한 보유 시만 노출)
+- [x] 신청서 합계 분리(부서별/워터풀자녀/워터풀학부모) + Step 3 부서별 입금 안내
 
 ### Phase 3 — 신청 폼 (Frontend - Apply)
-- [ ] `/apply` 풀페이지 라우트 생성
-- [ ] `localStorage` 자동 저장 훅
-- [ ] Step 1 워터풀 보호자 Dynamic Array Input + zod 검증
-- [ ] Step 2 자녀 카드 + 실시간 부서 콘텐츠 매핑 + 포스터 스켈레톤
-- [ ] 자동 부서 추천 모듈 (`lib/age-to-department.ts`)
+- [x] `/apply` 풀페이지 라우트 생성
+- [x] `localStorage` 자동 저장 훅 (500ms debounce)
+- [x] Step 1 워터풀 보호자 Dynamic Array Input + zod 검증
+- [x] Step 2 자녀 카드 + 실시간 부서 콘텐츠 매핑 + 포스터 스켈레톤
+- [x] 자동 부서 추천 모듈 (`lib/age-to-department.ts`)
 
 ### Phase 3.5 — 부분 참석 세션 그리드 (Frontend + Backend)
-- [ ] 마이그레이션 v6 (`attended_sessions JSONB` + GIN 인덱스)
-- [ ] `lib/session-grid.ts` 세션 키 포맷/빌더/파서/정규식 검증
-- [ ] zod 스키마에 `attendedSessions` 필드 + day 상한 refine 추가
-- [ ] `POST /api/applications` 핸들러가 `attended_sessions` 저장하도록 확장
-- [ ] Step 2 자녀 카드에 일차×슬롯 체크박스 그리드 + 시간표 하이라이트
-- [ ] "전체 참석" / "일차별 모두" 일괄 토글 UI
-- [ ] `/api/admin/meals` 식수 집계 엔드포인트
-- [ ] `/api/export` 부분 참석 매트릭스 시트 추가
-- [ ] 어드민 시간표 변경 시 영향 신청 자녀 자동 추출 + "재확인 필요" 배지
+- [x] 마이그레이션 v6 (`attended_sessions JSONB` + GIN 인덱스)
+- [x] `lib/session-grid.ts` 세션 키 포맷/빌더/파서/정규식 검증
+- [x] zod 스키마에 `attendedSessions` 필드 추가 *(day 상한 refine은 서버 라우트에서 동적 적용)*
+- [x] `POST /api/applications` 핸들러가 `attended_sessions` 저장 + `camp_schedule` 기반 day 상한 검증
+- [x] `GET /api/applications` JOIN 응답에 `attended_sessions` 포함
+- [x] Step 2 자녀 카드에 일차×슬롯 체크박스 그리드 + 시간표 하이라이트 (`SessionGridPicker`)
+- [x] "전체 참석" + "하루 일괄" 토글 UI
+- [x] `/api/admin/meals` 식수 집계 엔드포인트 (전체 매트릭스 + 단일 슬롯 조회)
+- [x] `/api/export` 부분 참석 매트릭스 시트 추가 (자녀×세션 + 합계 행)
+- [ ] 어드민 시간표 변경 시 영향 신청 자녀 자동 추출 + "재확인 필요" 배지 *(후속 작업)*
 
 ### Phase 4 — 통합 어드민 (Frontend - Admin)
-- [ ] `/admin` 페이지 신설 + 부서 탭 + 세부부서 2차 탭
-- [ ] JWT 발급 폼 (부서 비밀번호 입력)
-- [ ] 부서별 데이터 격리 검증 (E2E)
-- [ ] 결제·설정·커스텀 필드 UI는 기존 컴포넌트 재사용
+- [x] `/admin` 페이지 신설 + 부서 탭 + 세부부서 2차 탭
+- [x] JWT 발급 폼 (부서 비밀번호 입력 / 통합/단일 선택)
+- [x] 부서별 데이터 격리 검증 *(applications API cookies + checkDepartmentAccess)*
+- [x] 결제·설정·커스텀 필드 UI는 기존 `AdminDashboard` 재사용
+- [x] 수납 모니터 재설계 (자녀수 × 회비, 부서별 체크박스 활성화 제어)
+- [ ] 다른 부서 토큰으로 직접 API 호출 시 403 E2E 검증
 
 ### Phase 5 — 랜딩 페이지 (Frontend - Home)
-- [ ] `app/page.tsx`를 단일 버튼 + `/apply` 이동으로 단순화
-- [ ] 기존 부서 페이지 링크는 footer에 hidden 유지
+- [x] `app/page.tsx`를 단일 버튼 + `/apply` 이동으로 단순화
+- [x] 기존 부서 페이지 링크는 footer에 hidden 유지
+- [x] 영문 표기 "GODS WILL"로 통일
 
 ### Phase 6 — 검증 및 배포 (QA & Release)
-- [ ] `npx tsc --noEmit` + `npm run build` 통과
+- [x] `npx tsc --noEmit` + `npm run build` 통과
 - [ ] 수동 테스트 시나리오 실행 (아래 4. 검증 계획 참조)
 - [ ] Neon 콘솔에서 데이터 무결성 확인
-- [ ] Vercel 배포 + 즉시 모니터링 (1시간)
+- [x] Vercel 배포 *(GitHub 푸시 자동 배포 파이프라인)*
 - [ ] 문제 시 Neon Branch 롤백 + Vercel rollback 절차 실행
+
+### Phase 7 — 보안 강화 (잔여 과제)
+- [ ] 운영 환경변수에 `ADMIN_PASSWORD_ALL` + 부서별 비밀번호 분리 설정
+- [ ] `NEXT_PUBLIC_ADMIN_PASSWORD` 제거 + Vercel 환경변수에서 삭제
+- [ ] 어드민 API 전체에 `checkDepartmentAccess` 일괄 적용 (config/fees/payment/event-attendance)
 
 ---
 

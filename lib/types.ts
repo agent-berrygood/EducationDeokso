@@ -71,6 +71,8 @@ export interface ChildInput {
   allergies?: string;
   customAllergy?: string;
   attendsWaterpark?: boolean;
+  /** 부분 참석 세션 키 배열 (예: ["1-morning", "1-afternoon", "2-evening"]) */
+  attendedSessions?: string[];
   custom1?: string | null; custom2?: string | null; custom3?: string | null;
   custom4?: string | null; custom5?: string | null; custom6?: string | null;
   custom7?: string | null; custom8?: string | null; custom9?: string | null;

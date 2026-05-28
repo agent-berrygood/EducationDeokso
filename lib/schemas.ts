@@ -14,6 +14,11 @@ export const waterfallParentSchema = z.object({
   phone: z.string().optional(),
 });
 
+const sessionKeySchema = z.string().regex(
+  /^[1-9][0-9]*-(morning|afternoon|evening)$/,
+  '세션 키 포맷이 올바르지 않습니다.'
+);
+
 export const childInputSchema = z.object({
   name: z.string().min(1),
   birthDate: z.string().min(1),
@@ -24,6 +29,7 @@ export const childInputSchema = z.object({
   allergies: z.string().optional(),
   customAllergy: z.string().optional(),
   attendsWaterpark: z.boolean().optional(),
+  attendedSessions: z.array(sessionKeySchema).optional(),
   custom1: z.string().nullable().optional(),
   custom2: z.string().nullable().optional(),
   custom3: z.string().nullable().optional(),

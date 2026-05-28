@@ -78,6 +78,15 @@ const MIGRATIONS: Migration[] = [
     ],
   },
   {
+    version: 6,
+    description: 'Add attended_sessions JSONB + GIN index to application_children',
+    up: [
+      `ALTER TABLE application_children ADD COLUMN IF NOT EXISTS attended_sessions JSONB DEFAULT '[]'::jsonb`,
+      `UPDATE application_children SET attended_sessions = '[]'::jsonb WHERE attended_sessions IS NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_children_sessions ON application_children USING GIN (attended_sessions)`,
+    ],
+  },
+  {
     version: 4,
     description: 'Repair corrupted Korean labels in event_configs sub_departments / title',
     up: [

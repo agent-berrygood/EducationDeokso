@@ -1,8 +1,9 @@
 import { cookies } from 'next/headers';
-import { queryOne, query } from '@/lib/db';
+import { queryOne, queryMany, query } from '@/lib/db';
 import { applicationSubmitSchema } from '@/lib/schemas';
 import { checkDepartmentAccess } from '@/lib/auth';
 import type { DepartmentId } from '@/lib/types';
+import { validateSessionKeys, deriveDayCount } from '@/lib/session-grid';
 
 /**
  * GET /api/applications
@@ -66,6 +67,7 @@ export async function GET(request: Request) {
             'allergies', ac.allergies,
             'customAllergy', ac.custom_allergy,
             'attendsWaterpark', ac.attends_waterpark,
+            'attendedSessions', ac.attended_sessions,
             'custom1', ac.custom_1, 'custom2', ac.custom_2, 'custom3', ac.custom_3,
             'custom4', ac.custom_4, 'custom5', ac.custom_5, 'custom6', ac.custom_6,
             'custom7', ac.custom_7, 'custom8', ac.custom_8, 'custom9', ac.custom_9,
@@ -112,6 +114,40 @@ export async function POST(request: Request) {
 
     const { parentName, parentPhone, depositorName, waterfallParents, children, grandTotal } = parsed.data;
 
+    // 부서별 일차 상한 사전 로드 (세션 키 검증용)
+    const usedDepts = Array.from(new Set(children.map((c) => c.department))) as DepartmentId[];
+    const deptDayLimit = new Map<DepartmentId, number>();
+    if (usedDepts.length > 0) {
+      const cfgRows = await queryMany(
+        `SELECT department, camp_schedule, camp_duration
+           FROM event_configs
+          WHERE department = ANY($1::text[])`,
+        [usedDepts]
+      );
+      for (const row of cfgRows as any[]) {
+        const schedule = Array.isArray(row.camp_schedule)
+          ? row.camp_schedule
+          : (typeof row.camp_schedule === 'string'
+              ? (() => { try { return JSON.parse(row.camp_schedule); } catch { return []; } })()
+              : []);
+        deptDayLimit.set(row.department, deriveDayCount(schedule, row.camp_duration));
+      }
+    }
+
+    // 세션 키 검증
+    for (const child of children) {
+      const keys = child.attendedSessions || [];
+      if (keys.length === 0) continue;
+      const maxDay = deptDayLimit.get(child.department as DepartmentId) || 7;
+      const ok = validateSessionKeys(keys, maxDay);
+      if (!ok.ok) {
+        return Response.json(
+          { success: false, error: `${child.name || '자녀'}의 ${ok.reason}` },
+          { status: 422 }
+        );
+      }
+    }
+
     // 신청서 생성
     const applicationResult = await queryOne(
       `INSERT INTO applications (parent_name, parent_phone, depositor_name, grand_total, waterfall_parents)
@@ -125,10 +161,10 @@ export async function POST(request: Request) {
       await query(
         `INSERT INTO application_children (
           application_id, name, birth_date, gender, department, sub_department,
-          tshirt_size, allergies, custom_allergy, attends_waterpark,
+          tshirt_size, allergies, custom_allergy, attends_waterpark, attended_sessions,
           custom_1, custom_2, custom_3, custom_4, custom_5, custom_6, custom_7, custom_8, custom_9, custom_10,
           custom_11, custom_12, custom_13, custom_14, custom_15, custom_16, custom_17, custom_18, custom_19, custom_20
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)`,
         [
           applicationId,
           child.name,
@@ -140,6 +176,7 @@ export async function POST(request: Request) {
           child.allergies || null,
           child.customAllergy || null,
           child.attendsWaterpark || false,
+          JSON.stringify(child.attendedSessions || []),
           child.custom1 || null, child.custom2 || null, child.custom3 || null, child.custom4 || null, child.custom5 || null,
           child.custom6 || null, child.custom7 || null, child.custom8 || null, child.custom9 || null, child.custom10 || null,
           child.custom11 || null, child.custom12 || null, child.custom13 || null, child.custom14 || null, child.custom15 || null,
