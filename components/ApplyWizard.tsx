@@ -810,13 +810,140 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                 {activeConfig.title}
               </h4>
               {activeConfig.subtitle && (
-                <p className="text-sm text-slate-700 mt-2">{activeConfig.subtitle}</p>
+                <div className="text-sm text-slate-700 mt-2 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.subtitle }} />
               )}
               {activeConfig.scripture && (
-                <p className="text-xs italic text-slate-600 mt-2">"{activeConfig.scripture}"</p>
+                <div className="text-xs italic text-slate-600 mt-2 border-l-2 pl-2 border-slate-350 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.scripture }} />
               )}
             </div>
           </div>
+
+          {/* 수련회 세부 일정표 및 시간표 실시간 노출 추가 */}
+          {activeConfig.camp_schedule && activeConfig.camp_schedule.length > 0 && (() => {
+            const uniqueDays = Array.from(new Set(activeConfig.camp_schedule.map((s: any) => s.day))).sort((a: any, b: any) => a - b);
+            
+            // 30분 단위 슬롯 매핑용
+            const START_HOUR = 8;
+            const END_HOUR = 22;
+            const totalSlots = (END_HOUR - START_HOUR) * 2;
+            const slots = Array.from({ length: totalSlots }, (_, i) => {
+              const h = START_HOUR + Math.floor(i / 2);
+              const m = i % 2 === 0 ? '00' : '30';
+              return `${String(h).padStart(2, '0')}:${m}`;
+            });
+
+            const parseTimeRange = (timeStr: string) => {
+              const parts = (timeStr || '').split('-').map(s => s.trim());
+              const startTime = parts[0] || '09:00';
+              const endTime = parts[1] || '10:30';
+              return { startTime, endTime };
+            };
+
+            const timeToRowIndex = (timeStr: string): number => {
+              const [h, m] = (timeStr || '09:00').split(':').map(Number);
+              const hourDiff = h - START_HOUR;
+              const slotIndex = hourDiff * 2 + (m >= 30 ? 1 : 0);
+              return Math.max(0, Math.min(totalSlots - 1, slotIndex)) + 2;
+            };
+
+            return (
+              <div className="mt-6 pt-6 border-t border-slate-200/60">
+                <h5 className="text-sm font-black text-slate-800 mb-3 flex items-center gap-1.5">
+                  📅 {activeConfig.event_type} 시간표 안내
+                </h5>
+                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white/80 p-3 min-w-[500px]">
+                  <div 
+                    className="grid relative"
+                    style={{
+                      gridTemplateColumns: `80px repeat(${uniqueDays.length}, 1fr)`,
+                      gridTemplateRows: `40px repeat(${totalSlots}, 35px)`, // 헤더 40px, 슬롯 35px
+                    }}
+                  >
+                    {/* 시간표 헤더 */}
+                    <div 
+                      className="border-b border-gray-200 bg-gray-50 flex items-center justify-center font-bold text-slate-500 text-[10px] select-none"
+                      style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}
+                    >
+                      시간대
+                    </div>
+                    {uniqueDays.map((dayNum: any, dayIdx: number) => (
+                      <div 
+                        key={dayNum}
+                        className="border-b border-r last:border-r-0 border-gray-200 bg-gray-50 flex items-center justify-center font-bold text-slate-700 text-xs select-none"
+                        style={{ 
+                          gridRow: '1 / 2', 
+                          gridColumn: `${dayIdx + 2} / ${dayIdx + 3}`,
+                          color: activeConfig.primary_color
+                        }}
+                      >
+                        {dayNum}{activeConfig.camp_type === 'continuous' ? '일차' : '주차'}
+                      </div>
+                    ))}
+
+                    {/* 배경 30분 격자 슬롯 */}
+                    {slots.map((slotTime, slotIdx) => {
+                      const rowNum = slotIdx + 2;
+                      return (
+                        <React.Fragment key={slotTime}>
+                          <div 
+                            className="border-b border-r border-gray-100 bg-gray-50/10 flex items-center justify-center text-[9px] font-semibold text-slate-400 select-none text-center"
+                            style={{ gridRow: `${rowNum} / ${rowNum + 1}`, gridColumn: '1 / 2' }}
+                          >
+                            {slotTime}
+                          </div>
+                          {uniqueDays.map((_, dayIdx: number) => (
+                            <div 
+                              key={dayIdx}
+                              className="border-b border-r last:border-r-0 border-gray-100 flex items-center justify-center text-[9px] text-gray-200 select-none"
+                              style={{ 
+                                gridRow: `${rowNum} / ${rowNum + 1}`, 
+                                gridColumn: `${dayIdx + 2} / ${dayIdx + 3}` 
+                              }}
+                            >
+                              -
+                            </div>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* 카드 배치 */}
+                    {activeConfig.camp_schedule?.map((item: any, idx: number) => {
+                      const dayIdx = uniqueDays.indexOf(item.day);
+                      if (dayIdx === -1) return null;
+
+                      const { startTime, endTime } = parseTimeRange(item.time);
+                      const startRow = timeToRowIndex(startTime);
+                      const endRow = timeToRowIndex(endTime);
+                      const actualEndRow = endRow > startRow ? endRow : startRow + 1;
+
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className="m-0.5 p-1.5 rounded-lg border shadow-sm text-left z-10 overflow-hidden flex flex-col justify-between"
+                          style={{
+                            gridRow: `${startRow} / ${actualEndRow}`,
+                            gridColumn: `${dayIdx + 2} / ${dayIdx + 3}`,
+                            backgroundColor: item.color || '#ffffff',
+                            borderColor: item.color ? `${item.color}dd` : '#e2e8f0',
+                          }}
+                        >
+                          <div>
+                            <div className="text-[8px] font-bold text-slate-400 mb-0.5 leading-none">
+                              🕒 {item.time}
+                            </div>
+                            <h6 className="font-extrabold text-[10px] text-slate-800 line-clamp-1 leading-tight">
+                              {item.title}
+                            </h6>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </section>
