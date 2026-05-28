@@ -58,6 +58,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<any>({
     title: '',
+    eventType: '',
     subtitle: '',
     scripture: '',
     primaryColor: department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E',
@@ -119,6 +120,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
       setConfig(data);
       setSettingsForm({
         title: data.title || '',
+        eventType: data.event_type || '',
         subtitle: data.subtitle || '',
         scripture: data.scripture || '',
         primaryColor: data.primary_color || (department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E'),
@@ -219,6 +221,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: settingsForm.title,
+          eventType: settingsForm.eventType,
           subtitle: settingsForm.subtitle,
           scripture: settingsForm.scripture,
           primaryColor: settingsForm.primaryColor,
@@ -668,15 +671,27 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                 <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
                   <h3 className="text-xl font-bold mb-4 border-b pb-2">🎨 기본 행사 정보 설정</h3>
                   <div className="grid grid-cols-1 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">공식 행사 명칭</label>
-                      <input
-                        type="text"
-                        value={settingsForm.title}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                        placeholder="예: 2026 나우킨더 여름성경학교"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">공식 행사 명칭</label>
+                        <input
+                          type="text"
+                          value={settingsForm.title}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                          placeholder="예: 2026 나우킨더 여름성경학교"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">행사 종류 (Top-Right 배지 텍스트)</label>
+                        <input
+                          type="text"
+                          value={settingsForm.eventType}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, eventType: e.target.value })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                          placeholder="예: 여름성경학교, 여름수련회"
+                        />
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>

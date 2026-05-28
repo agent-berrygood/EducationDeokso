@@ -73,7 +73,7 @@ export async function POST(
     department = dept;
     const body = await request.json();
     const {
-      title, subtitle, scripture, primaryColor, bgColor,
+      title, eventType, subtitle, scripture, primaryColor, bgColor,
       subDepartments, events, tshirtSizes, customFieldMappings,
       campStartDate, campSchedule, campType, campDuration
     } = body;
@@ -90,14 +90,15 @@ export async function POST(
       // 신규 생성
         config = await queryOne(
           `INSERT INTO event_configs (
-            department, title, subtitle, scripture,
+            department, title, event_type, subtitle, scripture,
             primary_color, bg_color, sub_departments, events,
             tshirt_sizes, custom_field_mappings, camp_start_date, camp_schedule,
             camp_type, camp_duration
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
           [
             department,
             title || null,
+            eventType || null,
             subtitle || null,
             scripture || null,
             primaryColor || null,
@@ -116,18 +117,19 @@ export async function POST(
       // 기존 업데이트
       await query(
         `UPDATE event_configs SET
-          title = $1, subtitle = $2, scripture = $3,
-          primary_color = $4, bg_color = $5,
-          sub_departments = $6, events = $7,
-          tshirt_sizes = $8, custom_field_mappings = $9,
-          camp_start_date = $10,
-          camp_schedule = $11,
-          camp_type = $12,
-          camp_duration = $13,
+          title = $1, event_type = $2, subtitle = $3, scripture = $4,
+          primary_color = $5, bg_color = $6,
+          sub_departments = $7, events = $8,
+          tshirt_sizes = $9, custom_field_mappings = $10,
+          camp_start_date = $11,
+          camp_schedule = $12,
+          camp_type = $13,
+          camp_duration = $14,
           updated_at = NOW()
-         WHERE department = $14`,
+         WHERE department = $15`,
         [
           title || null,
+          eventType || null,
           subtitle || null,
           scripture || null,
           primaryColor || null,
