@@ -215,6 +215,40 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     }
   };
 
+  const handlePosterUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/config/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) throw new Error('업로드 실패');
+      const data = await res.json();
+      
+      if (data.success && data.url) {
+        setSettingsForm((prev: any) => ({
+          ...prev,
+          posterUrl: data.url
+        }));
+        alert('포스터 업로드가 완료되었습니다!');
+      } else {
+        alert('업로드 처리 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('포스터 파일을 업로드하는 중 에러가 발생했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const saveSettings = async () => {
     try {
       setIsSaving(true);
@@ -697,14 +731,39 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">📢 공식 홍보 포스터 이미지 URL (다양한 이미지 포맷 지원)</label>
-                      <input
-                        type="text"
-                        value={settingsForm.posterUrl}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, posterUrl: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                        placeholder="예: https://example.com/poster.jpg 또는 png/webp/gif 주소"
-                      />
+                      <label className="block text-sm font-semibold mb-2">📢 공식 홍보 포스터 등록 (다이렉트 파일 업로드 지원)</label>
+                      <div className="flex flex-col md:flex-row gap-4 items-center">
+                        <label className="w-full md:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-center cursor-pointer shadow transition duration-200">
+                          📁 내 컴퓨터에서 이미지 선택...
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePosterUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        <div className="flex-1 w-full">
+                          <input
+                            type="text"
+                            value={settingsForm.posterUrl}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, posterUrl: e.target.value })}
+                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-gray-900"
+                            placeholder="파일을 선택하면 주소가 자동 주입되며 직접 입력도 가능합니다."
+                          />
+                        </div>
+                      </div>
+                      {settingsForm.posterUrl && (
+                        <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-between">
+                          <div className="text-xs text-gray-500 truncate mr-4">등록된 포스터: <span className="font-semibold text-indigo-650">{settingsForm.posterUrl}</span></div>
+                          <button
+                            type="button"
+                            onClick={() => setSettingsForm({ ...settingsForm, posterUrl: '' })}
+                            className="px-2 py-1 text-xs font-bold text-red-500 hover:text-red-700 transition"
+                          >
+                            ✕ 삭제
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
