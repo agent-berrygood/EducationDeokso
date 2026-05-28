@@ -57,6 +57,19 @@ const COLOR_OPTIONS = [
   { value: '#f5f5f5', name: '차분한 그레이 (묵상)' },
 ];
 
+const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const min = i % 2 === 0 ? '00' : '30';
+  return `${String(hour).padStart(2, '0')}:${min}`;
+});
+
+const parseTimeRange = (timeStr: string) => {
+  const parts = (timeStr || '').split('-').map(s => s.trim());
+  const startTime = parts[0] || '09:00';
+  const endTime = parts[1] || '10:30';
+  return { startTime, endTime };
+};
+
 export default function ScheduleEditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -401,14 +414,34 @@ export default function ScheduleEditorPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1">시간대 (Time range)</label>
-                <input
-                  type="text"
-                  value={editingCard.time}
-                  onChange={(e) => setEditingCard({ ...editingCard, time: e.target.value })}
-                  placeholder="예: 09:30 - 11:00"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
+                <label className="block text-xs font-bold text-slate-400 mb-1">시간대 선택</label>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={parseTimeRange(editingCard.time).startTime}
+                    onChange={(e) => {
+                      const { endTime } = parseTimeRange(editingCard.time);
+                      setEditingCard({ ...editingCard, time: `${e.target.value} - ${endTime}` });
+                    }}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <span className="text-slate-400 font-bold">~</span>
+                  <select
+                    value={parseTimeRange(editingCard.time).endTime}
+                    onChange={(e) => {
+                      const { startTime } = parseTimeRange(editingCard.time);
+                      setEditingCard({ ...editingCard, time: `${startTime} - ${e.target.value}` });
+                    }}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {TIME_OPTIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div>
