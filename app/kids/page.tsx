@@ -14,6 +14,7 @@ interface EventConfig {
   campSchedule?: any[];
   campType?: string;
   campDuration?: number;
+  posterUrl?: string;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -23,6 +24,7 @@ const DEFAULT_CONFIG: EventConfig = {
   scripture: '<p><em>"주께서 생명의 길을 내게 보이시리니 주의 앞에는 충만한 기쁨이 있고"</em> (시편 16:11)</p>',
   primary_color: '#3B82F6',
   bg_color: '#DBEAFE',
+  posterUrl: '',
 };
 
 interface TimeLeft {
@@ -175,6 +177,17 @@ export default function KidsPage() {
 
           <div className="text-lg md:text-2xl text-gray-600 prose max-w-none mx-auto"
             dangerouslySetInnerHTML={{ __html: config.subtitle }} />
+
+          {/* 홍보 포스터 */}
+          {config.posterUrl && (
+            <div className="w-full max-w-3xl mx-auto my-6 overflow-hidden rounded-2xl border border-gray-200 shadow-lg">
+              <img 
+                src={config.posterUrl} 
+                alt={`${config.title} 홍보 포스터`} 
+                className="w-full h-auto object-contain block"
+              />
+            </div>
+          )}
 
           {/* 카운트다운 */}
           {config.camp_start_date && (

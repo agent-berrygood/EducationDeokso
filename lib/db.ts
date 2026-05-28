@@ -145,6 +145,7 @@ export async function initializeDatabase() {
     await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_schedule JSONB DEFAULT '[]'`);
     await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_type VARCHAR(50) DEFAULT 'continuous'`);
     await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_duration INT DEFAULT 3`);
+    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS poster_url TEXT`);
 
     await query(`
       INSERT INTO event_configs (department, title, event_type, sub_departments, tshirt_sizes, primary_color, bg_color)

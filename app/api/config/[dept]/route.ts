@@ -29,7 +29,7 @@ export async function GET(
       `SELECT
         id, department, title, event_type, subtitle, scripture,
         primary_color, bg_color, camp_start_date, camp_schedule,
-        camp_type, camp_duration,
+        camp_type, camp_duration, poster_url,
         sub_departments, events, tshirt_sizes, custom_field_mappings
        FROM event_configs WHERE department = $1`,
       [department]
@@ -46,6 +46,7 @@ export async function GET(
         camp_start_date: config.camp_start_date || null,
         campType: config.camp_type || 'continuous',
         campDuration: Number(config.camp_duration || 3),
+        posterUrl: config.poster_url || '',
         subDepartments: safeParse(config.sub_departments),
         events: safeParse(config.events),
         tshirtSizes: safeParse(config.tshirt_sizes),
@@ -75,7 +76,7 @@ export async function POST(
     const {
       title, eventType, subtitle, scripture, primaryColor, bgColor,
       subDepartments, events, tshirtSizes, customFieldMappings,
-      campStartDate, campSchedule, campType, campDuration
+      campStartDate, campSchedule, campType, campDuration, posterUrl
     } = body;
 
     const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
@@ -93,8 +94,8 @@ export async function POST(
             department, title, event_type, subtitle, scripture,
             primary_color, bg_color, sub_departments, events,
             tshirt_sizes, custom_field_mappings, camp_start_date, camp_schedule,
-            camp_type, camp_duration
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING id`,
+            camp_type, camp_duration, poster_url
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
           [
             department,
             title || null,
@@ -110,7 +111,8 @@ export async function POST(
             validatedStartDate,
             JSON.stringify(campSchedule || []),
             campType || 'continuous',
-            Number(campDuration || 3)
+            Number(campDuration || 3),
+            posterUrl || null
           ]
         );
     } else {
@@ -125,8 +127,9 @@ export async function POST(
           camp_schedule = $12,
           camp_type = $13,
           camp_duration = $14,
+          poster_url = $15,
           updated_at = NOW()
-         WHERE department = $15`,
+         WHERE department = $16`,
         [
           title || null,
           eventType || null,
@@ -142,6 +145,7 @@ export async function POST(
           JSON.stringify(campSchedule || []),
           campType || 'continuous',
           Number(campDuration || 3),
+          posterUrl || null,
           department
         ]
       );

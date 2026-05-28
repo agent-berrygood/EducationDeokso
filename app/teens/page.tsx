@@ -14,6 +14,7 @@ interface EventConfig {
   campSchedule?: any[];
   campType?: string;
   campDuration?: number;
+  posterUrl?: string;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -23,6 +24,7 @@ const DEFAULT_CONFIG: EventConfig = {
   scripture: '<p><em>"너희는 세상의 빛이라 산 위에 있는 동네가 숨겨지지 못할 것이요"</em> (마태복음 5:14)</p>',
   primary_color: '#22C55E',
   bg_color: '#0F172A',
+  posterUrl: '',
 };
 
 interface TimeLeft {
@@ -185,6 +187,17 @@ export default function TeensPage() {
             className="text-lg md:text-2xl text-slate-300 prose dark:prose-invert max-w-none mx-auto"
             dangerouslySetInnerHTML={{ __html: config.subtitle }}
           />
+
+          {/* 홍보 포스터 */}
+          {config.posterUrl && (
+            <div className="w-full max-w-3xl mx-auto my-6 overflow-hidden rounded-2xl border border-slate-800 shadow-2xl">
+              <img 
+                src={config.posterUrl} 
+                alt={`${config.title} 홍보 포스터`} 
+                className="w-full h-auto object-contain block"
+              />
+            </div>
+          )}
 
           {/* 카운트다운 */}
           {config.camp_start_date && (

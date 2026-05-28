@@ -70,6 +70,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     campSchedule: [],
     campType: 'continuous',
     campDuration: 3,
+    posterUrl: '',
   });
   
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -132,6 +133,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
         campSchedule: data.campSchedule || [],
         campType: data.campType || 'continuous',
         campDuration: Number(data.campDuration || 3),
+        posterUrl: data.posterUrl || '',
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
@@ -233,6 +235,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           campSchedule: settingsForm.campSchedule,
           campType: settingsForm.campType,
           campDuration: settingsForm.campDuration,
+          posterUrl: settingsForm.posterUrl,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -692,6 +695,16 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                           placeholder="예: 여름성경학교, 여름수련회"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">📢 공식 홍보 포스터 이미지 URL (다양한 이미지 포맷 지원)</label>
+                      <input
+                        type="text"
+                        value={settingsForm.posterUrl}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, posterUrl: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                        placeholder="예: https://example.com/poster.jpg 또는 png/webp/gif 주소"
+                      />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>

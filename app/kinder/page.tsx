@@ -14,6 +14,7 @@ interface EventConfig {
   campSchedule?: any[];
   campType?: string;
   campDuration?: number;
+  posterUrl?: string;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -23,6 +24,7 @@ const DEFAULT_CONFIG: EventConfig = {
   scripture: '<p><em>"오직 우리 주 곧 구주 예수 그리스도의 은혜와 그를 아는 지식에서 자라 가라"</em> (베드로후서 3:18)</p>',
   primary_color: '#EAB308',
   bg_color: '#FEF08A',
+  posterUrl: '',
 };
 
 interface TimeLeft {
@@ -175,6 +177,17 @@ export default function KinderPage() {
 
           <div className="text-lg md:text-2xl text-gray-600 prose max-w-none mx-auto"
             dangerouslySetInnerHTML={{ __html: config.subtitle }} />
+
+          {/* 홍보 포스터 */}
+          {config.posterUrl && (
+            <div className="w-full max-w-3xl mx-auto my-6 overflow-hidden rounded-2xl border border-gray-200 shadow-lg">
+              <img 
+                src={config.posterUrl} 
+                alt={`${config.title} 홍보 포스터`} 
+                className="w-full h-auto object-contain block"
+              />
+            </div>
+          )}
 
           {/* 카운트다운 */}
           {config.camp_start_date && (
