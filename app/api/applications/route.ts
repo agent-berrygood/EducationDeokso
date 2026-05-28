@@ -6,11 +6,25 @@ import type { DepartmentId } from '@/lib/types';
 import { validateSessionKeys, deriveDayCount } from '@/lib/session-grid';
 
 /**
+ * 마이그레이션이 운영 DB에 적용되지 않은 상황에서도 GET/POST가 정상 작동하도록
+ * 신청 관련 핵심 컬럼들을 ALTER TABLE IF NOT EXISTS로 자동 보장.
+ * 이미 적용된 환경에서는 noop이며 트랜잭션 비용도 미미하다.
+ */
+async function ensureApplicationsSchema() {
+  await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS waterfall_parents JSONB DEFAULT '[]'::jsonb`);
+  await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
+  await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS attended_sessions JSONB DEFAULT '[]'::jsonb`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_children_dept_sub ON application_children(department, sub_department)`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_apps_created ON applications(created_at DESC)`);
+}
+
+/**
  * GET /api/applications
  * 신청 목록 조회 (부서별, 페이징, 정렬)
  */
 export async function GET(request: Request) {
   try {
+    await ensureApplicationsSchema();
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
     const subDepartment = searchParams.get('subDepartment');
@@ -102,6 +116,7 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    await ensureApplicationsSchema();
     const body = await request.json();
     const parsed = applicationSubmitSchema.safeParse(body);
 

@@ -1,4 +1,4 @@
-import { queryMany, queryOne } from '@/lib/db';
+import { queryMany, queryOne, query } from '@/lib/db';
 import ExcelJS from 'exceljs';
 import {
   SLOTS,
@@ -8,12 +8,18 @@ import {
   isSessionKey,
 } from '@/lib/session-grid';
 
+async function ensureSchema() {
+  await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
+  await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS attended_sessions JSONB DEFAULT '[]'::jsonb`);
+}
+
 /**
  * GET /api/export?department=kids
  * 신청 현황 + 부분 참석 매트릭스 시트를 함께 추출
  */
 export async function GET(request: Request) {
   try {
+    await ensureSchema();
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
 

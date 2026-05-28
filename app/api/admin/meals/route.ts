@@ -1,8 +1,13 @@
 import { cookies } from 'next/headers';
-import { queryMany } from '@/lib/db';
+import { queryMany, query } from '@/lib/db';
 import { checkDepartmentAccess } from '@/lib/auth';
 import { isSessionKey, SLOTS, type SessionSlot } from '@/lib/session-grid';
 import type { DepartmentId } from '@/lib/types';
+
+async function ensureSchema() {
+  await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS attended_sessions JSONB DEFAULT '[]'::jsonb`);
+  await query(`CREATE INDEX IF NOT EXISTS idx_children_sessions ON application_children USING GIN (attended_sessions)`);
+}
 
 /**
  * GET /api/admin/meals?department=kids
@@ -13,6 +18,7 @@ import type { DepartmentId } from '@/lib/types';
  */
 export async function GET(request: Request) {
   try {
+    await ensureSchema();
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department') as DepartmentId | null;
     const day = searchParams.get('day');
