@@ -95,6 +95,7 @@ export default function ScheduleEditorPage() {
   };
 
   const loadData = async () => {
+    if (!params?.dept) return;
     try {
       setLoading(true);
       const res = await fetch(`/api/config/${department}`);
@@ -114,8 +115,10 @@ export default function ScheduleEditorPage() {
   };
 
   useEffect(() => {
-    loadData();
-  }, [department]);
+    if (params?.dept) {
+      loadData();
+    }
+  }, [params?.dept, department]);
 
   // 프리셋 채우기 함수
   const applyPreset = () => {
