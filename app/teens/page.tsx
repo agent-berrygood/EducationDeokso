@@ -12,6 +12,8 @@ interface EventConfig {
   bg_color?: string;
   camp_start_date?: string;
   campSchedule?: any[];
+  campType?: string;
+  campDuration?: number;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -189,7 +191,7 @@ export default function TeensPage() {
                         border: `1px solid ${activeDay === dayNum ? 'transparent' : `${primaryColor}40`}`
                       }}
                     >
-                      {dayNum}일차 (Day {dayNum})
+                      {dayNum}{config.campType === 'continuous' ? '일차' : '주차'} ({config.campType === 'continuous' ? 'Day' : 'Week'} {dayNum})
                     </button>
                   ))}
               </div>
@@ -206,8 +208,13 @@ export default function TeensPage() {
                         style={{ borderColor: primaryColor }}
                       ></span>
                       
-                      <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800 hover:shadow-lg hover:shadow-green-500/5 transition-all duration-300 transform hover:-translate-y-0.5">
+                      <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800 hover:shadow-lg hover:shadow-green-500/5 transition-all duration-300 transform hover:-translate-y-0.5"
+                        style={{ backgroundColor: item.color ? `${item.color}15` : 'rgba(15, 23, 42, 0.6)', borderColor: item.color || 'rgb(30, 41, 59)' }}>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="px-2.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold text-xs"
+                            style={{ color: item.color || '#fff', borderColor: item.color || 'rgb(51, 65, 85)' }}>
+                            {item.day}{config.campType === 'continuous' ? '일차' : '주차'}
+                          </span>
                           <span className="text-sm font-extrabold" style={{ color: primaryColor }}>
                             🕒 {item.time}
                           </span>

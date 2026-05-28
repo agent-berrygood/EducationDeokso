@@ -17,6 +17,7 @@ export async function GET(
       `SELECT
         id, department, title, event_type, subtitle, scripture,
         primary_color, bg_color, camp_start_date, camp_schedule,
+        camp_type, camp_duration,
         sub_departments, events, tshirt_sizes, custom_field_mappings
        FROM event_configs WHERE department = $1`,
       [department]
@@ -31,6 +32,8 @@ export async function GET(
       data: {
         ...config,
         camp_start_date: config.camp_start_date || null,
+        campType: config.camp_type || 'continuous',
+        campDuration: Number(config.camp_duration || 3),
         subDepartments: JSON.parse(config.sub_departments || '[]'),
         events: JSON.parse(config.events || '[]'),
         tshirtSizes: JSON.parse(config.tshirt_sizes || '[]'),
@@ -59,7 +62,8 @@ export async function POST(
     const body = await request.json();
     const {
       title, subtitle, scripture, primaryColor, bgColor,
-      subDepartments, events, tshirtSizes, customFieldMappings, campStartDate, campSchedule
+      subDepartments, events, tshirtSizes, customFieldMappings,
+      campStartDate, campSchedule, campType, campDuration
     } = body;
 
     // 기존 설정 조회
@@ -74,8 +78,9 @@ export async function POST(
           `INSERT INTO event_configs (
             department, title, subtitle, scripture,
             primary_color, bg_color, sub_departments, events,
-            tshirt_sizes, custom_field_mappings, camp_start_date, camp_schedule
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+            tshirt_sizes, custom_field_mappings, camp_start_date, camp_schedule,
+            camp_type, camp_duration
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
           [
             department,
             title || null,
@@ -88,7 +93,9 @@ export async function POST(
             JSON.stringify(tshirtSizes || []),
             JSON.stringify(customFieldMappings || []),
             campStartDate || null,
-            JSON.stringify(campSchedule || [])
+            JSON.stringify(campSchedule || []),
+            campType || 'continuous',
+            Number(campDuration || 3)
           ]
         );
     } else {
@@ -101,8 +108,10 @@ export async function POST(
           tshirt_sizes = $8, custom_field_mappings = $9,
           camp_start_date = $10,
           camp_schedule = $11,
+          camp_type = $12,
+          camp_duration = $13,
           updated_at = NOW()
-         WHERE department = $12`,
+         WHERE department = $14`,
         [
           title || null,
           subtitle || null,
@@ -115,6 +124,8 @@ export async function POST(
           JSON.stringify(customFieldMappings || []),
           campStartDate || null,
           JSON.stringify(campSchedule || []),
+          campType || 'continuous',
+          Number(campDuration || 3),
           department
         ]
       );

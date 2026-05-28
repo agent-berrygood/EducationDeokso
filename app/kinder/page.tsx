@@ -12,6 +12,8 @@ interface EventConfig {
   bg_color?: string;
   camp_start_date?: string;
   campSchedule?: any[];
+  campType?: string;
+  campDuration?: number;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -174,7 +176,7 @@ export default function KinderPage() {
                         boxShadow: activeDay === dayNum ? `0 4px 12px ${primaryColor}40` : 'none',
                       }}
                     >
-                      {dayNum}일차 (Day {dayNum})
+                      {dayNum}{config.campType === 'continuous' ? '일차' : '주차'} ({config.campType === 'continuous' ? 'Day' : 'Week'} {dayNum})
                     </button>
                   ))}
               </div>
@@ -191,8 +193,12 @@ export default function KinderPage() {
                         style={{ borderColor: primaryColor }}
                       ></span>
                       
-                      <div className="bg-gray-50/70 p-5 rounded-2xl border border-gray-100 hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5">
+                      <div className="bg-gray-50/70 p-5 rounded-2xl border border-gray-100 hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5"
+                        style={{ backgroundColor: item.color || '#f9fafb' }}>
                         <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="px-2.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold text-xs">
+                            {item.day}{config.campType === 'continuous' ? '일차' : '주차'}
+                          </span>
                           <span className="text-sm font-extrabold" style={{ color: primaryColor }}>
                             🕒 {item.time}
                           </span>

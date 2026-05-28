@@ -67,6 +67,8 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     subDepartments: [],
     campStartDate: '',
     campSchedule: [],
+    campType: 'continuous',
+    campDuration: 3,
   });
   
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -126,6 +128,8 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
         subDepartments: data.subDepartments || [],
         campStartDate: data.camp_start_date || '',
         campSchedule: data.campSchedule || [],
+        campType: data.campType || 'continuous',
+        campDuration: Number(data.campDuration || 3),
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
@@ -224,6 +228,8 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           subDepartments: settingsForm.subDepartments,
           campStartDate: settingsForm.campStartDate,
           campSchedule: settingsForm.campSchedule,
+          campType: settingsForm.campType,
+          campDuration: settingsForm.campDuration,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -668,14 +674,38 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                         placeholder="예: 2026 나우킨더 여름성경학교"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">📅 캠프 시작일 (카운트다운 기준)</label>
-                      <input
-                        type="date"
-                        value={settingsForm.campStartDate}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, campStartDate: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">📅 캠프 시작일 (카운트다운 기준)</label>
+                        <input
+                          type="date"
+                          value={settingsForm.campStartDate}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, campStartDate: e.target.value })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">🗓️ 수련회 진행 방식</label>
+                        <select
+                          value={settingsForm.campType}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, campType: e.target.value })}
+                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 text-sm"
+                        >
+                          <option value="continuous">연속 수련회 (예: 2박 3일 연속)</option>
+                          <option value="weekly">주일 분산 수련회 (예: 수주에 걸쳐 매주일)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">⏳ 수련회 기간 (총 일차 / 주차)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={30}
+                          value={settingsForm.campDuration}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, campDuration: Number(e.target.value) })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">행사 주제 (Theme Slogan) - 리치 텍스트</label>
@@ -763,96 +793,48 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
 
                 {/* 수련회 세부 일정(타임라인) 설정 */}
                 <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">📅 수련회 세부 일정(타임라인) 설정</h3>
-                  
-                  {/* 신규 일정 등록 양식 */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-800/40 mb-6">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 border-b pb-4">
                     <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">일차 (Day)</label>
-                      <select
-                        value={newSchedule.day}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, day: Number(e.target.value) })}
-                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value={1}>1일차 (Day 1)</option>
-                        <option value={2}>2일차 (Day 2)</option>
-                        <option value={3}>3일차 (Day 3)</option>
-                        <option value={4}>4일차 (Day 4)</option>
-                      </select>
+                      <h3 className="text-xl font-bold">📅 수련회 세부 일정(타임라인) 그래픽 설정</h3>
+                      <p className="text-xs text-gray-400 mt-1">드래그 앤 드롭과 프리셋이 지원되는 단독 전체화면 디자인 에디터에서 일정을 한눈에 편집하세요.</p>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">시간대 (Time)</label>
-                      <input
-                        type="text"
-                        placeholder="예: 09:30 - 11:00"
-                        value={newSchedule.time}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })}
-                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">일정 활동명 (Title)</label>
-                      <input
-                        type="text"
-                        placeholder="예: 개회 예배 및 조별 모임"
-                        value={newSchedule.title}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })}
-                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">상세 내용 및 비고</label>
-                      <input
-                        type="text"
-                        placeholder="예: 체육관 2층, 운동화 필수 지참"
-                        value={newSchedule.description}
-                        onChange={(e) => setNewSchedule({ ...newSchedule, description: e.target.value })}
-                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div className="md:col-span-4 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={addScheduleItem}
-                        className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow cursor-pointer text-sm"
-                      >
-                        ➕ 일정 항목 임시 추가
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/${department}/admin/schedule`, '_blank')}
+                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-lg cursor-pointer flex items-center gap-2 transform active:scale-95 transition"
+                    >
+                      🎨 일정 그래픽 캔버스 에디터 열기
+                    </button>
                   </div>
-
-                  {/* 등록된 일정 목록 */}
-                  <div className="space-y-3">
+                  
+                  {/* 대시보드 내에서는 약식 등록 및 현황 조회만 제공 */}
+                  <div className="text-sm p-4 rounded-xl bg-indigo-50/50 dark:bg-slate-800/20 text-indigo-700 dark:text-indigo-300 font-semibold mb-6">
+                    💡 현재 설정된 방식: <strong className="underline">{settingsForm.campType === 'continuous' ? '연속 수련회' : '주일 분산 수련회'}</strong> ({settingsForm.campDuration}일간 / {settingsForm.campDuration}주간)
+                  </div>
+                  
+                  {/* 등록된 일정 목록 (간략히 10개만 리스트업) */}
+                  <div className="space-y-2">
                     {!settingsForm.campSchedule || settingsForm.campSchedule.length === 0 ? (
-                      <p className="text-center p-6 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400">등록된 세부 일정이 없습니다. 일정을 추가해주세요.</p>
+                      <p className="text-center p-6 border border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400">등록된 세부 일정이 없습니다. 그래픽 에디터를 열고 프리셋 템플릿을 생성해보세요.</p>
                     ) : (
-                      settingsForm.campSchedule.map((item: any) => (
-                        <div key={item.id} className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800">
-                          <div className="flex flex-col md:flex-row md:items-center gap-3">
-                            <span className="px-2.5 py-1 rounded bg-indigo-100 text-indigo-800 font-bold text-xs">
-                              {item.day}일차
+                      settingsForm.campSchedule.slice(0, 10).map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800 text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">
+                              {item.day}{settingsForm.campType === 'continuous' ? '일차' : '주차'}
                             </span>
-                            <span className="text-sm font-bold text-gray-500 dark:text-gray-400">
+                            <span className="font-bold text-gray-500">
                               🕒 {item.time}
                             </span>
-                            <span className="font-bold text-base text-gray-900 dark:text-white">
+                            <span className="font-bold text-gray-800 dark:text-white">
                               {item.title}
                             </span>
-                            {item.description && (
-                              <span className="text-xs text-gray-400">
-                                ({item.description})
-                              </span>
-                            )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removeScheduleItem(item.id)}
-                            className="px-2.5 py-1 bg-red-500 hover:bg-red-650 text-white text-xs font-bold rounded shadow transition cursor-pointer"
-                          >
-                            삭제
-                          </button>
                         </div>
                       ))
+                    )}
+                    {settingsForm.campSchedule && settingsForm.campSchedule.length > 10 && (
+                      <p className="text-center text-xs text-gray-400 mt-2">외에 {settingsForm.campSchedule.length - 10}개의 일정이 더 있습니다. 에디터에서 전체 상세 보기가 가능합니다.</p>
                     )}
                   </div>
                 </div>
