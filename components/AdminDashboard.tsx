@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface Application {
   id: string;
@@ -219,31 +221,32 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
       setIsSaving(true);
-      const res = await fetch('/api/config/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) throw new Error('업로드 실패');
-      const data = await res.json();
       
-      if (data.success && data.url) {
-        setSettingsForm((prev: any) => ({
-          ...prev,
-          posterUrl: data.url
-        }));
-        alert('포스터 업로드가 완료되었습니다!');
-      } else {
-        alert('업로드 처리 실패: ' + (data.error || '알 수 없는 오류'));
-      }
+      // 파일 확장자 추출 (.jpg, .png 등)
+      const extension = file.name.split('.').pop() || 'jpg';
+      
+      // 부서별 고정 파일 경로 설정 (덮어쓰기 방식으로 불필요한 누적 방지)
+      const storagePath = `posters/${department}_poster.${extension}`;
+      const storageRef = ref(storage, storagePath);
+
+      // Firebase Storage 업로드
+      const snapshot = await uploadBytes(storageRef, file);
+      const downloadUrl = await getDownloadURL(snapshot.ref);
+      
+      // 브라우저 이미지 캐시 강제 갱신을 위해 쿼리 스트링(시간값) 추가
+      const freshUrl = `${downloadUrl}&t=${Date.now()}`;
+
+      setSettingsForm((prev: any) => ({
+        ...prev,
+        posterUrl: freshUrl
+      }));
+      
+      alert('포스터가 Firebase Storage에 안전하게 업로드되어 덮어쓰기 저장되었습니다!');
     } catch (err) {
       console.error(err);
-      alert('포스터 파일을 업로드하는 중 에러가 발생했습니다.');
+      alert('포스터 파일을 Firebase 클라우드 스토리지에 업로드하는 중 에러가 발생했습니다.');
     } finally {
       setIsSaving(false);
     }
