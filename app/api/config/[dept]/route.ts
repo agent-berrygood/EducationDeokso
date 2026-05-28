@@ -78,6 +78,8 @@ export async function POST(
       campStartDate, campSchedule, campType, campDuration
     } = body;
 
+    const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
+
     // 기존 설정 조회
     let config = await queryOne(
       `SELECT id FROM event_configs WHERE department = $1`,
@@ -104,7 +106,7 @@ export async function POST(
             JSON.stringify(events || []),
             JSON.stringify(tshirtSizes || []),
             JSON.stringify(customFieldMappings || []),
-            campStartDate || null,
+            validatedStartDate,
             JSON.stringify(campSchedule || []),
             campType || 'continuous',
             Number(campDuration || 3)
@@ -134,7 +136,7 @@ export async function POST(
           JSON.stringify(events || []),
           JSON.stringify(tshirtSizes || []),
           JSON.stringify(customFieldMappings || []),
-          campStartDate || null,
+          validatedStartDate,
           JSON.stringify(campSchedule || []),
           campType || 'continuous',
           Number(campDuration || 3),
