@@ -41,21 +41,21 @@ export default function HomePage() {
     {
       href: '/kinder',
       title: '나우킨더',
-      subtitle: '영아부 - 유치부',
+      subtitle: '통합미취학부, 영유아부, 유치부',
       className: 'bg-yellow-200/80 border-yellow-300 text-yellow-900',
       glowColor: '#fde047',
     },
     {
       href: '/kids',
       title: '나우키즈',
-      subtitle: '유년부 - 초등부',
+      subtitle: '통합아동부, 유년부, 소년부',
       className: 'bg-blue-300/80 border-blue-400 text-blue-900',
       glowColor: '#60a5fa',
     },
     {
       href: '/teens',
       title: '나우틴즈',
-      subtitle: '중등부 - 고등부',
+      subtitle: '중등부, 고등부',
       className: 'bg-gray-900 border-lime-400 text-lime-300',
       glowColor: '#a3e635',
     },
@@ -82,9 +82,9 @@ export default function HomePage() {
                   <h2 className="text-2xl font-bold text-white mb-6 text-center">부서 선택</h2>
                   <div className="grid grid-cols-1 gap-4">
                     {[
-                      { id: 'kinder', label: '나우킨더 (Now Kinder)', sub: '영아부 - 유치부' },
-                      { id: 'kids', label: '나우키즈 (Now Kids)', sub: '유년부 - 초등부' },
-                      { id: 'teens', label: '나우틴즈 (Now Teens)', sub: '중등부 - 고등부' },
+                      { id: 'kinder', label: '나우킨더 (Now Kinder)', sub: '통합미취학부, 영유아부, 유치부' },
+                      { id: 'kids', label: '나우키즈 (Now Kids)', sub: '통합아동부, 유년부, 소년부' },
+                      { id: 'teens', label: '나우틴즈 (Now Teens)', sub: '중등부, 고등부' },
                     ].map((dept) => (
                       <button
                         key={dept.id}
