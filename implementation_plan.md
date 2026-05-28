@@ -82,6 +82,35 @@
   - 로딩 동안 스켈레톤 홀더 노출 (`<Skeleton aspectRatio="3/4" />`).
 - 자녀가 2명 이상일 경우 `자녀 추가` 시 카드별로 독립 매핑됩니다.
 - 세부부서 선택란(통합미취학부, 영유아부, 유치부, 통합아동부, 유년부, 소년부, 중등부, 고등부)과 참석일정 옵션을 자녀별로 입력받습니다.
+- **부분 참석 일정 세션 선택 기능 고도화**:
+  - 식수 인원 및 행사 참여 인원 관리를 위해 기존에 부분 참석이 불분명했던 점을 개선합니다.
+  - 시간표와 유기적으로 연동되는 **일자별 오전(08:00~12:00) / 오후(12:00~18:00) / 저녁(18:00~22:00) 3구간 체크박스**를 자녀 카드에 제공합니다.
+  - 학부모는 일차별(예: 1일차 오전, 1일차 오후, 1일차 저녁) 세션을 개별 체크박스 토글을 통해 직관적으로 선택하며, 선택에 따라 하단 시간표의 해당 세션 일정 카드들에 하이라이트/마스킹 피드백을 실시간으로 렌더링합니다.
+  - 선택된 세션 정보(예: `['1-morning', '1-afternoon', '2-evening']`)는 DB의 스키마 변경을 최소화하기 위해 자녀의 `customFields` 데이터의 JSONB 내부 또는 지정된 커스텀 필드 슬롯에 직렬화하여 온전히 보존합니다.
+
+- **보완 (부분 참석 기능)**:
+  - **저장 위치 표준화**: `customFields` JSONB의 의미가 "관리자가 정의한 자유 필드"이므로 시스템 예약 정보와 분리한다. **별도 컬럼 `attended_sessions JSONB DEFAULT '[]'::jsonb`** 를 `application_children`에 추가하고, GIN 인덱스로 식수 집계 쿼리를 보장한다.
+    ```sql
+    ALTER TABLE application_children
+      ADD COLUMN IF NOT EXISTS attended_sessions JSONB DEFAULT '[]'::jsonb;
+    CREATE INDEX IF NOT EXISTS idx_children_sessions
+      ON application_children USING GIN (attended_sessions);
+    ```
+  - **세션 ID 포맷 단일 출처화**: `lib/session-grid.ts`에 `SessionKey = "${day:1-N}-${slot:morning|afternoon|evening}"` 타입과 빌더(`buildSessionKey(day, slot)`), 파서를 두어 코드 전체가 동일 포맷을 사용하도록 강제. 정규식 `^[1-9][0-9]*-(morning|afternoon|evening)$`로 서버 검증.
+  - **고정 구간 충돌 보호**: 오전/오후/저녁 경계 시각(12:00, 18:00)에 걸친 일정은 시간표 입력 시 두 슬롯 모두에 매핑되도록 admin UI에서 명시 선택을 요구. 자동 슬롯 결정 로직(슬롯 = `start_hour < 12 ? morning : start_hour < 18 ? afternoon : evening`)은 fallback으로만 사용.
+  - **부서별 시간표 분리**: 한 신청서 안에 부서가 다른 자녀가 있을 경우, 자녀 카드별로 자기 부서의 `camp_schedule`을 로드하여 표시한다. 부서 변경 시 기존에 체크된 세션은 부서 슬롯 ID와 호환되는지 비교 후 자동 초기화 + 학부모에게 안내.
+  - **시간표 변경 시 무효화 정책**: 관리자가 `camp_schedule`을 변경하면 변경 사항(추가/삭제된 일차·슬롯)을 비교해 영향받는 신청서 자녀를 식별하고, 어드민 모니터 탭에 "재확인 필요" 배지로 노출. 자동 갱신 대신 운영자 확인 후 알림 발송 방식으로 보수적 처리.
+  - **기존 데이터 호환**: 마이그레이션 시 `attended_sessions IS NULL` → `'[]'::jsonb`. UI 상 "선택 정보 없음" 행은 어드민에서 "전체 참석으로 간주" 토글로 일괄 정정 가능.
+  - **UX 부담 완화**:
+    - 자녀 카드 상단에 **"전체 참석"** 단일 토글 → 모든 일차·슬롯 체크 / 해제.
+    - 일차별로 "오전·오후·저녁 모두" 토글 추가하여 그리드 클릭 횟수 최소화.
+    - 모바일에서는 grid를 2열로 압축하고 슬롯 약자(오/오후/저)로 라벨 단축.
+  - **자녀별 식수 집계 API**: 어드민용 `GET /api/admin/meals?department=kids&day=2&slot=lunch` 같은 집계 엔드포인트 제공. JSONB GIN 인덱스를 활용해 `attended_sessions ?| array['2-morning','2-afternoon']` 형식으로 빠르게 검색.
+  - **서버 검증**:
+    - zod로 `attendedSessions: z.array(z.string().regex(/^[1-9][0-9]*-(morning|afternoon|evening)$/)).optional()` 강제.
+    - 신청 시점에 `camp_duration` 또는 `camp_schedule`로부터 허용 일차 범위를 가져와 day 값이 초과되면 422 반환.
+  - **요금 정책 결정 명시**: 부분 참석에 따른 요금 할인이 있는지를 `fees_config.partial_discount_rate` 컬럼 또는 운영 정책 문서에 명시. 현재 단계에서는 **할인 없음, 정보 수집용**으로 결론.
+  - **엑셀 추출 보강**: `/api/export`에 부분 참석 매트릭스 시트 추가 (`자녀명 / 1-morning / 1-afternoon / 1-evening / 2-morning / ...`) — 식수 담당자가 day×slot 합계를 즉시 산출 가능.
 
 ### 1.4. 부모 중심 DB 스키마 마이그레이션 (`lib/db.ts` / Postgres)
 - 부모를 중심(Parent-Centric)으로 데이터가 유기적으로 엮이도록 관계를 명확히 합니다.
@@ -111,7 +140,22 @@
   CREATE INDEX IF NOT EXISTS idx_apps_created
     ON applications(created_at DESC);
   ```
-- **데이터 흐름**: 학부모 1회 접수 시 `applications` 레코드 하나 + `waterfall_parents` JSONB 배열에 여러 보호자, 그리고 `application_id` FK로 묶인 `application_children` 다중 레코드가 단단히 결합됩니다.
+- **부분 참석 세션 컬럼 (v6, 신규)**:
+  ```sql
+  -- UP
+  ALTER TABLE application_children
+    ADD COLUMN IF NOT EXISTS attended_sessions JSONB DEFAULT '[]'::jsonb;
+  UPDATE application_children
+    SET attended_sessions = '[]'::jsonb
+    WHERE attended_sessions IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_children_sessions
+    ON application_children USING GIN (attended_sessions);
+
+  -- DOWN
+  DROP INDEX IF EXISTS idx_children_sessions;
+  ALTER TABLE application_children DROP COLUMN IF EXISTS attended_sessions;
+  ```
+- **데이터 흐름**: 학부모 1회 접수 시 `applications` 레코드 하나 + `waterfall_parents` JSONB 배열에 여러 보호자, 그리고 `application_id` FK로 묶인 `application_children` 다중 레코드가 단단히 결합됩니다. 각 자녀 레코드는 `attended_sessions`로 부분 참석 세션 키 배열을 별도 보유합니다.
 
 ### 1.5. 통합 관리자 페이지 개발 (`app/admin/page.tsx` & `components/AdminDashboard.tsx`)
 - 부서별로 쪼개진 관리자 화면(`/kinder/admin`, `/kids/admin`, `/teens/admin`)을 단일 대시보드 `/admin`으로 통합합니다.
@@ -142,12 +186,23 @@
 | R10 | 운영 중 장애 시 롤백 전략 부재 | ★★★ | Neon Branch 스냅샷, DOWN 스크립트 동봉, Vercel rollback 절차 문서화 |
 | R11 | `NEXT_PUBLIC_ADMIN_PASSWORD` 클라이언트 노출 | ★★★★ | 즉시 제거, 서버사이드 환경변수 + JWT 발급 라우트로 이전 |
 | R12 | `lib/db.ts` 한글 인코딩 깨짐 | ★★★ | UTF-8 정상 텍스트로 즉시 복구 (선결 과제 0.1) |
+| R13 | 부분 참석 데이터를 `customFields`에 섞으면 관리자 정의 필드와 의미 충돌 | ★★★★ | 시스템 예약 컬럼 `attended_sessions JSONB` 분리 + 마이그레이션 v6 |
+| R14 | 세션 ID 포맷 불일치(예: `1-am` vs `1-morning`)로 클라이언트·서버 데이터 불일치 | ★★★ | `lib/session-grid.ts` 단일 소스화 + 정규식 zod 검증 + 빌더/파서 export |
+| R15 | 12:00·18:00 경계 시각 일정의 슬롯 모호성 | ★★ | 관리자 시간표 입력 시 슬롯 명시 선택 + 자동 추정 로직은 fallback만 |
+| R16 | 시간표 수정 시 기존 신청 세션 키와 mismatch → 식수 집계 오류 | ★★★★ | 변경 diff 기반 영향 자녀 자동 추출 + "재확인 필요" 배지 + 운영자 확인 후 알림 |
+| R17 | JSONB 내부 검색 성능 저하(식수 집계 시 풀스캔) | ★★★ | `idx_children_sessions GIN` + `?\|` 연산자 활용 + `/api/admin/meals` 전용 집계 API |
+| R18 | 한 신청서 안에 부서 다른 자녀 → 시간표 그리드 혼란 | ★★★ | 자녀 카드별로 자기 부서의 `camp_schedule`만 로드 + 부서 변경 시 세션 자동 초기화 + 안내 |
+| R19 | 부분 참석 정보 없는 기존 신청 → "미응답"인지 "전체 참석"인지 모호 | ★★ | 기존 데이터는 빈 배열로 백필 + 어드민에서 "전체 참석으로 간주" 일괄 토글 제공 |
+| R20 | 일차×슬롯 체크박스가 너무 많아 모바일 입력 피로도 증가 | ★★★ | "전체 참석" / "일차별 모두" 일괄 토글 + 모바일 2열 그리드 + 슬롯 라벨 단축(오/오후/저) |
+| R21 | 사용자가 임의로 존재하지 않는 day 값(예: `99-morning`)을 POST | ★★ | 서버에서 `camp_duration` 또는 `camp_schedule`의 최대 day 추출 후 zod refine으로 422 응답 |
 
 > [!IMPORTANT]
 > - **데이터 마이그레이션**: 기존 데이터 유실을 완벽 차단하기 위해 `ALTER TABLE`은 항상 `IF NOT EXISTS` + `DEFAULT` 가드와 함께 사용하고, NULL 백필 쿼리를 후속 실행합니다.
 > - **Base64 이미지 처리**: 부서 변경 시 발생하는 수 MB 응답을 회피하기 위해 포스터 전용 엔드포인트를 캐시하고 sharp WebP 압축을 강제합니다.
 > - **필터 성능 인덱싱**: `/admin`에서 발생하는 JOIN + 필터 쿼리에 대비해 `(department, sub_department)` 복합 인덱스를 사전 생성합니다.
 > - **권한 분리**: 통합 어드민 시 부서 교사가 타 부서 개인정보에 접근하지 못하도록 JWT claim 기반 화이트리스트를 적용합니다.
+> - **부분 참석 세션 무결성**: 시스템 정보(`attended_sessions`)는 관리자 자유 필드(`customFields`)와 절대 섞지 않고 별도 컬럼으로 보존하며, 세션 ID 포맷은 `lib/session-grid.ts` 단일 모듈로 강제합니다.
+> - **시간표 변경 안전성**: 관리자 시간표 수정 시 영향받는 신청 세션 키는 자동 변경하지 않고 "재확인 필요" 배지로만 표기, 운영자 확인 후 일괄 정정합니다.
 
 ---
 
@@ -176,6 +231,17 @@
 - [ ] Step 1 워터풀 보호자 Dynamic Array Input + zod 검증
 - [ ] Step 2 자녀 카드 + 실시간 부서 콘텐츠 매핑 + 포스터 스켈레톤
 - [ ] 자동 부서 추천 모듈 (`lib/age-to-department.ts`)
+
+### Phase 3.5 — 부분 참석 세션 그리드 (Frontend + Backend)
+- [ ] 마이그레이션 v6 (`attended_sessions JSONB` + GIN 인덱스)
+- [ ] `lib/session-grid.ts` 세션 키 포맷/빌더/파서/정규식 검증
+- [ ] zod 스키마에 `attendedSessions` 필드 + day 상한 refine 추가
+- [ ] `POST /api/applications` 핸들러가 `attended_sessions` 저장하도록 확장
+- [ ] Step 2 자녀 카드에 일차×슬롯 체크박스 그리드 + 시간표 하이라이트
+- [ ] "전체 참석" / "일차별 모두" 일괄 토글 UI
+- [ ] `/api/admin/meals` 식수 집계 엔드포인트
+- [ ] `/api/export` 부분 참석 매트릭스 시트 추가
+- [ ] 어드민 시간표 변경 시 영향 신청 자녀 자동 추출 + "재확인 필요" 배지
 
 ### Phase 4 — 통합 어드민 (Frontend - Admin)
 - [ ] `/admin` 페이지 신설 + 부서 탭 + 세부부서 2차 탭
@@ -216,9 +282,18 @@
 3. **데이터 무결성**
    - Neon SQL 에디터에서 `SELECT waterfall_parents FROM applications LIMIT 5` → JSONB 형식 확인.
    - 마이그레이션 후 `SELECT version FROM schema_migrations` → 적용 버전 확인.
-4. **성능**
+   - `SELECT attended_sessions FROM application_children LIMIT 5` → 빈 배열 또는 `["1-morning", ...]` 형식 확인.
+4. **부분 참석 세션 그리드**
+   - 일차 4일 캠프 설정 후 자녀 카드의 체크박스가 4×3 = 12개로 렌더링되는지 확인.
+   - "1일차 전체 선택" 토글 시 해당 행 3슬롯 모두 체크되는지 확인.
+   - 부서 변경 시 기존 체크된 세션이 초기화되고 안내 토스트 노출되는지 확인.
+   - 관리자 시간표 수정 후 기존 신청 자녀가 어드민 "재확인 필요" 배지에 노출되는지 확인.
+   - `/api/admin/meals?department=kids&day=2&slot=morning` 응답에서 정확한 인원수 반환 확인.
+   - 서버에 `99-morning` 같은 비정상 세션 키 POST 시 422 응답 확인.
+5. **성능**
    - 부서 페이지 첫 로딩에서 포스터 응답 1MB 이하 확인 (DevTools Network).
    - 어드민 신청 100건 이상에서 필터링 응답 500ms 이하 확인.
+   - 식수 집계 API가 신청 500건 환경에서 200ms 이하 응답 확인 (GIN 인덱스 효과).
 
 ### 4.3. 롤백 절차
 1. Vercel: 이전 정상 배포로 즉시 rollback.
@@ -234,21 +309,29 @@
   app/apply/page.tsx                     # 풀페이지 신청 라우트
   app/admin/page.tsx                     # 통합 어드민
   app/api/admin/login/route.ts           # JWT 발급
+  app/api/admin/meals/route.ts           # 식수 집계 API (day×slot 인원수)
   app/api/poster/[dept]/route.ts         # 포스터 전용 캐시 엔드포인트
-  lib/types.ts                           # 공용 타입
-  lib/schemas.ts                         # zod 스키마
+  lib/types.ts                           # 공용 타입 (SessionKey 포함)
+  lib/schemas.ts                         # zod 스키마 (attendedSessions refine)
   lib/age-to-department.ts               # 부서 추천 로직
+  lib/session-grid.ts                    # 세션 키 포맷/빌더/파서/정규식
+  components/SessionGridPicker.tsx       # Step 2 일차×슬롯 체크박스 그리드 UI
   migrations/001_waterfall_parents.sql
   migrations/001_waterfall_parents.down.sql
   migrations/002_indexes.sql
   migrations/002_indexes.down.sql
+  migrations/006_attended_sessions.sql       # JSONB + GIN 인덱스
+  migrations/006_attended_sessions.down.sql
 
 수정:
   app/page.tsx                           # 단일 버튼화
-  lib/db.ts                              # 한글 인코딩 복구 + 마이그레이션 러너
+  lib/db.ts                              # 한글 인코딩 복구 + 마이그레이션 러너 + v6 추가
   components/ApplicationForm.tsx         # /apply로 분리 후 props 정리
-  components/AdminDashboard.tsx          # 부서 탭 + 세부부서 필터
-  app/api/applications/route.ts          # waterfall_parents 처리
+  components/ApplyWizard.tsx             # Step 2에 SessionGridPicker 통합
+  components/AdminDashboard.tsx          # 부서 탭 + 세부부서 필터 + "재확인 필요" 배지
+  app/api/applications/route.ts          # waterfall_parents + attended_sessions 처리
+  app/api/config/[dept]/route.ts         # camp_schedule diff 추출 후 영향 자녀 식별
+  app/api/export/route.ts                # 부분 참석 매트릭스 시트 추가
 
 제거(또는 hidden):
   app/{kinder,kids,teens}/admin/page.tsx # /admin으로 통합 (footer 링크만 유지)
