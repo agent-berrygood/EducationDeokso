@@ -271,10 +271,12 @@
 - [x] Vercel 배포 *(GitHub 푸시 자동 배포 파이프라인)*
 - [ ] 문제 시 Neon Branch 롤백 + Vercel rollback 절차 실행
 
-### Phase 7 — 보안 강화 (잔여 과제)
-- [ ] 운영 환경변수에 `ADMIN_PASSWORD_ALL` + 부서별 비밀번호 분리 설정
-- [ ] `NEXT_PUBLIC_ADMIN_PASSWORD` 제거 + Vercel 환경변수에서 삭제
-- [ ] 어드민 API 전체에 `checkDepartmentAccess` 일괄 적용 (config/fees/payment/event-attendance)
+### Phase 7 — 운영 정책 단순화 (교역자 단일 운영)
+- [x] 부서별 비밀번호 분리 제거 — 단일 비밀번호로 통합 권한 발급
+- [x] 어드민 로그인 UI에서 부서 선택 드롭다운 제거
+- [x] 통합 어드민 글로벌 설정 탭 항상 노출
+- [ ] `NEXT_PUBLIC_ADMIN_PASSWORD` 제거 + `ADMIN_PASSWORD` 서버사이드 변수로 전환
+      (운영 자료에서 비밀번호 노출 차단)
 
 ---
 

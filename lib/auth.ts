@@ -36,64 +36,40 @@ export async function decryptSession(token: string): Promise<AdminSession | null
   }
 }
 
-interface DepartmentCredential {
-  allowed: DepartmentId[];
-}
-
 /**
- * 환경 변수에서 비밀번호 → 허용 부서 매핑 로드
- *   - ADMIN_PASSWORD_ALL    : 전체 부서
- *   - ADMIN_PASSWORD_KINDER : kinder
- *   - ADMIN_PASSWORD_KIDS   : kids
- *   - ADMIN_PASSWORD_TEENS  : teens
- *   - ADMIN_PASSWORD        : 레거시 fallback (전체 부서)
- *   - NEXT_PUBLIC_ADMIN_PASSWORD : 레거시 호환만 유지 (보안상 사용 자제)
- */
-function loadCredentials(): Map<string, DepartmentCredential> {
-  const creds = new Map<string, DepartmentCredential>();
-  const ALL = process.env.ADMIN_PASSWORD_ALL;
-  if (ALL) creds.set(ALL, { allowed: ['kinder', 'kids', 'teens'] });
-
-  const KIN = process.env.ADMIN_PASSWORD_KINDER;
-  if (KIN) creds.set(KIN, { allowed: ['kinder'] });
-
-  const KID = process.env.ADMIN_PASSWORD_KIDS;
-  if (KID) creds.set(KID, { allowed: ['kids'] });
-
-  const TEEN = process.env.ADMIN_PASSWORD_TEENS;
-  if (TEEN) creds.set(TEEN, { allowed: ['teens'] });
-
-  const LEGACY = process.env.ADMIN_PASSWORD || process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
-  if (LEGACY && !creds.has(LEGACY)) {
-    creds.set(LEGACY, { allowed: ['kinder', 'kids', 'teens'] });
-  }
-  return creds;
-}
-
-/**
- * 비밀번호 검증 후 세션 토큰 발급
+ * 어드민 비밀번호 검증 → 통합 권한(전체 부서) 세션 토큰 발급
+ *
+ * 교역자 단일 운영 정책에 따라 인증 통과 시 항상 모든 부서 접근 권한 부여.
+ * 우선순위:
+ *   1. ADMIN_PASSWORD (서버사이드)
+ *   2. NEXT_PUBLIC_ADMIN_PASSWORD (레거시 호환)
+ *   3. ADMIN_PASSWORD_ALL / ADMIN_PASSWORD_KINDER / KIDS / TEENS
+ *      (어떤 키든 통과하면 통합 권한으로 발급)
+ *
  * @param password 사용자 입력 비밀번호
- * @param requestedDept 요청 부서 또는 'all'(통합)
+ * @param _requestedDept 호환성을 위해 시그니처는 유지 (값은 무시)
  */
 export async function authenticateAdmin(
   password: string,
-  requestedDept: DepartmentId | 'all'
+  _requestedDept?: DepartmentId | 'all'
 ): Promise<string | null> {
-  const creds = loadCredentials();
-  const cred = creds.get(password);
-  if (!cred) return null;
+  const validPasswords = [
+    process.env.ADMIN_PASSWORD,
+    process.env.NEXT_PUBLIC_ADMIN_PASSWORD,
+    process.env.ADMIN_PASSWORD_ALL,
+    process.env.ADMIN_PASSWORD_KINDER,
+    process.env.ADMIN_PASSWORD_KIDS,
+    process.env.ADMIN_PASSWORD_TEENS,
+  ].filter(Boolean) as string[];
 
-  if (requestedDept !== 'all' && !cred.allowed.includes(requestedDept)) {
-    return null;
-  }
+  if (validPasswords.length === 0) return null;
+  if (!validPasswords.includes(password)) return null;
 
-  const allowed: DepartmentId[] =
-    requestedDept === 'all' ? cred.allowed : [requestedDept];
+  const allowed: DepartmentId[] = ['kinder', 'kids', 'teens'];
 
   return await encryptSession({
     role: 'admin',
     authenticated: true,
-    department: allowed.length === 1 ? allowed[0] : undefined,
     allowed_departments: allowed,
   });
 }

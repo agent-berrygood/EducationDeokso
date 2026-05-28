@@ -18,8 +18,8 @@ interface Props {
 type TopTab = DepartmentId | 'global';
 
 export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
-  // 글로벌 설정은 전체 부서 권한이 있는 사용자만 접근 가능
-  const canSeeGlobal = allowedDepartments.length >= 2;
+  // 교역자 단일 운영 - 어드민은 항상 글로벌 설정 노출
+  const canSeeGlobal = true;
 
   const [activeTab, setActiveTab] = useState<TopTab>(allowedDepartments[0]);
   const [activeSubDept, setActiveSubDept] = useState<string>('all');
