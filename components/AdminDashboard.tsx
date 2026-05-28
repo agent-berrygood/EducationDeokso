@@ -357,33 +357,55 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
+  // 알러지 데이터를 다양한 저장 형태(배열/JSON 문자열/쉼표 구분 문자열/null)에서 안전 변환
+  const parseAllergies = (raw: any): string[] => {
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    if (typeof raw !== 'string') return [];
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[')) {
+      try {
+        const arr = JSON.parse(trimmed);
+        return Array.isArray(arr) ? arr.filter(Boolean) : [];
+      } catch {
+        return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+      }
+    }
+    return trimmed.split(',').map((s) => s.trim()).filter(Boolean);
+  };
+
   // 아이 단위(자녀 중심)의 리스토어 평탄화 연산
   const processedChildren = useMemo(() => {
     const rows: any[] = [];
-    applications.forEach(app => {
-      if (app.children) {
-        app.children.forEach(child => {
+    try {
+      applications.forEach(app => {
+        if (!app?.children || !Array.isArray(app.children)) return;
+        app.children.forEach((child: any) => {
+          if (!child) return;
           if (child.department === department || !child.department) {
             rows.push({
               appId: app.id,
               parentName: app.parent_name,
               parentPhone: app.parent_phone,
               depositorName: app.depositor_name || app.parent_name,
-              childName: child.name,
-              birthDate: child.birthDate,
-              age: calculateAge(child.birthDate),
-              tshirtSize: child.tshirtSize,
-              allergies: Array.isArray(child.allergies) ? child.allergies : JSON.parse(child.allergies || '[]'),
-              customAllergy: child.customAllergy || '',
-              attendsWaterpark: !!child.attendsWaterpark,
+              childName: child.name || '',
+              birthDate: child.birthDate || child.birth_date || '',
+              age: calculateAge(child.birthDate || child.birth_date || ''),
+              tshirtSize: child.tshirtSize || child.tshirt_size || '',
+              allergies: parseAllergies(child.allergies),
+              customAllergy: child.customAllergy || child.custom_allergy || '',
+              attendsWaterpark: !!(child.attendsWaterpark ?? child.attends_waterpark),
               grandTotal: app.grand_total,
               createdAt: app.created_at,
               originalChild: child
             });
           }
         });
-      }
-    });
+      });
+    } catch (err) {
+      console.error('processedChildren 변환 오류:', err);
+    }
 
     // 1. 검색어 필터링
     let filtered = rows;

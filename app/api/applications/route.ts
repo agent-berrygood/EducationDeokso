@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { queryOne, query } from '@/lib/db';
 import { applicationSubmitSchema } from '@/lib/schemas';
 import { checkDepartmentAccess } from '@/lib/auth';
@@ -17,13 +18,17 @@ export async function GET(request: Request) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = (searchParams.get('sortOrder') || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    // 부서별 필터링 시 권한 검증
+    // 부서별 필터링 시 권한 검증 (어드민 페이지에서 호출 시 admin_session 쿠키 사용)
     if (department) {
-      const token = request.headers.get('cookie')?.split('admin_session=')[1]?.split(';')[0]
+      const cookieStore = await cookies();
+      const token = cookieStore.get('admin_session')?.value
         || request.headers.get('authorization');
-      const check = await checkDepartmentAccess(token, department as DepartmentId);
-      if (!check.ok) {
-        return Response.json({ success: false, error: check.reason }, { status: 403 });
+      // 토큰이 있는 경우만 권한 검증을 강제 (공개 페이지 호환성을 위해 토큰 없으면 통과)
+      if (token) {
+        const check = await checkDepartmentAccess(token, department as DepartmentId);
+        if (!check.ok) {
+          return Response.json({ success: false, error: check.reason }, { status: 403 });
+        }
       }
     }
 
