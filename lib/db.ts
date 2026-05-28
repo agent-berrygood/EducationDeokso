@@ -31,7 +31,73 @@ export async function queryMany(text: string, params?: any[]) {
   return result.rows;
 }
 
+// ============================================================
+// 마이그레이션 시스템
+// ============================================================
+interface Migration {
+  version: number;
+  description: string;
+  up: string[];
+}
+
+const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    description: 'Add waterfall_parents JSONB to applications',
+    up: [
+      `ALTER TABLE applications ADD COLUMN IF NOT EXISTS waterfall_parents JSONB DEFAULT '[]'::jsonb`,
+      `UPDATE applications SET waterfall_parents = '[]'::jsonb WHERE waterfall_parents IS NULL`,
+    ],
+  },
+  {
+    version: 2,
+    description: 'Add composite indexes for filtering and sorting',
+    up: [
+      `CREATE INDEX IF NOT EXISTS idx_children_dept_sub ON application_children(department, sub_department)`,
+      `CREATE INDEX IF NOT EXISTS idx_apps_created ON applications(created_at DESC)`,
+    ],
+  },
+  {
+    version: 3,
+    description: 'Add gender column to application_children',
+    up: [
+      `ALTER TABLE application_children ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`,
+    ],
+  },
+];
+
+async function ensureMigrationsTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      version INT PRIMARY KEY,
+      description TEXT,
+      applied_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+async function runMigrations() {
+  await ensureMigrationsTable();
+  const applied = await queryMany(`SELECT version FROM schema_migrations`);
+  const appliedVersions = new Set(applied.map((r: any) => r.version));
+
+  for (const migration of MIGRATIONS) {
+    if (appliedVersions.has(migration.version)) continue;
+    console.log(`▶ Migration v${migration.version}: ${migration.description}`);
+    for (const stmt of migration.up) {
+      await query(stmt);
+    }
+    await query(
+      `INSERT INTO schema_migrations (version, description) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [migration.version, migration.description]
+    );
+    console.log(`✓ Migration v${migration.version} applied`);
+  }
+}
+
+// ============================================================
 // 데이터베이스 초기화 (테이블 생성)
+// ============================================================
 export async function initializeDatabase() {
   try {
     console.log('🔄 PostgreSQL 테이블 생성 중...');
@@ -64,6 +130,10 @@ export async function initializeDatabase() {
         tshirt_sizes JSONB DEFAULT '["S","M","L","XL","2XL","3XL"]',
         custom_field_mappings JSONB DEFAULT '[]',
         camp_start_date DATE,
+        camp_schedule JSONB DEFAULT '[]',
+        camp_type VARCHAR(50) DEFAULT 'continuous',
+        camp_duration INT DEFAULT 3,
+        poster_url TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
@@ -77,6 +147,7 @@ export async function initializeDatabase() {
         parent_phone VARCHAR(20) NOT NULL,
         depositor_name VARCHAR(100) NOT NULL,
         grand_total DECIMAL(10, 2) DEFAULT 0,
+        waterfall_parents JSONB DEFAULT '[]'::jsonb,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
@@ -89,6 +160,7 @@ export async function initializeDatabase() {
         application_id UUID NOT NULL REFERENCES applications(id) ON DELETE CASCADE,
         name VARCHAR(100) NOT NULL,
         birth_date DATE NOT NULL,
+        gender VARCHAR(10),
         department VARCHAR(50) NOT NULL,
         sub_department VARCHAR(50) NOT NULL,
         tshirt_size VARCHAR(10),
@@ -139,30 +211,33 @@ export async function initializeDatabase() {
       );
     `);
 
-    console.log('??PostgreSQL ???????? ???!');
-
-    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_start_date DATE`);
-    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_schedule JSONB DEFAULT '[]'`);
-    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_type VARCHAR(50) DEFAULT 'continuous'`);
-    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_duration INT DEFAULT 3`);
-    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS poster_url TEXT`);
-
+    // 7. 기본 부서 설정 시드 (한글 정상 표기)
     await query(`
       INSERT INTO event_configs (department, title, event_type, sub_departments, tshirt_sizes, primary_color, bg_color)
       VALUES
-        ('kinder', '2026 ?????? ?????????', '?????????',
-         '[{"id":"integrated_preschool","label":"?????????"},{"id":"infant","label":"??????"},{"id":"kindergarten","label":"?????"}]',
-         '["SS","S","M","L","XL"]', '#EAB308', '#FEF08A'),
-        ('kids', '2026 ?????? ?????????', '?????????',
-         '[{"id":"integrated_kids","label":"????????"},{"id":"junior","label":"?????"},{"id":"senior","label":"?????"}]',
-         '["SS","S","M","L","XL","2XL"]', '#3B82F6', '#DBEAFE'),
-        ('teens', '2026 ?????? ????????', '????????',
-         '[{"id":"middle","label":"?????"},{"id":"high","label":"?????"}]',
-         '["S","M","L","XL","2XL","3XL"]', '#22C55E', '#0F172A')
+        ('kinder', '2026 여름성경학교', '여름성경학교',
+         '[{"id":"integrated_preschool","label":"통합미취학부"},{"id":"infant","label":"영유아부"},{"id":"kindergarten","label":"유치부"}]'::jsonb,
+         '["SS","S","M","L","XL"]'::jsonb, '#EAB308', '#FEF08A'),
+        ('kids', '2026 여름성경학교', '여름성경학교',
+         '[{"id":"integrated_kids","label":"통합아동부"},{"id":"junior","label":"유년부"},{"id":"senior","label":"소년부"}]'::jsonb,
+         '["SS","S","M","L","XL","2XL"]'::jsonb, '#3B82F6', '#DBEAFE'),
+        ('teens', '2026 여름수련회', '여름수련회',
+         '[{"id":"middle","label":"중등부"},{"id":"high","label":"고등부"}]'::jsonb,
+         '["S","M","L","XL","2XL","3XL"]'::jsonb, '#22C55E', '#0F172A')
       ON CONFLICT (department) DO NOTHING
     `);
 
-    console.log('✅ PostgreSQL 테이블 생성 완료!');
+    // 8. 기본 요금 시드
+    await query(`
+      INSERT INTO fees_config (kinder, kids, teens, parent_waterpark)
+      SELECT 10000, 15000, 20000, 30000
+      WHERE NOT EXISTS (SELECT 1 FROM fees_config)
+    `);
+
+    // 9. 마이그레이션 실행
+    await runMigrations();
+
+    console.log('✅ PostgreSQL 테이블 생성 및 마이그레이션 완료!');
     return true;
   } catch (error) {
     console.error('❌ 데이터베이스 초기화 오류:', error);

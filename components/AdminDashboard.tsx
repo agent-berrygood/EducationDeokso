@@ -34,9 +34,11 @@ interface CustomField {
 
 interface AdminDashboardProps {
   department: 'kinder' | 'kids' | 'teens' | string;
+  /** 외부에서 지정한 세부 부서 필터 (통합 어드민 등) */
+  subDepartment?: string;
 }
 
-export default function AdminDashboard({ department }: AdminDashboardProps) {
+export default function AdminDashboard({ department, subDepartment: externalSubDepartment }: AdminDashboardProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'applications' | 'settings' | 'payment' | 'surveys' | string>('applications');
   const [applications, setApplications] = useState<Application[]>([]);
@@ -45,15 +47,16 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  
+
   // 페이징, 검색 및 정렬 상태 추가
   const [offset, setOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<'childName' | 'age' | 'createdAt'>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  
-  // 하위 부서 탭 필터 state
+
+  // 하위 부서 탭 필터 state (외부 prop 우선)
   const [selectedSubDept, setSelectedSubDept] = useState<string>('all');
+  const effectiveSubDept = externalSubDepartment ?? selectedSubDept;
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<any>({
@@ -405,11 +408,11 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
       filtered = filtered.filter(row => row.age >= range[0] && row.age <= range[1]);
     }
 
-    // 4. 하위 부서 탭 필터
-    if (selectedSubDept !== 'all') {
-      filtered = filtered.filter(row => 
-        (row.originalChild?.subDepartment === selectedSubDept) ||
-        (row.originalChild?.sub_department === selectedSubDept)
+    // 4. 하위 부서 탭 필터 (외부 prop 우선)
+    if (effectiveSubDept !== 'all') {
+      filtered = filtered.filter(row =>
+        (row.originalChild?.subDepartment === effectiveSubDept) ||
+        (row.originalChild?.sub_department === effectiveSubDept)
       );
     }
 
@@ -438,7 +441,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     });
 
     return filtered;
-  }, [applications, department, searchQuery, sortField, sortDirection, selectedSubDept]);
+  }, [applications, department, searchQuery, sortField, sortDirection, effectiveSubDept]);
 
   const handleLogout = async () => {
     if (confirm("로그아웃 하시겠습니까?")) {
@@ -515,8 +518,8 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           {/* 1. Applications Tab */}
           {activeTab === 'applications' && (
             <div className="space-y-4">
-              {/* 하위 부서 탭 필터 */}
-              {config?.subDepartments && config.subDepartments.length > 0 && (
+              {/* 하위 부서 탭 필터 (외부 subDepartment prop이 있으면 숨김) */}
+              {!externalSubDepartment && config?.subDepartments && config.subDepartments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     onClick={() => setSelectedSubDept('all')}
