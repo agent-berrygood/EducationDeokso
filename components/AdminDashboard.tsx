@@ -66,9 +66,16 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     customFields: [],
     subDepartments: [],
     campStartDate: '',
+    campSchedule: [],
   });
   
   const [newTshirtSize, setNewTshirtSize] = useState('');
+  const [newSchedule, setNewSchedule] = useState({
+    day: 1,
+    time: '',
+    title: '',
+    description: '',
+  });
   const [newCustomField, setNewCustomField] = useState<any>({
     label: '',
     type: 'text',
@@ -118,6 +125,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
         customFields: data.customFieldMappings || [],
         subDepartments: data.subDepartments || [],
         campStartDate: data.camp_start_date || '',
+        campSchedule: data.campSchedule || [],
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
@@ -215,6 +223,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           customFieldMappings: settingsForm.customFields,
           subDepartments: settingsForm.subDepartments,
           campStartDate: settingsForm.campStartDate,
+          campSchedule: settingsForm.campSchedule,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -261,6 +270,34 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     setSettingsForm((prev: any) => ({
       ...prev,
       customFields: prev.customFields.filter((f: any) => f.id !== id),
+    }));
+  };
+
+  const addScheduleItem = () => {
+    if (!newSchedule.time.trim() || !newSchedule.title.trim()) {
+      alert('시간과 일정명은 필수 입력 항목입니다.');
+      return;
+    }
+    setSettingsForm((prev: any) => ({
+      ...prev,
+      campSchedule: [
+        ...(prev.campSchedule || []),
+        {
+          id: `sched_${Date.now()}`,
+          day: Number(newSchedule.day),
+          time: newSchedule.time.trim(),
+          title: newSchedule.title.trim(),
+          description: newSchedule.description.trim(),
+        }
+      ].sort((a, b) => a.day - b.day || a.time.localeCompare(b.time)),
+    }));
+    setNewSchedule({ day: newSchedule.day, time: '', title: '', description: '' });
+  };
+
+  const removeScheduleItem = (id: string) => {
+    setSettingsForm((prev: any) => ({
+      ...prev,
+      campSchedule: (prev.campSchedule || []).filter((s: any) => s.id !== id),
     }));
   };
 
@@ -717,6 +754,102 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                             className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
                           >
                             &times;
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 수련회 세부 일정(타임라인) 설정 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">📅 수련회 세부 일정(타임라인) 설정</h3>
+                  
+                  {/* 신규 일정 등록 양식 */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-800/40 mb-6">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">일차 (Day)</label>
+                      <select
+                        value={newSchedule.day}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, day: Number(e.target.value) })}
+                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value={1}>1일차 (Day 1)</option>
+                        <option value={2}>2일차 (Day 2)</option>
+                        <option value={3}>3일차 (Day 3)</option>
+                        <option value={4}>4일차 (Day 4)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">시간대 (Time)</label>
+                      <input
+                        type="text"
+                        placeholder="예: 09:30 - 11:00"
+                        value={newSchedule.time}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, time: e.target.value })}
+                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">일정 활동명 (Title)</label>
+                      <input
+                        type="text"
+                        placeholder="예: 개회 예배 및 조별 모임"
+                        value={newSchedule.title}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })}
+                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">상세 내용 및 비고</label>
+                      <input
+                        type="text"
+                        placeholder="예: 체육관 2층, 운동화 필수 지참"
+                        value={newSchedule.description}
+                        onChange={(e) => setNewSchedule({ ...newSchedule, description: e.target.value })}
+                        className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div className="md:col-span-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={addScheduleItem}
+                        className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow cursor-pointer text-sm"
+                      >
+                        ➕ 일정 항목 임시 추가
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 등록된 일정 목록 */}
+                  <div className="space-y-3">
+                    {!settingsForm.campSchedule || settingsForm.campSchedule.length === 0 ? (
+                      <p className="text-center p-6 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400">등록된 세부 일정이 없습니다. 일정을 추가해주세요.</p>
+                    ) : (
+                      settingsForm.campSchedule.map((item: any) => (
+                        <div key={item.id} className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800">
+                          <div className="flex flex-col md:flex-row md:items-center gap-3">
+                            <span className="px-2.5 py-1 rounded bg-indigo-100 text-indigo-800 font-bold text-xs">
+                              {item.day}일차
+                            </span>
+                            <span className="text-sm font-bold text-gray-500 dark:text-gray-400">
+                              🕒 {item.time}
+                            </span>
+                            <span className="font-bold text-base text-gray-900 dark:text-white">
+                              {item.title}
+                            </span>
+                            {item.description && (
+                              <span className="text-xs text-gray-400">
+                                ({item.description})
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeScheduleItem(item.id)}
+                            className="px-2.5 py-1 bg-red-500 hover:bg-red-650 text-white text-xs font-bold rounded shadow transition cursor-pointer"
+                          >
+                            삭제
                           </button>
                         </div>
                       ))

@@ -142,6 +142,7 @@ export async function initializeDatabase() {
     console.log('??PostgreSQL ???????? ???!');
 
     await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_start_date DATE`);
+    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_schedule JSONB DEFAULT '[]'`);
 
     await query(`
       INSERT INTO event_configs (department, title, event_type, sub_departments, tshirt_sizes, primary_color, bg_color)
