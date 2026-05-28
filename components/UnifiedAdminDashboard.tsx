@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import AdminDashboard from '@/components/AdminDashboard';
+import GlobalFeesSettings from '@/components/GlobalFeesSettings';
 import type { DepartmentId, EventConfig, SubDepartment } from '@/lib/types';
 
 const DEPT_LABELS: Record<DepartmentId, string> = {
@@ -14,29 +15,40 @@ interface Props {
   allowedDepartments: DepartmentId[];
 }
 
+type TopTab = DepartmentId | 'global';
+
 export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
-  const [activeDept, setActiveDept] = useState<DepartmentId>(allowedDepartments[0]);
+  // 글로벌 설정은 전체 부서 권한이 있는 사용자만 접근 가능
+  const canSeeGlobal = allowedDepartments.length >= 2;
+
+  const [activeTab, setActiveTab] = useState<TopTab>(allowedDepartments[0]);
   const [activeSubDept, setActiveSubDept] = useState<string>('all');
   const [config, setConfig] = useState<EventConfig | null>(null);
 
   // 부서 변경 시 세부부서 reset + config 로드
   useEffect(() => {
     setActiveSubDept('all');
+    if (activeTab === 'global') {
+      setConfig(null);
+      return;
+    }
     (async () => {
       try {
-        const res = await fetch(`/api/config/${activeDept}`);
+        const res = await fetch(`/api/config/${activeTab}`);
         const json = await res.json();
         if (json.success) setConfig(json.data);
       } catch {
         setConfig(null);
       }
     })();
-  }, [activeDept]);
+  }, [activeTab]);
 
   const subDepartments: SubDepartment[] = useMemo(
     () => config?.subDepartments || [],
     [config]
   );
+
+  const isDeptTab = activeTab !== 'global';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -53,14 +65,14 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
           </form>
         </div>
 
-        {/* 1차 탭: 부서 선택 */}
+        {/* 1차 탭: 부서 선택 + 글로벌 설정 */}
         <nav className="max-w-7xl mx-auto px-6 flex gap-1 overflow-x-auto">
           {allowedDepartments.map((dept) => (
             <button
               key={dept}
-              onClick={() => setActiveDept(dept)}
+              onClick={() => setActiveTab(dept)}
               className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
-                activeDept === dept
+                activeTab === dept
                   ? 'bg-slate-50 text-slate-900 rounded-t-lg'
                   : 'text-slate-300 hover:text-white'
               }`}
@@ -68,11 +80,23 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
               {DEPT_LABELS[dept]}
             </button>
           ))}
+          {canSeeGlobal && (
+            <button
+              onClick={() => setActiveTab('global')}
+              className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
+                activeTab === 'global'
+                  ? 'bg-slate-50 text-slate-900 rounded-t-lg'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              ⚙️ 글로벌 설정
+            </button>
+          )}
         </nav>
       </header>
 
-      {/* 2차 탭: 세부부서 필터 */}
-      {subDepartments.length > 0 && (
+      {/* 2차 탭: 세부부서 필터 (부서 탭일 때만) */}
+      {isDeptTab && subDepartments.length > 0 && (
         <div className="bg-white border-b">
           <div className="max-w-7xl mx-auto px-6 flex gap-1 overflow-x-auto py-2">
             <SubTab
@@ -92,13 +116,19 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
         </div>
       )}
 
-      {/* 본문: 기존 AdminDashboard 재사용 */}
+      {/* 본문 */}
       <div className="max-w-7xl mx-auto">
-        <AdminDashboard
-          key={`${activeDept}-${activeSubDept}`}
-          department={activeDept}
-          subDepartment={activeSubDept === 'all' ? undefined : activeSubDept}
-        />
+        {isDeptTab ? (
+          <AdminDashboard
+            key={`${activeTab}-${activeSubDept}`}
+            department={activeTab as DepartmentId}
+            subDepartment={activeSubDept === 'all' ? undefined : activeSubDept}
+          />
+        ) : (
+          <div className="p-6">
+            <GlobalFeesSettings />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -108,10 +108,22 @@ export interface PaymentStatus {
 
 export interface FeesConfig {
   id: string;
+  /** 킨더 부서 회비 */
   kinder: number;
+  /** 키즈 부서 회비 */
   kids: number;
+  /** 틴즈 부서 회비 */
   teens: number;
+  /** 워터풀선데이 자녀 1인 입장료 */
+  child_waterpark: number;
+  /** 워터풀선데이 학부모 1인 입장료 */
   parent_waterpark: number;
+  /** 부서별 회비 입금 계좌 (예: "국민 123-45-6789 홍길동") */
+  kinder_account?: string | null;
+  kids_account?: string | null;
+  teens_account?: string | null;
+  /** 워터풀선데이 입장료 입금 계좌 */
+  waterpark_account?: string | null;
 }
 
 /**

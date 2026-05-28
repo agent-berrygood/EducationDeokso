@@ -65,6 +65,19 @@ const MIGRATIONS: Migration[] = [
     ],
   },
   {
+    version: 5,
+    description: 'Add child_waterpark fee and account columns to fees_config',
+    up: [
+      `ALTER TABLE fees_config ADD COLUMN IF NOT EXISTS child_waterpark DECIMAL(10, 2) DEFAULT 0`,
+      `ALTER TABLE fees_config ADD COLUMN IF NOT EXISTS kinder_account VARCHAR(120)`,
+      `ALTER TABLE fees_config ADD COLUMN IF NOT EXISTS kids_account VARCHAR(120)`,
+      `ALTER TABLE fees_config ADD COLUMN IF NOT EXISTS teens_account VARCHAR(120)`,
+      `ALTER TABLE fees_config ADD COLUMN IF NOT EXISTS waterpark_account VARCHAR(120)`,
+      // 기존 행에 자녀 워터파크 디폴트 채움 (운영에 자녀=학부모와 동일 금액으로 두지 않기 위해 0으로)
+      `UPDATE fees_config SET child_waterpark = COALESCE(child_waterpark, 0) WHERE child_waterpark IS NULL`,
+    ],
+  },
+  {
     version: 4,
     description: 'Repair corrupted Korean labels in event_configs sub_departments / title',
     up: [
