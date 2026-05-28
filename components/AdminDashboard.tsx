@@ -4,8 +4,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
-import { storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 interface Application {
   id: string;
@@ -221,33 +219,28 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // 파일 크기 제한 (2MB) - Neon DB 용량 최적화용
+    if (file.size > 2 * 1024 * 1024) {
+      alert('파일 크기가 너무 큽니다. 데이터베이스 최적화를 위해 2MB 이하의 이미지만 업로드해주세요.');
+      return;
+    }
+
     try {
       setIsSaving(true);
-      
-      // 파일 확장자 추출 (.jpg, .png 등)
-      const extension = file.name.split('.').pop() || 'jpg';
-      
-      // 부서별 고정 파일 경로 설정 (덮어쓰기 방식으로 불필요한 누적 방지)
-      const storagePath = `posters/${department}_poster.${extension}`;
-      const storageRef = ref(storage, storagePath);
-
-      // Firebase Storage 업로드
-      const snapshot = await uploadBytes(storageRef, file);
-      const downloadUrl = await getDownloadURL(snapshot.ref);
-      
-      // 브라우저 이미지 캐시 강제 갱신을 위해 쿼리 스트링(시간값) 추가
-      const freshUrl = `${downloadUrl}&t=${Date.now()}`;
-
-      setSettingsForm((prev: any) => ({
-        ...prev,
-        posterUrl: freshUrl
-      }));
-      
-      alert('포스터가 Firebase Storage에 안전하게 업로드되어 덮어쓰기 저장되었습니다!');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setSettingsForm((prev: any) => ({
+          ...prev,
+          posterUrl: base64String
+        }));
+        setIsSaving(false);
+        alert('포스터 이미지가 정상적으로 변환되었습니다! 하단 저장 버튼을 눌러 확정해주세요.');
+      };
+      reader.readAsDataURL(file);
     } catch (err) {
       console.error(err);
-      alert('포스터 파일을 Firebase 클라우드 스토리지에 업로드하는 중 에러가 발생했습니다.');
-    } finally {
+      alert('이미지 파일 변환 중 에러가 발생했습니다.');
       setIsSaving(false);
     }
   };
