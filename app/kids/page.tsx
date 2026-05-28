@@ -154,66 +154,74 @@ export default function KidsPage() {
               dangerouslySetInnerHTML={{ __html: config.scripture }} />
           </div>
 
-          {/* 수련회 세부 일정 (비주얼 타임라인) */}
+          {/* 수련회 세부 일정 (2차원 격자 매트릭스 시간표) */}
           {config.campSchedule && config.campSchedule.length > 0 && (
-            <div className="py-8 border-t border-gray-100 text-left">
+            <div className="py-12 border-t border-gray-100 text-left">
               <h3 className="text-2xl font-extrabold text-gray-900 mb-6 flex items-center gap-2">
-                <span style={{ color: primaryColor }}>📅</span> 수련회 세부 일정 안내
+                <span style={{ color: primaryColor }}>📅</span> 수련회 전체 일정표
               </h3>
               
-              {/* Day 탭 선택기 */}
-              <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-none mb-8">
-                {Array.from(new Set(config.campSchedule.map((s) => s.day)))
-                  .sort((a, b) => a - b)
-                  .map((dayNum) => (
-                    <button
-                      key={dayNum}
-                      onClick={() => setActiveDay(dayNum)}
-                      className="px-5 py-2 rounded-full font-bold text-sm transition-all cursor-pointer whitespace-nowrap"
-                      style={{
-                        backgroundColor: activeDay === dayNum ? primaryColor : `${primaryColor}10`,
-                        color: activeDay === dayNum ? '#fff' : primaryColor,
-                        boxShadow: activeDay === dayNum ? `0 4px 12px ${primaryColor}40` : 'none',
-                      }}
-                    >
-                      {dayNum}{config.campType === 'continuous' ? '일차' : '주차'} ({config.campType === 'continuous' ? 'Day' : 'Week'} {dayNum})
-                    </button>
-                  ))}
-              </div>
-
-              {/* 타임라인 항목 */}
-              <div className="relative pl-6 border-l-2" style={{ borderColor: `${primaryColor}30` }}>
-                {config.campSchedule
-                  .filter((s) => s.day === activeDay)
-                  .map((item, idx) => (
-                    <div key={item.id || idx} className="relative mb-8 last:mb-0">
-                      {/* 노드 포인트 */}
-                      <span
-                        className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 bg-white"
-                        style={{ borderColor: primaryColor }}
-                      ></span>
-                      
-                      <div className="bg-gray-50/70 p-5 rounded-2xl border border-gray-100 hover:shadow-md transition-all duration-300 transform hover:-translate-y-0.5"
-                        style={{ backgroundColor: item.color || '#f9fafb' }}>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="px-2.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold text-xs">
-                            {item.day}{config.campType === 'continuous' ? '일차' : '주차'}
-                          </span>
-                          <span className="text-sm font-extrabold" style={{ color: primaryColor }}>
-                            🕒 {item.time}
-                          </span>
-                        </div>
-                        <h4 className="text-lg font-bold text-gray-900 mb-1">
-                          {item.title}
-                        </h4>
-                        {item.description && (
-                          <p className="text-sm text-gray-500 leading-relaxed">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-lg bg-white/50 backdrop-blur-sm">
+                <table className="w-full border-collapse text-left min-w-[700px]">
+                  <thead>
+                    <tr className="border-b bg-gray-50/80 text-xs font-bold uppercase tracking-wider text-gray-500">
+                      <th className="p-4 border-r border-gray-200/60 w-40 text-center font-black text-slate-700">시간대</th>
+                      {Array.from(new Set(config.campSchedule.map((s) => s.day)))
+                        .sort((a, b) => a - b)
+                        .map((dayNum) => (
+                          <th key={dayNum} className="p-4 border-r border-gray-200/60 last:border-r-0 text-center font-black text-slate-800 text-sm" style={{ color: primaryColor }}>
+                            {dayNum}{config.campType === 'continuous' ? '일차' : '주차'}
+                          </th>
+                        ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200/80">
+                    {Array.from(new Set(config.campSchedule.map((s) => s.time)))
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((timeRange) => {
+                        const days = Array.from(new Set(config.campSchedule!.map((s) => s.day))).sort((a, b) => a - b);
+                        return (
+                          <tr key={timeRange} className="hover:bg-gray-50/30 transition duration-150">
+                            {/* 시간축 셀 */}
+                            <td className="p-4 border-r border-gray-200/60 text-xs font-extrabold text-indigo-600 bg-gray-50/20 text-center select-none">
+                              🕒 {timeRange}
+                            </td>
+                            {/* 각 일차별 스케줄 카드 셀 */}
+                            {days.map((dayNum) => {
+                              const matchItem = config.campSchedule!.find((s) => s.day === dayNum && s.time === timeRange);
+                              return (
+                                <td key={dayNum} className="p-3 border-r border-gray-200/60 last:border-r-0 align-top h-28 w-1/4">
+                                  {matchItem ? (
+                                    <div
+                                      className="h-full p-3 rounded-xl border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md text-left"
+                                      style={{
+                                        backgroundColor: matchItem.color || '#ffffff',
+                                        borderColor: matchItem.color ? `${matchItem.color}dd` : '#e2e8f0',
+                                        boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.05)`
+                                      }}
+                                    >
+                                      <h4 className="font-extrabold text-sm text-slate-850 line-clamp-2 leading-tight">
+                                        {matchItem.title}
+                                      </h4>
+                                      {matchItem.description && (
+                                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-semibold">
+                                          {matchItem.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="h-full rounded-xl border border-dashed border-gray-200/40 bg-gray-50/10 flex items-center justify-center text-[10px] text-gray-300 select-none font-medium">
+                                      -
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

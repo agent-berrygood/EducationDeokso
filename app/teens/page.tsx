@@ -168,68 +168,74 @@ export default function TeensPage() {
             />
           </div>
 
-          {/* 수련회 세부 일정 (비주얼 타임라인) */}
+          {/* 수련회 세부 일정 (2차원 격자 매트릭스 시간표) */}
           {config.campSchedule && config.campSchedule.length > 0 && (
-            <div className="py-8 border-t border-slate-800 text-left">
+            <div className="py-12 border-t border-slate-800 text-left">
               <h3 className="text-2xl font-extrabold text-white mb-6 flex items-center gap-2">
-                <span style={{ color: primaryColor }}>📅</span> 수련회 세부 일정 안내
+                <span style={{ color: primaryColor }}>📅</span> 수련회 전체 일정표
               </h3>
               
-              {/* Day 탭 선택기 */}
-              <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-none mb-8">
-                {Array.from(new Set(config.campSchedule.map((s) => s.day)))
-                  .sort((a, b) => a - b)
-                  .map((dayNum) => (
-                    <button
-                      key={dayNum}
-                      onClick={() => setActiveDay(dayNum)}
-                      className="px-5 py-2 rounded-full font-bold text-sm transition-all cursor-pointer whitespace-nowrap"
-                      style={{
-                        backgroundColor: activeDay === dayNum ? primaryColor : `${primaryColor}15`,
-                        color: activeDay === dayNum ? '#0f172a' : primaryColor,
-                        boxShadow: activeDay === dayNum ? `0 0 15px ${primaryColor}40` : 'none',
-                        border: `1px solid ${activeDay === dayNum ? 'transparent' : `${primaryColor}40`}`
-                      }}
-                    >
-                      {dayNum}{config.campType === 'continuous' ? '일차' : '주차'} ({config.campType === 'continuous' ? 'Day' : 'Week'} {dayNum})
-                    </button>
-                  ))}
-              </div>
-
-              {/* 타임라인 항목 */}
-              <div className="relative pl-6 border-l-2" style={{ borderColor: `${primaryColor}30` }}>
-                {config.campSchedule
-                  .filter((s) => s.day === activeDay)
-                  .map((item, idx) => (
-                    <div key={item.id || idx} className="relative mb-8 last:mb-0">
-                      {/* 노드 포인트 */}
-                      <span
-                        className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 bg-slate-900"
-                        style={{ borderColor: primaryColor }}
-                      ></span>
-                      
-                      <div className="bg-slate-950/60 p-5 rounded-2xl border border-slate-800 hover:shadow-lg hover:shadow-green-500/5 transition-all duration-300 transform hover:-translate-y-0.5"
-                        style={{ backgroundColor: item.color ? `${item.color}15` : 'rgba(15, 23, 42, 0.6)', borderColor: item.color || 'rgb(30, 41, 59)' }}>
-                        <div className="flex flex-wrap items-center gap-2 mb-2">
-                          <span className="px-2.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold text-xs"
-                            style={{ color: item.color || '#fff', borderColor: item.color || 'rgb(51, 65, 85)' }}>
-                            {item.day}{config.campType === 'continuous' ? '일차' : '주차'}
-                          </span>
-                          <span className="text-sm font-extrabold" style={{ color: primaryColor }}>
-                            🕒 {item.time}
-                          </span>
-                        </div>
-                        <h4 className="text-lg font-bold text-white mb-1">
-                          {item.title}
-                        </h4>
-                        {item.description && (
-                          <p className="text-sm text-slate-400 leading-relaxed">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              <div className="overflow-x-auto rounded-2xl border border-slate-800 shadow-2xl bg-slate-900/40 backdrop-blur-md">
+                <table className="w-full border-collapse text-left min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 bg-slate-950/60 text-xs font-bold uppercase tracking-wider text-slate-400">
+                      <th className="p-4 border-r border-slate-800 w-40 text-center font-black text-slate-350">시간대</th>
+                      {Array.from(new Set(config.campSchedule.map((s) => s.day)))
+                        .sort((a, b) => a - b)
+                        .map((dayNum) => (
+                          <th key={dayNum} className="p-4 border-r border-slate-800 last:border-r-0 text-center font-black text-sm" style={{ color: primaryColor }}>
+                            {dayNum}{config.campType === 'continuous' ? '일차' : '주차'}
+                          </th>
+                        ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {Array.from(new Set(config.campSchedule.map((s) => s.time)))
+                      .sort((a, b) => a.localeCompare(b))
+                      .map((timeRange) => {
+                        const days = Array.from(new Set(config.campSchedule!.map((s) => s.day))).sort((a, b) => a - b);
+                        return (
+                          <tr key={timeRange} className="hover:bg-slate-900/20 transition duration-150">
+                            {/* 시간축 셀 */}
+                            <td className="p-4 border-r border-slate-800 text-xs font-extrabold text-indigo-400 bg-slate-950/20 text-center select-none" style={{ color: primaryColor }}>
+                              🕒 {timeRange}
+                            </td>
+                            {/* 각 일차별 스케줄 카드 셀 */}
+                            {days.map((dayNum) => {
+                              const matchItem = config.campSchedule!.find((s) => s.day === dayNum && s.time === timeRange);
+                              return (
+                                <td key={dayNum} className="p-3 border-r border-slate-800 last:border-r-0 align-top h-28 w-1/4">
+                                  {matchItem ? (
+                                    <div
+                                      className="h-full p-3 rounded-xl border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-lg text-left"
+                                      style={{
+                                        backgroundColor: matchItem.color ? `${matchItem.color}15` : 'rgba(15, 23, 42, 0.6)',
+                                        borderColor: matchItem.color || 'rgb(30, 41, 59)',
+                                        boxShadow: `0 4px 10px -2px rgba(0, 0, 0, 0.5)`
+                                      }}
+                                    >
+                                      <h4 className="font-extrabold text-sm text-white line-clamp-2 leading-tight">
+                                        {matchItem.title}
+                                      </h4>
+                                      {matchItem.description && (
+                                        <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed font-semibold">
+                                          {matchItem.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="h-full rounded-xl border border-dashed border-slate-800/40 bg-slate-950/10 flex items-center justify-center text-[10px] text-slate-700 select-none font-medium">
+                                      -
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
