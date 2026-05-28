@@ -30,6 +30,26 @@ interface Child {
 
 const ALLERGY_OPTIONS = ['계란', '우유', '견과류', '밀', '복숭아', '대두', '갑각류'];
 
+// 나이 계산 (한국 나이 - 연도 + 1)
+const calcAge = (birthDate: string): number => {
+  if (!birthDate) return 0;
+  const birthYear = new Date(birthDate).getFullYear();
+  return new Date().getFullYear() - birthYear + 1;
+};
+
+// 나이로 부서 자동 배정
+const getDeptByAge = (age: number): 'kinder' | 'kids' | 'teens' => {
+  if (age <= 7) return 'kinder';
+  if (age <= 13) return 'kids';
+  return 'teens';
+};
+
+const DEPT_LABELS: Record<string, string> = {
+  kinder: '유치부',
+  kids: '초등부',
+  teens: '청소년부',
+};
+
 // 연락처 자동 하이픈 포맷 함수 (숫자만 허용, 010-XXXX-XXXX)
 const formatPhoneNumber = (value: string): string => {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -50,7 +70,9 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
 
   // 설정
   const [config, setConfig] = useState<any>(null);
+  const [selectedDept, setSelectedDept] = useState<string>(department);
   const [subDepartments, setSubDepartments] = useState<SubDepartment[]>([]);
+  const [deptSubDepartments, setDeptSubDepartments] = useState<SubDepartment[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [tshirtSizes, setTshirtSizes] = useState<string[]>([]);
 
@@ -88,7 +110,9 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
 
         setConfig(data);
         // API가 이미 JSON.parse된 배열을 반환하므로 직접 할당
-        setSubDepartments(Array.isArray(data.subDepartments) ? data.subDepartments : []);
+        const subs = Array.isArray(data.subDepartments) ? data.subDepartments : [];
+        setSubDepartments(subs);
+        setDeptSubDepartments(subs);
         setCustomFields(Array.isArray(data.customFieldMappings) ? data.customFieldMappings : []);
         setTshirtSizes(Array.isArray(data.tshirtSizes) ? data.tshirtSizes : []);
 
@@ -137,6 +161,33 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
   // 자녀 제거
   const removeChild = (index: number) => {
     setChildren(children.filter((_, i) => i !== index));
+  };
+
+  // 생년월일 변경 시 자동 부서 배정
+  const handleBirthDateChange = async (index: number, birthDate: string) => {
+    updateChild(index, 'birthDate', birthDate);
+    if (!birthDate) return;
+    
+    const age = calcAge(birthDate);
+    const autoDept = getDeptByAge(age);
+    
+    // 부서가 변경되면 해당 부서의 config를 다시 로드
+    if (autoDept !== selectedDept) {
+      setSelectedDept(autoDept);
+      try {
+        const res = await fetch(`/api/config/${autoDept}`);
+        if (res.ok) {
+          const { data } = await res.json();
+          const subs = Array.isArray(data.subDepartments) ? data.subDepartments : [];
+          setDeptSubDepartments(subs);
+        }
+      } catch (e) {
+        console.error('부서 config 로드 실패:', e);
+      }
+    }
+    
+    // 자녀의 department 정보 업데이트
+    updateChild(index, 'department', autoDept);
   };
 
   // 요금 계산
@@ -281,12 +332,22 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
                 />
 
                 {/* 생년월일 */}
-                <input
-                  type="date"
-                  value={child.birthDate}
-                  onChange={(e) => updateChild(idx, 'birthDate', e.target.value)}
-                  className="px-4 py-2 border rounded-lg"
-                />
+                <div className="col-span-2 space-y-2">
+                  <input
+                    type="date"
+                    value={child.birthDate}
+                    onChange={(e) => handleBirthDateChange(idx, e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg"
+                  />
+                  {child.birthDate && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold text-white"
+                        style={{ backgroundColor: child.department === 'kinder' ? '#EAB308' : child.department === 'kids' ? '#3B82F6' : '#22C55E' }}>
+                        자동 배정 부서: {DEPT_LABELS[child.department] || child.department} (한국 나이 {calcAge(child.birthDate)}세)
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 {/* 하위 부서 */}
                 <select
@@ -295,7 +356,7 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
                   className="px-4 py-2 border rounded-lg"
                 >
                   <option value="">하위 부서 선택</option>
-                  {subDepartments.map((sub) => (
+                  {deptSubDepartments.map((sub) => (
                     <option key={sub.id} value={sub.id}>
                       {sub.label}
                     </option>

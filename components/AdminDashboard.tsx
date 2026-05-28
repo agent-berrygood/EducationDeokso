@@ -51,6 +51,9 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<'childName' | 'age' | 'createdAt'>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
+  // 하위 부서 탭 필터 state
+  const [selectedSubDept, setSelectedSubDept] = useState<string>('all');
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<any>({
@@ -62,6 +65,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     tshirtSizes: [],
     customFields: [],
     subDepartments: [],
+    campStartDate: '',
   });
   
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -113,6 +117,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
         tshirtSizes: data.tshirtSizes || [],
         customFields: data.customFieldMappings || [],
         subDepartments: data.subDepartments || [],
+        campStartDate: data.camp_start_date || '',
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
@@ -209,6 +214,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           tshirtSizes: settingsForm.tshirtSizes,
           customFieldMappings: settingsForm.customFields,
           subDepartments: settingsForm.subDepartments,
+          campStartDate: settingsForm.campStartDate,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -309,6 +315,25 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
       );
     }
 
+    // 3. 연령 범위 필터 (부서별 기준: kinder ≤7, kids 8~13, teens 14~19)
+    const AGE_RANGES: Record<string, [number, number]> = {
+      kinder: [0, 7],
+      kids: [8, 13],
+      teens: [14, 19],
+    };
+    const range = AGE_RANGES[department];
+    if (range) {
+      filtered = filtered.filter(row => row.age >= range[0] && row.age <= range[1]);
+    }
+
+    // 4. 하위 부서 탭 필터
+    if (selectedSubDept !== 'all') {
+      filtered = filtered.filter(row => 
+        (row.originalChild?.subDepartment === selectedSubDept) ||
+        (row.originalChild?.sub_department === selectedSubDept)
+      );
+    }
+
     // 2. 클라이언트 정렬
     filtered.sort((a, b) => {
       let valA: any = a.createdAt;
@@ -334,7 +359,7 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
     });
 
     return filtered;
-  }, [applications, department, searchQuery, sortField, sortDirection]);
+  }, [applications, department, searchQuery, sortField, sortDirection, selectedSubDept]);
 
   const handleLogout = async () => {
     if (confirm("로그아웃 하시겠습니까?")) {
@@ -411,6 +436,35 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
           {/* 1. Applications Tab */}
           {activeTab === 'applications' && (
             <div className="space-y-4">
+              {/* 하위 부서 탭 필터 */}
+              {config?.subDepartments && config.subDepartments.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <button
+                    onClick={() => setSelectedSubDept('all')}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition cursor-pointer ${
+                      selectedSubDept === 'all'
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {config.subDepartments.map((sub: any) => (
+                    <button
+                      key={sub.id}
+                      onClick={() => setSelectedSubDept(sub.id)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition cursor-pointer ${
+                        selectedSubDept === sub.id
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200'
+                      }`}
+                    >
+                      {sub.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div className="relative w-full sm:max-w-md">
                   <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">
@@ -575,6 +629,15 @@ export default function AdminDashboard({ department }: AdminDashboardProps) {
                         onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                         placeholder="예: 2026 나우킨더 여름성경학교"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">📅 캠프 시작일 (카운트다운 기준)</label>
+                      <input
+                        type="date"
+                        value={settingsForm.campStartDate}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, campStartDate: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                       />
                     </div>
                     <div>

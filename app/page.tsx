@@ -1,19 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import ApplicationForm from '@/components/ApplicationForm';
 
 // --- TYPE DEFINITIONS ---
 
-interface TimeLeft {
-  days: number;
-  hours: number;
-  minutes: number;
-  seconds: number;
-}
-
-interface DepartmentCardProps {
+  interface DepartmentCardProps {
   href: string;
   title: string;
   subtitle: string;
@@ -22,55 +15,6 @@ interface DepartmentCardProps {
 }
 
 // --- SUB-COMPONENTS ---
-
-const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
-  const calculateTimeLeft = useCallback((): TimeLeft | null => {
-    const difference = +new Date(targetDate) - +new Date();
-    if (difference > 0) {
-      return {
-        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        minutes: Math.floor((difference / 1000 / 60) % 60),
-        seconds: Math.floor((difference / 1000) % 60),
-      };
-    }
-    return null;
-  }, [targetDate]);
-
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(calculateTimeLeft());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [calculateTimeLeft]);
-
-  if (!timeLeft) {
-    return <div className="text-2xl font-bold text-cyan-300 mt-6">여름성경학교가 시작되었습니다!</div>;
-  }
-
-  const timeUnits = [
-    { label: 'Days', value: timeLeft.days },
-    { label: 'Hours', value: timeLeft.hours },
-    { label: 'Minutes', value: timeLeft.minutes },
-    { label: 'Seconds', value: timeLeft.seconds },
-  ];
-
-  return (
-    <div className="flex justify-center items-center gap-4 md:gap-8 mt-6">
-      {timeUnits.map((unit) => (
-        <div key={unit.label} className="flex flex-col items-center">
-          <div className="text-4xl md:text-6xl font-bold text-white bg-slate-700/50 rounded-lg p-4 w-[70px] md:w-[100px] text-center">
-            {String(unit.value).padStart(2, '0')}
-          </div>
-          <div className="text-sm md:text-base text-slate-300 mt-2">{unit.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 const DepartmentCard = ({ href, title, subtitle, className, glowColor }: DepartmentCardProps) => (
   <Link href={href} passHref className="block">
@@ -96,24 +40,24 @@ export default function HomePage() {
   const departments: DepartmentCardProps[] = [
     {
       href: '/kinder',
-      title: 'Now Kinder',
+      title: '나우킨더',
       subtitle: '영아부 - 유치부',
       className: 'bg-yellow-200/80 border-yellow-300 text-yellow-900',
-      glowColor: '#fde047', // yellow-300
+      glowColor: '#fde047',
     },
     {
       href: '/kids',
-      title: 'Now Kids',
+      title: '나우키즈',
       subtitle: '유년부 - 초등부',
       className: 'bg-blue-300/80 border-blue-400 text-blue-900',
-      glowColor: '#60a5fa', // blue-400
+      glowColor: '#60a5fa',
     },
     {
       href: '/teens',
-      title: 'Now Teens',
+      title: '나우틴즈',
       subtitle: '중등부 - 고등부',
       className: 'bg-gray-900 border-lime-400 text-lime-300',
-      glowColor: '#a3e635', // lime-400
+      glowColor: '#a3e635',
     },
   ];
 
@@ -138,9 +82,9 @@ export default function HomePage() {
                   <h2 className="text-2xl font-bold text-white mb-6 text-center">부서 선택</h2>
                   <div className="grid grid-cols-1 gap-4">
                     {[
-                      { id: 'kinder', label: 'Now Kinder', sub: '영아부 - 유치부' },
-                      { id: 'kids', label: 'Now Kids', sub: '유년부 - 초등부' },
-                      { id: 'teens', label: 'Now Teens', sub: '중등부 - 고등부' },
+                      { id: 'kinder', label: '나우킨더 (Now Kinder)', sub: '영아부 - 유치부' },
+                      { id: 'kids', label: '나우키즈 (Now Kids)', sub: '유년부 - 초등부' },
+                      { id: 'teens', label: '나우틴즈 (Now Teens)', sub: '중등부 - 고등부' },
                     ].map((dept) => (
                       <button
                         key={dept.id}
@@ -173,8 +117,6 @@ export default function HomePage() {
               2026 여름성경학교 & 여름수련회
             </h2>
             
-            <CountdownTimer targetDate="2026-07-25T00:00:00" />
-
             <button
               onClick={() => setShowApplicationForm(true)}
               className="mt-16 px-10 py-4 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-xl rounded-full shadow-lg shadow-cyan-500/30 transform hover:scale-105 transition-all duration-300 ease-in-out cursor-pointer"

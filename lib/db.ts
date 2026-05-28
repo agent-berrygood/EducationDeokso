@@ -63,6 +63,7 @@ export async function initializeDatabase() {
         events JSONB DEFAULT '[]',
         tshirt_sizes JSONB DEFAULT '["S","M","L","XL","2XL","3XL"]',
         custom_field_mappings JSONB DEFAULT '[]',
+        camp_start_date DATE,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
@@ -136,6 +137,25 @@ export async function initializeDatabase() {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+    `);
+
+    console.log('??PostgreSQL ???????? ???!');
+
+    await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS camp_start_date DATE`);
+
+    await query(`
+      INSERT INTO event_configs (department, title, event_type, sub_departments, tshirt_sizes, primary_color, bg_color)
+      VALUES
+        ('kinder', '2026 ?????? ?????????', '?????????',
+         '[{"id":"integrated_preschool","label":"?????????"},{"id":"infant","label":"??????"},{"id":"kindergarten","label":"?????"}]',
+         '["SS","S","M","L","XL"]', '#EAB308', '#FEF08A'),
+        ('kids', '2026 ?????? ?????????', '?????????',
+         '[{"id":"integrated_kids","label":"????????"},{"id":"junior","label":"?????"},{"id":"senior","label":"?????"}]',
+         '["SS","S","M","L","XL","2XL"]', '#3B82F6', '#DBEAFE'),
+        ('teens', '2026 ?????? ????????', '????????',
+         '[{"id":"middle","label":"?????"},{"id":"high","label":"?????"}]',
+         '["S","M","L","XL","2XL","3XL"]', '#22C55E', '#0F172A')
+      ON CONFLICT (department) DO NOTHING
     `);
 
     console.log('✅ PostgreSQL 테이블 생성 완료!');

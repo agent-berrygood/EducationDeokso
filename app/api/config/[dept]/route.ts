@@ -16,7 +16,7 @@ export async function GET(
     const config = await queryOne(
       `SELECT
         id, department, title, event_type, subtitle, scripture,
-        primary_color, bg_color,
+        primary_color, bg_color, camp_start_date,
         sub_departments, events, tshirt_sizes, custom_field_mappings
        FROM event_configs WHERE department = $1`,
       [department]
@@ -26,11 +26,11 @@ export async function GET(
       return Response.json({ success: false, error: '설정을 찾을 수 없습니다' }, { status: 404 });
     }
 
-    // JSON 파싱
     return Response.json({
       success: true,
       data: {
         ...config,
+        camp_start_date: config.camp_start_date || null,
         subDepartments: JSON.parse(config.sub_departments || '[]'),
         events: JSON.parse(config.events || '[]'),
         tshirtSizes: JSON.parse(config.tshirt_sizes || '[]'),
@@ -58,7 +58,7 @@ export async function POST(
     const body = await request.json();
     const {
       title, subtitle, scripture, primaryColor, bgColor,
-      subDepartments, events, tshirtSizes, customFieldMappings
+      subDepartments, events, tshirtSizes, customFieldMappings, campStartDate
     } = body;
 
     // 기존 설정 조회
@@ -69,25 +69,26 @@ export async function POST(
 
     if (!config) {
       // 신규 생성
-      config = await queryOne(
-        `INSERT INTO event_configs (
-          department, title, subtitle, scripture,
-          primary_color, bg_color, sub_departments, events,
-          tshirt_sizes, custom_field_mappings
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-        [
-          department,
-          title || null,
-          subtitle || null,
-          scripture || null,
-          primaryColor || null,
-          bgColor || null,
-          JSON.stringify(subDepartments || []),
-          JSON.stringify(events || []),
-          JSON.stringify(tshirtSizes || []),
-          JSON.stringify(customFieldMappings || [])
-        ]
-      );
+        config = await queryOne(
+          `INSERT INTO event_configs (
+            department, title, subtitle, scripture,
+            primary_color, bg_color, sub_departments, events,
+            tshirt_sizes, custom_field_mappings, camp_start_date
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+          [
+            department,
+            title || null,
+            subtitle || null,
+            scripture || null,
+            primaryColor || null,
+            bgColor || null,
+            JSON.stringify(subDepartments || []),
+            JSON.stringify(events || []),
+            JSON.stringify(tshirtSizes || []),
+            JSON.stringify(customFieldMappings || []),
+            campStartDate || null
+          ]
+        );
     } else {
       // 기존 업데이트
       await query(
@@ -96,8 +97,9 @@ export async function POST(
           primary_color = $4, bg_color = $5,
           sub_departments = $6, events = $7,
           tshirt_sizes = $8, custom_field_mappings = $9,
+          camp_start_date = $10,
           updated_at = NOW()
-         WHERE department = $10`,
+         WHERE department = $11`,
         [
           title || null,
           subtitle || null,
@@ -108,6 +110,7 @@ export async function POST(
           JSON.stringify(events || []),
           JSON.stringify(tshirtSizes || []),
           JSON.stringify(customFieldMappings || []),
+          campStartDate || null,
           department
         ]
       );
