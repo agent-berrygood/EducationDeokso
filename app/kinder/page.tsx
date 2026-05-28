@@ -80,6 +80,7 @@ const CountdownTimer = ({ targetDate }: { targetDate: string }) => {
 export default function KinderPage() {
   const [config, setConfig] = useState<EventConfig>(DEFAULT_CONFIG);
   const [activeDay, setActiveDay] = useState<number>(1);
+  const [loading, setLoading] = useState<boolean>(true);
 
   // 08:00부터 22:00까지 30분 슬롯 목록 생성 (총 28개)
   const START_HOUR = 8;
@@ -122,12 +123,23 @@ export default function KinderPage() {
         }
       } catch (err) {
         console.error('나우킨더 설정 로드 실패:', err);
+      } finally {
+        setLoading(false);
       }
     };
     fetchConfig();
   }, []);
 
   const primaryColor = config.primary_color || DEFAULT_CONFIG.primary_color;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-gray-500 font-medium text-sm animate-pulse">설정 데이터를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
 
   return (
     <div
