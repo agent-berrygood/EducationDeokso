@@ -64,6 +64,108 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE application_children ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`,
     ],
   },
+  {
+    version: 4,
+    description: 'Repair corrupted Korean labels in event_configs sub_departments / title',
+    up: [
+      // kinder
+      `UPDATE event_configs
+         SET sub_departments = '[
+           {"id":"integrated_preschool","label":"통합미취학부"},
+           {"id":"infant","label":"영유아부"},
+           {"id":"kindergarten","label":"유치부"}
+         ]'::jsonb
+       WHERE department = 'kinder'
+         AND (
+           sub_departments IS NULL
+           OR sub_departments = '[]'::jsonb
+           OR sub_departments::text LIKE '%?%'
+           OR jsonb_array_length(sub_departments) = 0
+         )`,
+      `UPDATE event_configs
+         SET title = '2026 여름성경학교',
+             event_type = '여름성경학교'
+       WHERE department = 'kinder'
+         AND (title IS NULL OR title LIKE '%?%' OR event_type IS NULL OR event_type LIKE '%?%')`,
+      `UPDATE event_configs
+         SET tshirt_sizes = '["SS","S","M","L","XL"]'::jsonb
+       WHERE department = 'kinder'
+         AND (
+           tshirt_sizes IS NULL
+           OR tshirt_sizes = '[]'::jsonb
+           OR tshirt_sizes::text LIKE '%?%'
+         )`,
+
+      // kids
+      `UPDATE event_configs
+         SET sub_departments = '[
+           {"id":"integrated_kids","label":"통합아동부"},
+           {"id":"junior","label":"유년부"},
+           {"id":"senior","label":"소년부"}
+         ]'::jsonb
+       WHERE department = 'kids'
+         AND (
+           sub_departments IS NULL
+           OR sub_departments = '[]'::jsonb
+           OR sub_departments::text LIKE '%?%'
+           OR jsonb_array_length(sub_departments) = 0
+         )`,
+      `UPDATE event_configs
+         SET title = '2026 여름성경학교',
+             event_type = '여름성경학교'
+       WHERE department = 'kids'
+         AND (title IS NULL OR title LIKE '%?%' OR event_type IS NULL OR event_type LIKE '%?%')`,
+      `UPDATE event_configs
+         SET tshirt_sizes = '["SS","S","M","L","XL","2XL"]'::jsonb
+       WHERE department = 'kids'
+         AND (
+           tshirt_sizes IS NULL
+           OR tshirt_sizes = '[]'::jsonb
+           OR tshirt_sizes::text LIKE '%?%'
+         )`,
+
+      // teens
+      `UPDATE event_configs
+         SET sub_departments = '[
+           {"id":"middle","label":"중등부"},
+           {"id":"high","label":"고등부"}
+         ]'::jsonb
+       WHERE department = 'teens'
+         AND (
+           sub_departments IS NULL
+           OR sub_departments = '[]'::jsonb
+           OR sub_departments::text LIKE '%?%'
+           OR jsonb_array_length(sub_departments) = 0
+         )`,
+      `UPDATE event_configs
+         SET title = '2026 여름수련회',
+             event_type = '여름수련회'
+       WHERE department = 'teens'
+         AND (title IS NULL OR title LIKE '%?%' OR event_type IS NULL OR event_type LIKE '%?%')`,
+      `UPDATE event_configs
+         SET tshirt_sizes = '["S","M","L","XL","2XL","3XL"]'::jsonb
+       WHERE department = 'teens'
+         AND (
+           tshirt_sizes IS NULL
+           OR tshirt_sizes = '[]'::jsonb
+           OR tshirt_sizes::text LIKE '%?%'
+         )`,
+
+      // 누락된 부서 시드 보강 (3부서 모두 행이 존재하도록)
+      `INSERT INTO event_configs (department, title, event_type, sub_departments, tshirt_sizes, primary_color, bg_color)
+       VALUES
+        ('kinder', '2026 여름성경학교', '여름성경학교',
+         '[{"id":"integrated_preschool","label":"통합미취학부"},{"id":"infant","label":"영유아부"},{"id":"kindergarten","label":"유치부"}]'::jsonb,
+         '["SS","S","M","L","XL"]'::jsonb, '#EAB308', '#FEF08A'),
+        ('kids', '2026 여름성경학교', '여름성경학교',
+         '[{"id":"integrated_kids","label":"통합아동부"},{"id":"junior","label":"유년부"},{"id":"senior","label":"소년부"}]'::jsonb,
+         '["SS","S","M","L","XL","2XL"]'::jsonb, '#3B82F6', '#DBEAFE'),
+        ('teens', '2026 여름수련회', '여름수련회',
+         '[{"id":"middle","label":"중등부"},{"id":"high","label":"고등부"}]'::jsonb,
+         '["S","M","L","XL","2XL","3XL"]'::jsonb, '#22C55E', '#0F172A')
+       ON CONFLICT (department) DO NOTHING`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {
