@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { queryOne, queryMany, query } from '@/lib/db';
 import { applicationSubmitSchema } from '@/lib/schemas';
-import { checkDepartmentAccess } from '@/lib/auth';
+import { checkDepartmentAccess, decryptSession } from '@/lib/auth';
 import type { DepartmentId } from '@/lib/types';
 import { validateSessionKeys, deriveDayCount } from '@/lib/session-grid';
 
@@ -33,19 +33,28 @@ export async function GET(request: Request) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = (searchParams.get('sortOrder') || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    // 부서별 필터링 시 권한 검증 (어드민 페이지에서 호출 시 admin_session 쿠키 사용)
+    // 토큰 추출 (있을 경우 권한 기반 필터링에 사용)
+    const cookieStore = await cookies();
+    const token = cookieStore.get('admin_session')?.value
+      || request.headers.get('authorization') || '';
+    const session = token ? await decryptSession(token.startsWith('Bearer ') ? token.slice(7) : token) : null;
+    const allowedDepartments = session?.allowed_departments ?? null;
+
+    // 부서별 필터링 시 권한 검증
     if (department) {
-      const cookieStore = await cookies();
-      const token = cookieStore.get('admin_session')?.value
-        || request.headers.get('authorization');
-      // 토큰이 있는 경우만 권한 검증을 강제 (공개 페이지 호환성을 위해 토큰 없으면 통과)
       if (token) {
         const check = await checkDepartmentAccess(token, department as DepartmentId);
         if (!check.ok) {
           return Response.json({ success: false, error: check.reason }, { status: 403 });
         }
       }
+    } else if (allowedDepartments && allowedDepartments.length > 0) {
+      // department 미지정 + 토큰 있음 → 토큰의 부서들로만 필터링 (다른 부서 데이터 유출 방지)
+    } else if (token) {
+      // 토큰은 있는데 부서 정보가 없는 경우 → 차단
+      return Response.json({ success: false, error: '권한 정보가 없습니다.' }, { status: 403 });
     }
+    // 토큰이 아예 없는 경우는 그대로 진행 (공개/내부 호출 호환)
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -54,6 +63,9 @@ export async function GET(request: Request) {
     if (department) {
       conditions.push(`ac.department = $${idx++}`);
       params.push(department);
+    } else if (allowedDepartments && allowedDepartments.length > 0) {
+      conditions.push(`ac.department = ANY($${idx++}::text[])`);
+      params.push(allowedDepartments);
     }
     if (subDepartment) {
       conditions.push(`ac.sub_department = $${idx++}`);

@@ -1102,6 +1102,21 @@ interface PaymentMonitorProps {
   updatePaymentStatus: (applicationId: string, field: string, value: boolean) => void | Promise<void>;
 }
 
+interface PaymentDeptFilterOption {
+  id: 'all' | 'kinder' | 'kids' | 'teens';
+  label: string;
+}
+
+const PAYMENT_DEPT_OPTIONS: PaymentDeptFilterOption[] = [
+  { id: 'all', label: '전체' },
+  { id: 'kinder', label: '나우킨더' },
+  { id: 'kids', label: '나우키즈' },
+  { id: 'teens', label: '나우틴즈' },
+];
+
+// 부서별 세부부서 매핑 캐시 (config API 호출 결과 임시 저장)
+const SUB_DEPT_CACHE: Record<string, { id: string; label: string }[]> = {};
+
 interface PaymentRow {
   appId: string;
   parentName: string;
@@ -1116,18 +1131,60 @@ interface PaymentRow {
 function PaymentMonitor({
   department, applications, paymentStatuses, fees, updatePaymentStatus,
 }: PaymentMonitorProps) {
-  const rows: PaymentRow[] = useMemo(() => {
+  // 부서 / 세부부서 필터 상태
+  const [activeDept, setActiveDept] = useState<PaymentDeptFilterOption['id']>('all');
+  const [activeSubDept, setActiveSubDept] = useState<string>('all');
+  const [subDeptList, setSubDeptList] = useState<{ id: string; label: string }[]>([]);
+  const [downloading, setDownloading] = useState(false);
+
+  // 부서 변경 시 세부부서 옵션 동적 로드
+  useEffect(() => {
+    setActiveSubDept('all');
+    if (activeDept === 'all') {
+      setSubDeptList([]);
+      return;
+    }
+    const cached = SUB_DEPT_CACHE[activeDept];
+    if (cached) {
+      setSubDeptList(cached);
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`/api/config/${activeDept}`);
+        const json = await res.json();
+        if (json.success) {
+          const list = Array.isArray(json.data.subDepartments) ? json.data.subDepartments : [];
+          SUB_DEPT_CACHE[activeDept] = list;
+          setSubDeptList(list);
+        }
+      } catch {
+        setSubDeptList([]);
+      }
+    })();
+  }, [activeDept]);
+
+  // 행 가공 + 부서/세부부서 필터링
+  const allRows: (PaymentRow & {
+    childDepartments: Set<'kinder' | 'kids' | 'teens'>;
+    childSubDeps: Set<string>;
+  })[] = useMemo(() => {
     return applications.map((app: any) => {
       const counts = { kinder: 0, kids: 0, teens: 0 };
       let waterparkChildren = 0;
       const childNames: string[] = [];
+      const childDepartments = new Set<'kinder' | 'kids' | 'teens'>();
+      const childSubDeps = new Set<string>();
 
       if (Array.isArray(app.children)) {
         app.children.forEach((c: any) => {
           const dep = (c?.department || '') as 'kinder' | 'kids' | 'teens';
           if (dep === 'kinder' || dep === 'kids' || dep === 'teens') {
             counts[dep] += 1;
+            childDepartments.add(dep);
           }
+          const sd = c?.subDepartment || c?.sub_department;
+          if (sd) childSubDeps.add(String(sd));
           if (c?.attendsWaterpark ?? c?.attends_waterpark) waterparkChildren += 1;
           if (c?.name) childNames.push(c.name);
         });
@@ -1149,9 +1206,22 @@ function PaymentMonitor({
         waterparkChildren,
         waterfallParentsCount: Array.isArray(wfArr) ? wfArr.length : 0,
         childNames,
+        childDepartments,
+        childSubDeps,
       };
     });
   }, [applications]);
+
+  const rows = useMemo(() => {
+    let filtered = allRows;
+    if (activeDept !== 'all') {
+      filtered = filtered.filter((r) => r.childDepartments.has(activeDept as any));
+    }
+    if (activeDept !== 'all' && activeSubDept !== 'all') {
+      filtered = filtered.filter((r) => r.childSubDeps.has(activeSubDept));
+    }
+    return filtered;
+  }, [allRows, activeDept, activeSubDept]);
 
   const kinderUnit = Number(fees?.kinder || 0);
   const kidsUnit = Number(fees?.kids || 0);
@@ -1187,6 +1257,28 @@ function PaymentMonitor({
     };
   }, [rows, paymentStatuses, kinderUnit, kidsUnit, teensUnit, childWaterUnit, parentWaterUnit]);
 
+  async function downloadExcel() {
+    try {
+      setDownloading(true);
+      const res = await fetch('/api/payment/export');
+      if (!res.ok) {
+        alert('엑셀 생성에 실패했습니다.');
+        return;
+      }
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `수납현황_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('엑셀 다운로드 중 오류가 발생했습니다.');
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
@@ -1200,6 +1292,66 @@ function PaymentMonitor({
           <div>전체 청구: <strong className="text-slate-800 dark:text-slate-200">{totals.grandTotal.toLocaleString()}원</strong></div>
           <div>수납 완료: <strong className="text-emerald-600">{totals.grandPaid.toLocaleString()}원</strong></div>
           <div>잔여: <strong className="text-red-600">{(totals.grandTotal - totals.grandPaid).toLocaleString()}원</strong></div>
+        </div>
+      </div>
+
+      {/* 필터 + 다운로드 컨트롤 */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white rounded-xl border p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-500 font-semibold">부서</span>
+          {PAYMENT_DEPT_OPTIONS.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setActiveDept(opt.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
+                activeDept === opt.id
+                  ? 'bg-indigo-600 text-white shadow'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+
+          {activeDept !== 'all' && subDeptList.length > 0 && (
+            <>
+              <span className="ml-3 text-xs text-gray-500 font-semibold">세부</span>
+              <button
+                onClick={() => setActiveSubDept('all')}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                  activeSubDept === 'all'
+                    ? 'bg-cyan-600 text-white shadow'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                전체
+              </button>
+              {subDeptList.map((sd) => (
+                <button
+                  key={sd.id}
+                  onClick={() => setActiveSubDept(sd.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                    activeSubDept === sd.id
+                      ? 'bg-cyan-600 text-white shadow'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {sd.label}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500">{rows.length}건</span>
+          <button
+            onClick={downloadExcel}
+            disabled={downloading}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white text-sm font-bold rounded-lg shadow transition cursor-pointer"
+          >
+            {downloading ? '생성 중...' : '📥 엑셀 다운로드 (4시트)'}
+          </button>
         </div>
       </div>
 
