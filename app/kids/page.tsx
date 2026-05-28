@@ -81,6 +81,32 @@ export default function KidsPage() {
   const [config, setConfig] = useState<EventConfig>(DEFAULT_CONFIG);
   const [activeDay, setActiveDay] = useState<number>(1);
 
+  // 08:00부터 22:00까지 30분 슬롯 목록 생성 (총 28개)
+  const START_HOUR = 8;
+  const END_HOUR = 22;
+  const totalSlots = (END_HOUR - START_HOUR) * 2;
+  
+  const slots = Array.from({ length: totalSlots }, (_, i) => {
+    const h = START_HOUR + Math.floor(i / 2);
+    const m = i % 2 === 0 ? '00' : '30';
+    return `${String(h).padStart(2, '0')}:${m}`;
+  });
+
+  const parseTimeRange = (timeStr: string) => {
+    const parts = (timeStr || '').split('-').map(s => s.trim());
+    const startTime = parts[0] || '09:00';
+    const endTime = parts[1] || '10:30';
+    return { startTime, endTime };
+  };
+
+  const timeToRowIndex = (timeStr: string): number => {
+    const [h, m] = (timeStr || '09:00').split(':').map(Number);
+    const hourDiff = h - START_HOUR;
+    const slotIndex = hourDiff * 2 + (m >= 30 ? 1 : 0);
+    // Row 1은 헤더이므로 최소 2부터 최대 totalSlots + 1 까지 매핑
+    return Math.max(0, Math.min(totalSlots - 1, slotIndex)) + 2;
+  };
+
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -154,77 +180,118 @@ export default function KidsPage() {
               dangerouslySetInnerHTML={{ __html: config.scripture }} />
           </div>
 
-          {/* 수련회 세부 일정 (2차원 격자 매트릭스 시간표) */}
-          {config.campSchedule && config.campSchedule.length > 0 && (
-            <div className="py-12 border-t border-gray-100 text-left">
-              <h3 className="text-2xl font-extrabold text-gray-900 mb-6 flex items-center gap-2">
-                <span style={{ color: primaryColor }}>📅</span> 수련회 전체 일정표
-              </h3>
-              
-              <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-lg bg-white/50 backdrop-blur-sm">
-                <table className="w-full border-collapse text-left min-w-[700px]">
-                  <thead>
-                    <tr className="border-b bg-gray-50/80 text-xs font-bold uppercase tracking-wider text-gray-500">
-                      <th className="p-4 border-r border-gray-200/60 w-40 text-center font-black text-slate-700">시간대</th>
-                      {Array.from(new Set(config.campSchedule.map((s) => s.day)))
-                        .sort((a, b) => a - b)
-                        .map((dayNum) => (
-                          <th key={dayNum} className="p-4 border-r border-gray-200/60 last:border-r-0 text-center font-black text-slate-800 text-sm" style={{ color: primaryColor }}>
-                            {dayNum}{config.campType === 'continuous' ? '일차' : '주차'}
-                          </th>
-                        ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200/80">
-                    {Array.from(new Set(config.campSchedule.map((s) => s.time)))
-                      .sort((a, b) => a.localeCompare(b))
-                      .map((timeRange) => {
-                        const days = Array.from(new Set(config.campSchedule!.map((s) => s.day))).sort((a, b) => a - b);
-                        return (
-                          <tr key={timeRange} className="hover:bg-gray-50/30 transition duration-150">
-                            {/* 시간축 셀 */}
-                            <td className="p-4 border-r border-gray-200/60 text-xs font-extrabold text-indigo-600 bg-gray-50/20 text-center select-none">
-                              🕒 {timeRange}
-                            </td>
-                            {/* 각 일차별 스케줄 카드 셀 */}
-                            {days.map((dayNum) => {
-                              const matchItem = config.campSchedule!.find((s) => s.day === dayNum && s.time === timeRange);
-                              return (
-                                <td key={dayNum} className="p-3 border-r border-gray-200/60 last:border-r-0 align-top h-28 w-1/4">
-                                  {matchItem ? (
-                                    <div
-                                      className="h-full p-3 rounded-xl border transition-all duration-300 hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md text-left"
-                                      style={{
-                                        backgroundColor: matchItem.color || '#ffffff',
-                                        borderColor: matchItem.color ? `${matchItem.color}dd` : '#e2e8f0',
-                                        boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.05)`
-                                      }}
-                                    >
-                                      <h4 className="font-extrabold text-sm text-slate-850 line-clamp-2 leading-tight">
-                                        {matchItem.title}
-                                      </h4>
-                                      {matchItem.description && (
-                                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-2 leading-relaxed font-semibold">
-                                          {matchItem.description}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="h-full rounded-xl border border-dashed border-gray-200/40 bg-gray-50/10 flex items-center justify-center text-[10px] text-gray-300 select-none font-medium">
-                                      -
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
+          {/* 수련회 세부 일정 (2차원 동적 시간표 그리드 플래너) */}
+          {config.campSchedule && config.campSchedule.length > 0 && (() => {
+            const uniqueDays = Array.from(new Set(config.campSchedule.map((s) => s.day))).sort((a, b) => a - b);
+            
+            return (
+              <div className="py-12 border-t border-gray-100 text-left">
+                <h3 className="text-2xl font-extrabold text-gray-900 mb-6 flex items-center gap-2">
+                  <span style={{ color: primaryColor }}>📅</span> 수련회 전체 일정표
+                </h3>
+                
+                <div className="overflow-x-auto rounded-2xl border border-gray-200/80 shadow-lg bg-white/50 backdrop-blur-sm p-4 min-w-[750px]">
+                  {/* CSS Grid 타임 슬롯 플래너 보드 */}
+                  <div 
+                    className="grid relative"
+                    style={{
+                      gridTemplateColumns: `100px repeat(${uniqueDays.length}, 1fr)`,
+                      gridTemplateRows: `50px repeat(${totalSlots}, 45px)`, // 헤더 50px, 각 30분 슬롯당 45px 높이
+                    }}
+                  >
+                    {/* 1. 가로축 일차 헤더 (Row 1) */}
+                    <div 
+                      className="border-b border-gray-200/60 bg-gray-50/80 flex items-center justify-center font-black text-slate-700 text-xs rounded-tl-xl select-none"
+                      style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}
+                    >
+                      시간대
+                    </div>
+                    {uniqueDays.map((dayNum, dayIdx) => (
+                      <div 
+                        key={dayNum}
+                        className="border-b border-r last:border-r-0 border-gray-200/60 bg-gray-50/80 flex items-center justify-center font-black text-slate-800 text-sm select-none"
+                        style={{ 
+                          gridRow: '1 / 2', 
+                          gridColumn: `${dayIdx + 2} / ${dayIdx + 3}`,
+                          color: primaryColor,
+                          borderTopRightRadius: dayIdx === uniqueDays.length - 1 ? '12px' : '0px'
+                        }}
+                      >
+                        {dayNum}{config.campType === 'continuous' ? '일차' : '주차'}
+                      </div>
+                    ))}
+
+                    {/* 2. 세로축 30분 단위 배경 슬롯 격자판 생성 */}
+                    {slots.map((slotTime, slotIdx) => {
+                      const rowNum = slotIdx + 2;
+                      return (
+                        <React.Fragment key={slotTime}>
+                          {/* 시간 라벨 셀 */}
+                          <div 
+                            className="border-b border-r border-gray-100 bg-gray-50/20 flex items-center justify-center text-[11px] font-extrabold text-indigo-600 select-none text-center"
+                            style={{ gridRow: `${rowNum} / ${rowNum + 1}`, gridColumn: '1 / 2' }}
+                          >
+                            {slotTime}
+                          </div>
+                          {/* 각 Day별 배경 빈 격자 셀 */}
+                          {uniqueDays.map((_, dayIdx) => (
+                            <div 
+                              key={dayIdx}
+                              className="border-b border-r last:border-r-0 border-gray-100 flex items-center justify-center text-[10px] text-gray-200/30 select-none"
+                              style={{ 
+                                gridRow: `${rowNum} / ${rowNum + 1}`, 
+                                gridColumn: `${dayIdx + 2} / ${dayIdx + 3}` 
+                              }}
+                            >
+                              -
+                            </div>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
+
+                    {/* 3. 절대/상대 포지션 기반 일정 카드 얹기 */}
+                    {config.campSchedule.map((item, idx) => {
+                      const dayIdx = uniqueDays.indexOf(item.day);
+                      if (dayIdx === -1) return null;
+
+                      const { startTime, endTime } = parseTimeRange(item.time);
+                      const startRow = timeToRowIndex(startTime);
+                      const endRow = timeToRowIndex(endTime);
+                      const actualEndRow = endRow > startRow ? endRow : startRow + 1; // 최소 30분 높이 보장
+
+                      return (
+                        <div
+                          key={item.id || idx}
+                          className="m-1 p-2.5 rounded-xl border shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-md text-left z-10 overflow-hidden flex flex-col justify-between"
+                          style={{
+                            gridRow: `${startRow} / ${actualEndRow}`,
+                            gridColumn: `${dayIdx + 2} / ${dayIdx + 3}`,
+                            backgroundColor: item.color || '#ffffff',
+                            borderColor: item.color ? `${item.color}dd` : '#e2e8f0',
+                          }}
+                        >
+                          <div>
+                            <div className="text-[9px] font-extrabold text-indigo-600 mb-0.5 tracking-tight flex items-center gap-1">
+                              🕒 {item.time}
+                            </div>
+                            <h4 className="font-extrabold text-xs text-slate-850 line-clamp-2 leading-tight">
+                              {item.title}
+                            </h4>
+                          </div>
+                          {item.description && (
+                            <p className="text-[10px] text-slate-500 line-clamp-1 leading-normal font-semibold mt-0.5 shrink-0">
+                              {item.description}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 메인 페이지 이동 안내 */}
           <Link
