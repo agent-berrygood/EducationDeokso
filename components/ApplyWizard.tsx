@@ -154,33 +154,47 @@ export default function ApplyWizard() {
     })();
   }, []);
 
-  // ─── 합계 계산 (자녀별 회비 + 자녀 워터파크 + 학부모 워터파크 인원수) ───
+  // ─── 합계 계산 (부서별 분리 + 워터풀 자녀/학부모 분리) ───
   const breakdown = useMemo(() => {
-    if (!fees) {
-      return { departmentFees: 0, childWaterparkTotal: 0, parentWaterparkTotal: 0, attendingChildren: 0, total: 0 };
-    }
-    let departmentFees = 0;
+    const empty = {
+      kinderCount: 0, kinderTotal: 0,
+      kidsCount: 0, kidsTotal: 0,
+      teensCount: 0, teensTotal: 0,
+      childWaterparkTotal: 0,
+      parentWaterparkTotal: 0,
+      attendingChildren: 0,
+      total: 0,
+    };
+    if (!fees) return empty;
+
+    let kinderCount = 0, kidsCount = 0, teensCount = 0;
     let attendingChildren = 0;
 
     draft.children.forEach((c) => {
-      if (c.department === 'kinder') departmentFees += Number(fees.kinder);
-      else if (c.department === 'kids') departmentFees += Number(fees.kids);
-      else if (c.department === 'teens') departmentFees += Number(fees.teens);
+      if (c.department === 'kinder') kinderCount += 1;
+      else if (c.department === 'kids') kidsCount += 1;
+      else if (c.department === 'teens') teensCount += 1;
       if (c.attendsWaterpark) attendingChildren += 1;
     });
+
+    const kinderTotal = kinderCount * Number(fees.kinder || 0);
+    const kidsTotal = kidsCount * Number(fees.kids || 0);
+    const teensTotal = teensCount * Number(fees.teens || 0);
 
     const childUnit = Number(fees.child_waterpark || 0);
     const parentUnit = Number(fees.parent_waterpark || 0);
     const childWaterparkTotal = attendingChildren * childUnit;
-    // 워터풀 학부모 단가는 등록된 보호자 인원 수만큼 가산 (자녀 1명이라도 워터풀 참석할 때만)
+    // 자녀 1명이라도 워터풀 참석할 때만 보호자 단가 적용
     const parentWaterparkTotal = attendingChildren > 0 ? draft.waterfallParents.length * parentUnit : 0;
 
     return {
-      departmentFees,
+      kinderCount, kinderTotal,
+      kidsCount, kidsTotal,
+      teensCount, teensTotal,
       childWaterparkTotal,
       parentWaterparkTotal,
       attendingChildren,
-      total: departmentFees + childWaterparkTotal + parentWaterparkTotal,
+      total: kinderTotal + kidsTotal + teensTotal + childWaterparkTotal + parentWaterparkTotal,
     };
   }, [draft.children, draft.waterfallParents, fees]);
 
@@ -977,11 +991,37 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
 
 // ─── Step 3: 확인 ───
 interface Breakdown {
-  departmentFees: number;
+  kinderCount: number; kinderTotal: number;
+  kidsCount: number;   kidsTotal: number;
+  teensCount: number;  teensTotal: number;
   childWaterparkTotal: number;
   parentWaterparkTotal: number;
   attendingChildren: number;
   total: number;
+}
+
+const DEPT_META: Record<DepartmentId, { label: string }> = {
+  kinder: { label: '나우킨더' },
+  kids:   { label: '나우키즈' },
+  teens:  { label: '나우틴즈' },
+};
+
+function deptCount(b: Breakdown, d: DepartmentId): number {
+  return d === 'kinder' ? b.kinderCount : d === 'kids' ? b.kidsCount : b.teensCount;
+}
+function deptTotal(b: Breakdown, d: DepartmentId): number {
+  return d === 'kinder' ? b.kinderTotal : d === 'kids' ? b.kidsTotal : b.teensTotal;
+}
+function deptUnit(fees: FeesConfig | null, d: DepartmentId): number {
+  if (!fees) return 0;
+  return Number(d === 'kinder' ? fees.kinder : d === 'kids' ? fees.kids : fees.teens || 0);
+}
+function deptAccount(fees: FeesConfig | null, d: DepartmentId): string | null {
+  if (!fees) return null;
+  const v = d === 'kinder' ? fees.kinder_account
+          : d === 'kids'   ? fees.kids_account
+          :                   fees.teens_account;
+  return v && v.trim() ? v : null;
 }
 
 function Step3({
@@ -994,22 +1034,17 @@ function Step3({
   onSubmit: () => void;
   submitting: boolean;
 }) {
-  // 자녀가 속한 부서 집합
-  const usedDepartments = useMemo(() => {
-    const set = new Set<DepartmentId>();
-    draft.children.forEach((c) => { if (c.department) set.add(c.department as DepartmentId); });
-    return Array.from(set);
-  }, [draft.children]);
+  // 자녀가 속한 부서 집합 (자녀 등록 순서 안정성을 위해 Set 사용)
+  const usedDepartments = useMemo<DepartmentId[]>(() => {
+    const order: DepartmentId[] = ['kinder', 'kids', 'teens'];
+    return order.filter((d) => deptCount(breakdown, d) > 0);
+  }, [breakdown]);
 
+  const waterparkAccount = fees?.waterpark_account && fees.waterpark_account.trim()
+    ? fees.waterpark_account
+    : null;
   const showWaterparkAccount = breakdown.attendingChildren > 0;
-
-  const accountFor = (dept: DepartmentId): string | null => {
-    if (!fees) return null;
-    if (dept === 'kinder') return fees.kinder_account || null;
-    if (dept === 'kids')   return fees.kids_account   || null;
-    if (dept === 'teens')  return fees.teens_account  || null;
-    return null;
-  };
+  const waterparkSubtotal = breakdown.childWaterparkTotal + breakdown.parentWaterparkTotal;
 
   return (
     <div className="space-y-6">
@@ -1039,27 +1074,39 @@ function Step3({
         </dl>
       </section>
 
-      {/* 금액 내역 */}
+      {/* 금액 내역 - 부서별로 분리 표시 */}
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
         <h3 className="text-lg font-bold text-slate-900 mb-4">금액 내역</h3>
         <dl className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-slate-600">부서 회비</dt>
-            <dd className="font-semibold">{breakdown.departmentFees.toLocaleString()}원</dd>
-          </div>
+          {usedDepartments.map((d) => (
+            <div key={d} className="flex justify-between">
+              <dt className="text-slate-600">
+                {DEPT_META[d].label} 회비
+                <span className="text-slate-400 ml-1">
+                  ({deptCount(breakdown, d)}명 × {deptUnit(fees, d).toLocaleString()}원)
+                </span>
+              </dt>
+              <dd className="font-semibold">{deptTotal(breakdown, d).toLocaleString()}원</dd>
+            </div>
+          ))}
+
           {breakdown.attendingChildren > 0 && (
             <>
               <div className="flex justify-between">
                 <dt className="text-slate-600">
-                  워터풀 자녀 {breakdown.attendingChildren}명
-                  × {Number(fees?.child_waterpark || 0).toLocaleString()}원
+                  워터풀 자녀
+                  <span className="text-slate-400 ml-1">
+                    ({breakdown.attendingChildren}명 × {Number(fees?.child_waterpark || 0).toLocaleString()}원)
+                  </span>
                 </dt>
                 <dd className="font-semibold">{breakdown.childWaterparkTotal.toLocaleString()}원</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-slate-600">
-                  워터풀 학부모 {draft.waterfallParents.length}명
-                  × {Number(fees?.parent_waterpark || 0).toLocaleString()}원
+                  워터풀 학부모
+                  <span className="text-slate-400 ml-1">
+                    ({draft.waterfallParents.length}명 × {Number(fees?.parent_waterpark || 0).toLocaleString()}원)
+                  </span>
                 </dt>
                 <dd className="font-semibold">{breakdown.parentWaterparkTotal.toLocaleString()}원</dd>
               </div>
@@ -1074,32 +1121,52 @@ function Step3({
         </div>
       </section>
 
-      {/* 입금 계좌 */}
+      {/* 입금 계좌 - 부서별 입금 금액과 계좌를 함께 표시 */}
       <section className="bg-slate-50 p-6 rounded-2xl border-2 border-cyan-200">
-        <h3 className="text-lg font-bold text-slate-900 mb-2">💰 입금 계좌 안내</h3>
+        <h3 className="text-lg font-bold text-slate-900 mb-1">💰 입금 계좌 안내</h3>
         <p className="text-xs text-slate-500 mb-4">
-          항목별로 계좌가 다를 수 있으니 아래 안내된 계좌로 각각 입금해 주세요.
+          항목별로 계좌가 다르니 <strong className="text-slate-700">각각의 금액을 정확히 분리하여 입금</strong>해 주세요.
         </p>
         <div className="space-y-3">
-          {usedDepartments.map((dept) => {
-            const acc = accountFor(dept);
-            const label = dept === 'kinder' ? '나우킨더' : dept === 'kids' ? '나우키즈' : '나우틴즈';
+          {usedDepartments.map((d) => {
+            const acc = deptAccount(fees, d);
+            const count = deptCount(breakdown, d);
+            const subtotal = deptTotal(breakdown, d);
             return (
-              <div key={dept} className="bg-white rounded-lg p-4 border">
-                <p className="text-xs text-slate-500 mb-1">{label} 회비 입금 계좌</p>
-                <p className="font-semibold text-slate-900">
-                  {acc || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
-                </p>
+              <div key={d} className="bg-white rounded-lg p-4 border flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="text-xs text-slate-500">{DEPT_META[d].label} 회비 입금 계좌</p>
+                  <p className="font-semibold text-slate-900 mt-1">
+                    {acc || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
+                  </p>
+                </div>
+                <div className="text-right md:min-w-[160px]">
+                  <p className="text-[10px] text-slate-400">입금 금액 ({count}명)</p>
+                  <p className="text-xl font-extrabold text-cyan-600">
+                    {subtotal.toLocaleString()}원
+                  </p>
+                </div>
               </div>
             );
           })}
 
           {showWaterparkAccount && (
-            <div className="bg-white rounded-lg p-4 border">
-              <p className="text-xs text-slate-500 mb-1">워터풀선데이 입장료 입금 계좌</p>
-              <p className="font-semibold text-slate-900">
-                {fees?.waterpark_account || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
-              </p>
+            <div className="bg-white rounded-lg p-4 border flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <p className="text-xs text-slate-500">워터풀선데이 입장료 입금 계좌</p>
+                <p className="font-semibold text-slate-900 mt-1">
+                  {waterparkAccount || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  자녀 {breakdown.attendingChildren}명 + 보호자 {draft.waterfallParents.length}명
+                </p>
+              </div>
+              <div className="text-right md:min-w-[160px]">
+                <p className="text-[10px] text-slate-400">입금 금액</p>
+                <p className="text-xl font-extrabold text-cyan-600">
+                  {waterparkSubtotal.toLocaleString()}원
+                </p>
+              </div>
             </div>
           )}
         </div>
