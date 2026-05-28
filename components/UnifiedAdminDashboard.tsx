@@ -56,7 +56,7 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold">통합 관리자</h1>
-            <p className="text-xs text-cyan-300">High Will Deokso Church · 지금세대교육부</p>
+            <p className="text-xs text-cyan-300">GODS WILL · 지금세대교육부</p>
           </div>
           <form action="/api/admin/logout" method="POST">
             <button className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-sm font-semibold rounded-lg">

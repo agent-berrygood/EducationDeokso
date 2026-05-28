@@ -13,7 +13,7 @@ export default function ApplyPage() {
             <span className="text-2xl font-bold">←</span>
             <div>
               <h1 className="text-lg font-bold">2026 지금세대교육부 여름 캠프</h1>
-              <p className="text-xs text-cyan-300">High Will Deokso Church</p>
+              <p className="text-xs text-cyan-300">GODS WILL</p>
             </div>
           </Link>
         </div>

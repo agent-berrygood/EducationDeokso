@@ -9,7 +9,7 @@ export default function HomePage() {
       <main className="container mx-auto px-6 py-12 flex-1 flex flex-col justify-center items-center">
         <header className="text-center max-w-3xl">
           <p className="text-cyan-400 text-lg md:text-xl font-semibold mb-4 tracking-widest uppercase">
-            High Will Deokso Church
+            GODS WILL
           </p>
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-r from-white via-cyan-200 to-cyan-400 leading-tight">
             2026 지금세대교육부<br />여름 캠프
@@ -47,7 +47,7 @@ export default function HomePage() {
           </Link>
         </nav>
         <p className="text-slate-600 mt-4 text-xs">
-          &copy; {new Date().getFullYear()} High Will Deokso Church. All rights reserved.
+          &copy; {new Date().getFullYear()} GODS WILL. All rights reserved.
         </p>
       </footer>
     </div>
