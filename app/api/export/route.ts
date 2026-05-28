@@ -77,20 +77,28 @@ export async function GET(request: Request) {
 
     rows.forEach((r: any) => {
       ws1.addRow([
-        r.parent_name, r.parent_phone, r.depositor_name,
-        r.name, r.birth_date, r.gender || '', r.sub_department, r.tshirt_size, r.allergies,
+        r.parent_name ?? '',
+        r.parent_phone ?? '',
+        r.depositor_name ?? '',
+        r.name ?? '',
+        r.birth_date ?? '',
+        r.gender ?? '',
+        r.sub_department ?? '',
+        r.tshirt_size ?? '',
+        r.allergies ?? '',
         r.attends_waterpark ? 'Y' : 'N',
-        ...customFields.map((f: any) => r[`custom_${f.columnIndex}`] || ''),
+        ...customFields.map((f: any) => r[`custom_${f.columnIndex}`] ?? ''),
         [
           r.kinder_paid ? '✓킨더' : '',
           r.kids_paid ? '✓키즈' : '',
           r.teens_paid ? '✓틴즈' : '',
           r.waterpark_paid ? '✓워터풀' : '',
         ].filter(Boolean).join('/') || '미결제',
-        r.created_at,
+        r.created_at ?? '',
       ]);
     });
-    ws1.columns.forEach((col) => { col.width = 15; });
+    setColumnWidths(ws1, 15);
+    ws1.getRow(1).font = { bold: true };
 
     // === Sheet 2: 부분 참석 매트릭스 ===
     const ws2 = workbook.addWorksheet('부분참석');
@@ -103,7 +111,6 @@ export async function GET(request: Request) {
     sessionHeaders.push('참석 합계');
     ws2.addRow(sessionHeaders);
 
-    // 슬롯별 집계용
     const slotTotals: Record<string, number> = {};
 
     rows.forEach((r: any) => {
@@ -113,7 +120,7 @@ export async function GET(request: Request) {
         : safeParse(sessionsRaw);
       const sessionSet = new Set(sessions.filter(isSessionKey));
 
-      const dataRow: any[] = [r.name, r.parent_name, r.parent_phone, r.sub_department];
+      const dataRow: any[] = [r.name ?? '', r.parent_name ?? '', r.parent_phone ?? '', r.sub_department ?? ''];
       let attendCount = 0;
       for (let d = 1; d <= dayCount; d++) {
         for (const slot of SLOTS) {
@@ -130,37 +137,54 @@ export async function GET(request: Request) {
       ws2.addRow(dataRow);
     });
 
-    // 합계 행
-    const totalsRow: any[] = ['합계', '', '', ''];
-    let grand = 0;
-    for (let d = 1; d <= dayCount; d++) {
-      for (const slot of SLOTS) {
-        const c = slotTotals[buildSessionKey(d, slot)] || 0;
-        totalsRow.push(c);
-        grand += c;
+    // 합계 행 (자녀 데이터가 있을 때만)
+    if (rows.length > 0) {
+      const totalsRow: any[] = ['합계', '', '', ''];
+      let grand = 0;
+      for (let d = 1; d <= dayCount; d++) {
+        for (const slot of SLOTS) {
+          const c = slotTotals[buildSessionKey(d, slot)] || 0;
+          totalsRow.push(c);
+          grand += c;
+        }
       }
+      totalsRow.push(grand);
+      ws2.addRow(totalsRow);
+      ws2.getRow(ws2.rowCount).font = { bold: true };
+      ws2.getRow(ws2.rowCount).fill = {
+        type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F7FA' },
+      };
     }
-    totalsRow.push(grand);
-    ws2.addRow(totalsRow);
 
-    // 스타일
-    ws2.columns.forEach((col) => { col.width = 12; });
+    setColumnWidths(ws2, 12);
     ws2.getRow(1).font = { bold: true };
-    ws2.getRow(ws2.rowCount).font = { bold: true };
-    ws2.getRow(ws2.rowCount).fill = {
-      type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F7FA' },
-    };
 
     const buffer = await workbook.xlsx.writeBuffer();
+    const today = new Date().toISOString().split('T')[0];
+    const filenameKo = `신청현황_${department}_${today}.xlsx`;
+    const filenameAscii = `applications_${department}_${today}.xlsx`;
 
-    return new Response(buffer, {
+    return new Response(buffer as ArrayBuffer, {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="신청현황_${department}_${new Date().toISOString().split('T')[0]}.xlsx"`,
+        // RFC 5987로 한글 파일명 안전 인코딩 (구버전 브라우저용 ASCII fallback 포함)
+        'Content-Disposition': `attachment; filename="${filenameAscii}"; filename*=UTF-8''${encodeURIComponent(filenameKo)}`,
       },
     });
   } catch (error) {
     console.error('GET /export 오류:', error);
     return Response.json({ success: false, error: String(error) }, { status: 500 });
+  }
+}
+
+/**
+ * 워크시트에 addRow만 했을 경우 ws.columns가 undefined일 수 있으므로
+ * 안전하게 열 너비 일괄 설정.
+ */
+function setColumnWidths(ws: ExcelJS.Worksheet, width: number) {
+  const headerRow = ws.getRow(1);
+  const colCount = headerRow.cellCount || (headerRow.values as any[])?.length || 0;
+  for (let i = 1; i <= colCount; i++) {
+    ws.getColumn(i).width = width;
   }
 }

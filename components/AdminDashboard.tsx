@@ -434,16 +434,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       );
     }
 
-    // 3. 연령 범위 필터 (부서별 기준: kinder ≤7, kids 8~13, teens 14~19)
-    const AGE_RANGES: Record<string, [number, number]> = {
-      kinder: [0, 7],
-      kids: [8, 13],
-      teens: [14, 19],
-    };
-    const range = AGE_RANGES[department];
-    if (range) {
-      filtered = filtered.filter(row => row.age >= range[0] && row.age <= range[1]);
-    }
+    // 3. 연령 범위 필터는 제거 (부서는 신청 단계에서 자녀 카드별로 명시 선택하므로
+    //    department 컬럼만으로 충분히 분리됨. 한국 나이 자동 계산이 0이거나 경계에 걸려
+    //    데이터가 사라지는 부작용을 방지)
 
     // 4. 하위 부서 탭 필터 (외부 prop 우선)
     if (effectiveSubDept !== 'all') {
