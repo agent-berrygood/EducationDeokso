@@ -59,6 +59,8 @@ export interface EventConfig {
   camp_type?: 'continuous' | 'partial';
   camp_duration?: number;
   poster_url?: string;
+  is_step_recruitment_active?: boolean;
+  tshirt_deadline?: string;
 }
 
 export interface ChildInput {
@@ -71,6 +73,7 @@ export interface ChildInput {
   allergies?: string;
   customAllergy?: string;
   attendsWaterpark?: boolean;
+  partialAttendanceReason?: string;
   /** 부분 참석 세션 키 배열 (예: ["1-morning", "1-afternoon", "2-evening"]) */
   attendedSessions?: string[];
   custom1?: string | null; custom2?: string | null; custom3?: string | null;

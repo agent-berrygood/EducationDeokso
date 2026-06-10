@@ -123,3 +123,23 @@ export function validateSessionKeys(keys: string[], maxDay: number): { ok: true 
   }
   return { ok: true };
 }
+
+/**
+ * 서버 사이드 검증: 모든 날짜가 YYYY-MM-DD 포맷이고 유효한 날짜인지.
+ * 레거시 세션키 포맷(1-morning 등)도 허용하여 기존 데이터 호환성 유지.
+ */
+export function validateAttendedDates(dates: string[]): { ok: true } | { ok: false; reason: string } {
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  for (const d of dates) {
+    // 레거시 세션키 포맷은 통과 허용
+    if (isSessionKey(d)) continue;
+    if (!dateRegex.test(d)) {
+      return { ok: false, reason: `날짜 포맷 오류: ${d} (YYYY-MM-DD 필요)` };
+    }
+    const parsed = new Date(d);
+    if (isNaN(parsed.getTime())) {
+      return { ok: false, reason: `유효하지 않은 날짜: ${d}` };
+    }
+  }
+  return { ok: true };
+}

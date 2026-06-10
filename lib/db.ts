@@ -188,6 +188,15 @@ const MIGRATIONS: Migration[] = [
        ON CONFLICT (department) DO NOTHING`,
     ],
   },
+  {
+    version: 7,
+    description: 'Add step recruitment flag, tshirt deadline, and partial attendance reason',
+    up: [
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_step_recruitment_active BOOLEAN DEFAULT FALSE`,
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS tshirt_deadline TIMESTAMP`,
+      `ALTER TABLE application_children ADD COLUMN IF NOT EXISTS partial_attendance_reason TEXT`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {

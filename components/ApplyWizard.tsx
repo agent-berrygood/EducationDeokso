@@ -12,7 +12,13 @@ import type {
 } from '@/lib/types';
 import { suggestDepartment } from '@/lib/age-to-department';
 import { applicationSubmitSchema } from '@/lib/schemas';
-import SessionGridPicker from '@/components/SessionGridPicker';
+
+function formatPhoneNumber(val: string): string {
+  const clean = val.replace(/\D/g, '');
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 7) return `${clean.slice(0, 3)}-${clean.slice(3)}`;
+  return `${clean.slice(0, 3)}-${clean.slice(3, 7)}-${clean.slice(7, 11)}`;
+}
 
 const DRAFT_KEY = 'apply_draft_v1';
 const RELATIONS: WaterfallRelation[] = ['부', '모', '조부', '조모', '기타'];
@@ -36,6 +42,7 @@ interface ChildDraft {
   attendsWaterpark: boolean;
   attendedSessions: string[];
   customFields: Record<string, string>;
+  partialAttendanceReason: string;
 }
 
 interface DraftState {
@@ -70,6 +77,7 @@ function makeEmptyChild(): ChildDraft {
     attendsWaterpark: false,
     attendedSessions: [],
     customFields: {},
+    partialAttendanceReason: '',
   };
 }
 
@@ -231,6 +239,7 @@ export default function ApplyWizard() {
     if (draft.waterfallParents.length === 0) return setError('워터풀 보호자를 1명 이상 등록하세요');
     for (const p of draft.waterfallParents) {
       if (!p.name.trim()) return setError('워터풀 보호자 이름을 모두 입력하세요');
+      if (!p.phone?.trim()) return setError('워터풀 보호자 연락처를 모두 입력하세요');
     }
     setStep(2);
   }
@@ -450,7 +459,7 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext }: 
             <input
               type="tel"
               value={draft.parentPhone}
-              onChange={(e) => patch({ parentPhone: e.target.value })}
+              onChange={(e) => patch({ parentPhone: formatPhoneNumber(e.target.value) })}
               className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
               placeholder="010-0000-0000"
             />
@@ -497,8 +506,8 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext }: 
               <input
                 type="tel"
                 value={p.phone || ''}
-                onChange={(e) => updateParent(idx, 'phone', e.target.value)}
-                placeholder="연락처 (선택)"
+                onChange={(e) => updateParent(idx, 'phone', formatPhoneNumber(e.target.value))}
+                placeholder="연락처 (필수)"
                 className="col-span-3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
               />
               <button
@@ -721,20 +730,25 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
           </Field>
         )}
 
-        {activeConfig && activeConfig.tshirtSizes?.length > 0 && (
-          <Field label="셔츠 사이즈">
-            <select
-              value={child.tshirtSize}
-              onChange={(e) => patchChild(child.uid, { tshirtSize: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
-            >
-              <option value="">선택</option>
-              {activeConfig.tshirtSizes.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </Field>
-        )}
+        {activeConfig && activeConfig.tshirtSizes?.length > 0 && (() => {
+          // 티셔츠 마감일 체크
+          const deadline = (activeConfig as any).tshirtDeadline || (activeConfig as any).tshirt_deadline;
+          if (deadline && new Date(deadline) < new Date()) return null;
+          return (
+            <Field label="셔츠 사이즈">
+              <select
+                value={child.tshirtSize}
+                onChange={(e) => patchChild(child.uid, { tshirtSize: e.target.value })}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+              >
+                <option value="">선택</option>
+                {activeConfig.tshirtSizes.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
+          );
+        })()}
       </div>
 
       {/* 알러지 */}
@@ -788,17 +802,69 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
         </label>
       </div>
 
-      {/* 부분 참석 세션 그리드 */}
-      {activeConfig && (
-        <div className="px-6 pb-6 border-t pt-6">
-          <SessionGridPicker
-            value={child.attendedSessions}
-            onChange={(next) => patchChild(child.uid, { attendedSessions: next })}
-            schedule={activeConfig.camp_schedule as any[]}
-            campDuration={activeConfig.camp_duration}
-          />
-        </div>
-      )}
+      {/* 참석 일정 선택 */}
+      {activeConfig && activeConfig.camp_start_date && (() => {
+        const startDate = new Date(activeConfig.camp_start_date);
+        const duration = activeConfig.camp_duration || 3;
+        const days: { date: string; label: string }[] = [];
+        const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+        for (let i = 0; i < duration; i++) {
+          const d = new Date(startDate);
+          d.setDate(d.getDate() + i);
+          const iso = d.toISOString().slice(0, 10);
+          days.push({ date: iso, label: `${d.getMonth() + 1}/${d.getDate()}(${dayNames[d.getDay()]})` });
+        }
+        const selected = child.attendedSessions || [];
+        const allSelected = days.length > 0 && days.every(d => selected.includes(d.date));
+        return (
+          <div className="px-6 py-4 border-t">
+            <div className="flex items-center justify-between mb-3">
+              <h5 className="text-sm font-bold text-slate-800">📅 참석 일정 선택</h5>
+              <button
+                type="button"
+                onClick={() => patchChild(child.uid, { attendedSessions: allSelected ? [] : days.map(d => d.date) })}
+                className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${
+                  allSelected ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-600 hover:bg-cyan-50'
+                }`}
+              >
+                {allSelected ? '✓ 전체 선택됨' : '전체 선택'}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {days.map(d => {
+                const checked = selected.includes(d.date);
+                return (
+                  <label key={d.date} className={`px-4 py-2.5 rounded-lg border cursor-pointer text-sm font-semibold transition-all ${
+                    checked ? 'bg-cyan-500 text-white border-cyan-500 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-cyan-300'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...selected, d.date]
+                          : selected.filter(s => s !== d.date);
+                        patchChild(child.uid, { attendedSessions: next });
+                      }}
+                      className="hidden"
+                    />
+                    {d.label}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-3">
+              <input
+                type="text"
+                value={child.partialAttendanceReason}
+                onChange={(e) => patchChild(child.uid, { partialAttendanceReason: e.target.value })}
+                placeholder="부분 참석 사유 및 시간 (선택)"
+                className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-sm"
+              />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 커스텀 필드 */}
       {activeConfig && activeConfig.customFieldMappings?.length > 0 && (
@@ -907,12 +973,12 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                 <h5 className="text-sm font-black text-slate-800 mb-3 flex items-center gap-1.5">
                   📅 {activeConfig.event_type} 시간표 안내
                 </h5>
-                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white/80 p-3 min-w-[500px]">
+                <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm bg-white/80 p-3 min-w-[400px]">
                   <div 
                     className="grid relative"
                     style={{
                       gridTemplateColumns: `80px repeat(${uniqueDays.length}, 1fr)`,
-                      gridTemplateRows: `40px repeat(${totalSlots}, 35px)`, // 헤더 40px, 슬롯 35px
+                      gridTemplateRows: `32px repeat(${totalSlots}, 24px)`,
                     }}
                   >
                     {/* 시간표 헤더 */}
@@ -942,7 +1008,7 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                       return (
                         <React.Fragment key={slotTime}>
                           <div 
-                            className="border-b border-r border-gray-100 bg-gray-50/10 flex items-center justify-center text-[9px] font-semibold text-slate-400 select-none text-center"
+                            className="border-b border-r border-gray-100 bg-gray-50/10 flex items-center justify-center text-[8px] font-semibold text-slate-400 select-none text-center"
                             style={{ gridRow: `${rowNum} / ${rowNum + 1}`, gridColumn: '1 / 2' }}
                           >
                             {slotTime}
@@ -976,7 +1042,7 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                       return (
                         <div
                           key={item.id || idx}
-                          className="m-0.5 p-1.5 rounded-lg border shadow-sm text-left z-10 overflow-hidden flex flex-col justify-between"
+                          className="m-px p-0.5 rounded-lg border shadow-sm text-left z-10 overflow-hidden flex flex-col justify-between"
                           style={{
                             gridRow: `${startRow} / ${actualEndRow}`,
                             gridColumn: `${dayIdx + 2} / ${dayIdx + 3}`,
@@ -985,10 +1051,10 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                           }}
                         >
                           <div>
-                            <div className="text-[8px] font-bold text-slate-400 mb-0.5 leading-none">
+                            <div className="text-[7px] font-bold text-slate-400 mb-0.5 leading-none">
                               🕒 {item.time}
                             </div>
-                            <h6 className="font-extrabold text-[10px] text-slate-800 line-clamp-1 leading-tight">
+                            <h6 className="font-extrabold text-[9px] text-slate-800 line-clamp-1 leading-tight">
                               {item.title}
                             </h6>
                           </div>

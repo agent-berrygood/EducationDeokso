@@ -11,12 +11,12 @@ export const waterfallRelationSchema = z.enum(['부', '모', '조부', '조모',
 export const waterfallParentSchema = z.object({
   name: z.string().min(1, '보호자 이름 필수'),
   relation: waterfallRelationSchema,
-  phone: z.string().optional(),
+  phone: z.string().min(1, '보호자 연락처 필수'),
 });
 
-const sessionKeySchema = z.string().regex(
-  /^[1-9][0-9]*-(morning|afternoon|evening)$/,
-  '세션 키 포맷이 올바르지 않습니다.'
+const attendedDateSchema = z.string().regex(
+  /^\d{4}-\d{2}-\d{2}$/,
+  '참석 날짜 포맷이 올바르지 않습니다 (YYYY-MM-DD).'
 );
 
 export const childInputSchema = z.object({
@@ -29,7 +29,8 @@ export const childInputSchema = z.object({
   allergies: z.string().optional(),
   customAllergy: z.string().optional(),
   attendsWaterpark: z.boolean().optional(),
-  attendedSessions: z.array(sessionKeySchema).optional(),
+  attendedSessions: z.array(attendedDateSchema).optional(),
+  partialAttendanceReason: z.string().optional(),
   custom1: z.string().nullable().optional(),
   custom2: z.string().nullable().optional(),
   custom3: z.string().nullable().optional(),
@@ -90,6 +91,8 @@ export const eventConfigUpdateSchema = z.object({
   campSchedule: z.array(z.any()).optional(),
   campType: z.string().optional(),
   campDuration: z.number().optional(),
+  isStepRecruitmentActive: z.boolean().optional(),
+  tshirtDeadline: z.string().nullable().optional(),
 });
 
 export const adminLoginSchema = z.object({

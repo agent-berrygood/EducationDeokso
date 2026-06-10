@@ -30,6 +30,7 @@ export async function GET(
         id, department, title, event_type, subtitle, scripture,
         primary_color, bg_color, camp_start_date, camp_schedule,
         camp_type, camp_duration, poster_url,
+        is_step_recruitment_active, tshirt_deadline,
         sub_departments, events, tshirt_sizes, custom_field_mappings
        FROM event_configs WHERE department = $1`,
       [department]
@@ -47,6 +48,8 @@ export async function GET(
         campType: config.camp_type || 'continuous',
         campDuration: Number(config.camp_duration || 3),
         posterUrl: config.poster_url || '',
+        isStepRecruitmentActive: config.is_step_recruitment_active || false,
+        tshirtDeadline: config.tshirt_deadline || null,
         subDepartments: safeParse(config.sub_departments),
         events: safeParse(config.events),
         tshirtSizes: safeParse(config.tshirt_sizes),
@@ -76,10 +79,12 @@ export async function POST(
     const {
       title, eventType, subtitle, scripture, primaryColor, bgColor,
       subDepartments, events, tshirtSizes, customFieldMappings,
-      campStartDate, campSchedule, campType, campDuration, posterUrl
+      campStartDate, campSchedule, campType, campDuration, posterUrl,
+      isStepRecruitmentActive, tshirtDeadline
     } = body;
 
     const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
+    const validatedTshirtDeadline = tshirtDeadline && tshirtDeadline.trim() !== '' ? tshirtDeadline : null;
 
     // 기존 설정 조회
     let config = await queryOne(
@@ -94,8 +99,8 @@ export async function POST(
             department, title, event_type, subtitle, scripture,
             primary_color, bg_color, sub_departments, events,
             tshirt_sizes, custom_field_mappings, camp_start_date, camp_schedule,
-            camp_type, camp_duration, poster_url
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING id`,
+            camp_type, camp_duration, poster_url, is_step_recruitment_active, tshirt_deadline
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
           [
             department,
             title || null,
@@ -112,7 +117,9 @@ export async function POST(
             JSON.stringify(campSchedule || []),
             campType || 'continuous',
             Number(campDuration || 3),
-            posterUrl || null
+            posterUrl || null,
+            isStepRecruitmentActive || false,
+            validatedTshirtDeadline
           ]
         );
     } else {
@@ -128,8 +135,10 @@ export async function POST(
           camp_type = $13,
           camp_duration = $14,
           poster_url = $15,
+          is_step_recruitment_active = $16,
+          tshirt_deadline = $17,
           updated_at = NOW()
-         WHERE department = $16`,
+         WHERE department = $18`,
         [
           title || null,
           eventType || null,
@@ -146,6 +155,8 @@ export async function POST(
           campType || 'continuous',
           Number(campDuration || 3),
           posterUrl || null,
+          isStepRecruitmentActive || false,
+          validatedTshirtDeadline,
           department
         ]
       );
