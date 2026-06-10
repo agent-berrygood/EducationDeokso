@@ -18,6 +18,15 @@ interface Application {
   children: any[];
 }
 
+const formatToLocalDatetime = (dateString: string | null | undefined) => {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+};
+
+
 
 
 interface CustomField {
@@ -142,7 +151,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         posterUrl: data.posterUrl || '',
         events: data.events || [],
         isStepRecruitmentActive: data.isStepRecruitmentActive || false,
-        tshirtDeadline: data.tshirtDeadline || '',
+        tshirtDeadline: (data.tshirtDeadline && !isNaN(new Date(data.tshirtDeadline).getTime())) ? new Date(data.tshirtDeadline).toISOString() : '',
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
@@ -254,7 +263,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           posterUrl: settingsForm.posterUrl,
           events: settingsForm.events,
           isStepRecruitmentActive: settingsForm.isStepRecruitmentActive,
-          tshirtDeadline: settingsForm.tshirtDeadline,
+          tshirtDeadline: (settingsForm.tshirtDeadline && !isNaN(new Date(settingsForm.tshirtDeadline).getTime())) ? new Date(settingsForm.tshirtDeadline).toISOString() : null,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -887,7 +896,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                       <label className="block text-sm font-medium mb-1">티셔츠 신청 마감일시</label>
                       <input
                         type="datetime-local"
-                        value={settingsForm.tshirtDeadline ? new Date(settingsForm.tshirtDeadline).toISOString().slice(0, 16) : ''}
+                        value={formatToLocalDatetime(settingsForm.tshirtDeadline)}
                         onChange={(e) => setSettingsForm({ ...settingsForm, tshirtDeadline: e.target.value })}
                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
                       />
