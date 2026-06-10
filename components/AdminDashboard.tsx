@@ -85,6 +85,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     title: '',
     description: '',
   });
+  const [newSubDeptLabel, setNewSubDeptLabel] = useState('');
   const [newCustomField, setNewCustomField] = useState<any>({
     label: '',
     type: 'text',
@@ -279,6 +280,23 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     setSettingsForm((prev: any) => ({
       ...prev,
       tshirtSizes: prev.tshirtSizes.filter((s: string) => s !== size),
+    }));
+  };
+
+  const addSubDepartment = () => {
+    if (!newSubDeptLabel.trim()) return;
+    const newId = newSubDeptLabel.trim().replace(/\s+/g, '_').toLowerCase();
+    setSettingsForm((prev: any) => ({
+      ...prev,
+      subDepartments: [...(prev.subDepartments || []), { id: newId, label: newSubDeptLabel.trim() }],
+    }));
+    setNewSubDeptLabel('');
+  };
+
+  const removeSubDepartment = (id: string) => {
+    setSettingsForm((prev: any) => ({
+      ...prev,
+      subDepartments: (prev.subDepartments || []).filter((sd: any) => sd.id !== id),
     }));
   };
 
@@ -910,6 +928,48 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                           <button
                             type="button"
                             onClick={() => removeTshirtSize(size)}
+                            className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* 세부 부서 관리 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">📂 하위/세부 부서 관리</h3>
+                  <div className="flex gap-3 mb-4">
+                    <input
+                      type="text"
+                      placeholder="추가할 세부 부서 이름 (예: 초등1부, 유치부 등)"
+                      value={newSubDeptLabel}
+                      onChange={(e) => setNewSubDeptLabel(e.target.value)}
+                      className="flex-1 px-4 py-2 border rounded-lg bg-white text-gray-900"
+                    />
+                    <button
+                      type="button"
+                      onClick={addSubDepartment}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow cursor-pointer"
+                    >
+                      부서 추가
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(!settingsForm.subDepartments || settingsForm.subDepartments.length === 0) ? (
+                      <p className="text-sm text-gray-400">등록된 세부 부서가 없습니다. (추가하지 않으면 메인 부서만 표시됩니다)</p>
+                    ) : (
+                      settingsForm.subDepartments.map((sd: any) => (
+                        <div
+                          key={sd.id}
+                          className="flex items-center gap-2 bg-blue-50 border border-blue-150 px-3.5 py-1.5 rounded-full text-blue-700 font-semibold text-sm"
+                        >
+                          <span>{sd.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeSubDepartment(sd.id)}
                             className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
                           >
                             &times;

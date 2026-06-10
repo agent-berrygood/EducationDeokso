@@ -745,6 +745,12 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
           )}
         </Field>
 
+        {activePoster && (
+          <div className="md:col-span-2 mt-2">
+            <img src={activePoster} alt="수련회 포스터" className="w-full h-auto max-h-[600px] object-contain rounded-xl shadow-sm border border-slate-200" />
+          </div>
+        )}
+
         {activeConfig && (
           <Field label="세부 부서">
             {activeConfig.subDepartments && activeConfig.subDepartments.length > 0 ? (
@@ -898,6 +904,23 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                 className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-sm"
               />
             </div>
+            {((activeConfig as any).campSchedule || (activeConfig as any).camp_schedule) && (((activeConfig as any).campSchedule || (activeConfig as any).camp_schedule).length > 0) && (
+              <div className="mt-6 pt-4 border-t">
+                <h5 className="text-sm font-bold text-slate-800 mb-3">🕒 수련회 시간표 안내</h5>
+                <div className="space-y-2">
+                  {((activeConfig as any).campSchedule || (activeConfig as any).camp_schedule).map((item: any, i: number) => (
+                    <div key={i} className="flex gap-3 text-sm p-3 bg-slate-50 border border-slate-100 rounded-lg">
+                      <div className="font-bold text-cyan-600 min-w-[50px]">{item.day}일차</div>
+                      <div className="font-semibold text-slate-500 w-16">{item.time}</div>
+                      <div className="flex-1">
+                        <div className="font-bold text-slate-800">{item.title}</div>
+                        {item.description && <div className="text-xs text-slate-500 mt-0.5">{item.description}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}
