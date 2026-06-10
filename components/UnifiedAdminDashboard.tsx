@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import AdminDashboard from '@/components/AdminDashboard';
 import GlobalFeesSettings from '@/components/GlobalFeesSettings';
+import WaterparkRoster from '@/components/WaterparkRoster';
 import type { DepartmentId, EventConfig, SubDepartment } from '@/lib/types';
 
 const DEPT_LABELS: Record<DepartmentId, string> = {
@@ -15,7 +16,7 @@ interface Props {
   allowedDepartments: DepartmentId[];
 }
 
-type TopTab = DepartmentId | 'global';
+type TopTab = DepartmentId | 'global' | 'waterpark';
 
 export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
   // 교역자 단일 운영 - 어드민은 항상 글로벌 설정 노출
@@ -28,7 +29,7 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
   // 부서 변경 시 세부부서 reset + config 로드
   useEffect(() => {
     setActiveSubDept('all');
-    if (activeTab === 'global') {
+    if (activeTab === 'global' || activeTab === 'waterpark') {
       setConfig(null);
       return;
     }
@@ -48,7 +49,7 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
     [config]
   );
 
-  const isDeptTab = activeTab !== 'global';
+  const isDeptTab = activeTab !== 'global' && activeTab !== 'waterpark';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -80,6 +81,16 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
               {DEPT_LABELS[dept]}
             </button>
           ))}
+          <button
+            onClick={() => setActiveTab('waterpark')}
+            className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
+              activeTab === 'waterpark'
+                ? 'bg-slate-50 text-slate-900 rounded-t-lg'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            💦 워터풀 명단
+          </button>
           {canSeeGlobal && (
             <button
               onClick={() => setActiveTab('global')}
@@ -124,6 +135,11 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
             department={activeTab as DepartmentId}
             subDepartment={activeSubDept === 'all' ? undefined : activeSubDept}
           />
+        ) : activeTab === 'waterpark' ? (
+          <div className="p-6">
+            {/* 부서 미지정 → 전체 부서 통합 명단 */}
+            <WaterparkRoster />
+          </div>
         ) : (
           <div className="p-6">
             <GlobalFeesSettings />

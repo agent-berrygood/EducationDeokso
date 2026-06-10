@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
+import WaterparkRoster from '@/components/WaterparkRoster';
 import type { FeesConfig } from '@/lib/types';
 import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
 
@@ -55,10 +56,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [editingApp, setEditingApp] = useState<any>(null);
-
-  // 워터풀 명단 탭 state (가족 단위)
-  const [waterparkFamilies, setWaterparkFamilies] = useState<any[]>([]);
-  const [waterparkSummary, setWaterparkSummary] = useState({ familyCount: 0, parentCount: 0, childCount: 0 });
 
   // 페이징, 검색 및 정렬 상태 추가
   const [offset, setOffset] = useState(0);
@@ -168,29 +165,11 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
-  const loadWaterparkList = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      const res = await fetch(`/api/waterpark/applicants?department=${department}`);
-      if (!res.ok) throw new Error('Fetch failed');
-      const json = await res.json();
-      setWaterparkFamilies(json.data || []);
-      setWaterparkSummary(json.summary || { familyCount: 0, parentCount: 0, childCount: 0 });
-    } catch (err) {
-      setError('워터풀 신청 명단을 불러오는데 실패했습니다.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (activeTab === 'applications') {
       loadApplications();
     } else if (activeTab === 'settings') {
       loadConfig();
-    } else if (activeTab === 'waterpark') {
-      loadWaterparkList();
     }
   }, [activeTab, offset, department, sortField, sortDirection]);
 
@@ -1251,101 +1230,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
             </div>
           )}
 
-          {/* 워터풀선데이 신청 명단 (가족 단위) */}
+          {/* 워터풀선데이 신청 명단 (가족 단위) — 공용 컴포넌트 */}
           {activeTab === 'waterpark' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h2 className="text-xl font-bold">💦 워터풀선데이 신청 명단</h2>
-                  <p className="text-sm text-gray-400 mt-1">
-                    성경학교 가족 단위 신청 데이터 기준 — 워터풀 참석 자녀가 1명 이상인 가족만 표시됩니다.
-                  </p>
-                </div>
-                <button
-                  onClick={() => window.open(`/api/export/waterpark?department=${department}`, '_blank')}
-                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer"
-                >
-                  📥 가족단위 명단 엑셀 추출
-                </button>
-              </div>
-
-              {/* 요약 카드 */}
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { label: '신청 가족', value: waterparkSummary.familyCount, unit: '가정' },
-                  { label: '동반 보호자', value: waterparkSummary.parentCount, unit: '명' },
-                  { label: '참석 자녀', value: waterparkSummary.childCount, unit: '명' },
-                ].map((s) => (
-                  <div
-                    key={s.label}
-                    className={`p-5 rounded-2xl border shadow-sm text-center ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}
-                  >
-                    <p className="text-xs font-semibold text-gray-400">{s.label}</p>
-                    <p className="text-3xl font-extrabold text-cyan-600 mt-1">
-                      {s.value}<span className="text-sm font-bold text-gray-400 ml-1">{s.unit}</span>
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* 가족 단위 명단 */}
-              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
-                {loading ? (
-                  <div className="p-12 text-center text-gray-400">명단을 불러오는 중입니다...</div>
-                ) : waterparkFamilies.length === 0 ? (
-                  <div className="p-12 text-center text-gray-400">워터풀선데이 신청 가족이 아직 없습니다.</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className={`text-left text-xs uppercase tracking-wider ${department === 'teens' ? 'bg-slate-800 text-slate-400' : 'bg-gray-50 text-gray-500'}`}>
-                          <th className="px-4 py-3">대표 보호자</th>
-                          <th className="px-4 py-3">연락처</th>
-                          <th className="px-4 py-3">동반 보호자</th>
-                          <th className="px-4 py-3">참석 자녀</th>
-                          <th className="px-4 py-3 text-center">인원</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
-                        {waterparkFamilies.map((f) => (
-                          <tr key={f.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/40">
-                            <td className="px-4 py-3 font-bold">{f.parentName}</td>
-                            <td className="px-4 py-3 text-gray-500">{f.parentPhone}</td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1.5">
-                                {f.parents.map((p: any, i: number) => (
-                                  <span key={i} className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
-                                    {p.name} ({p.relation})
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex flex-wrap gap-1.5">
-                                {f.children.map((c: any) => (
-                                  <span
-                                    key={c.id}
-                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                      c.department === department
-                                        ? 'bg-cyan-50 text-cyan-700'
-                                        : 'bg-gray-100 text-gray-500'
-                                    }`}
-                                    title={c.department !== department ? '다른 부서 소속 자녀' : undefined}
-                                  >
-                                    {c.name} ({deptNames[c.department]?.split(' ')[0] || c.department})
-                                  </span>
-                                ))}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-center font-bold text-cyan-600">{f.totalCount}명</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
+            <WaterparkRoster department={department} dark={department === 'teens'} />
           )}
 
           {/* 4. Surveys Tab */}
