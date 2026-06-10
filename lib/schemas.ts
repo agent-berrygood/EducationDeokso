@@ -57,7 +57,8 @@ export const applicationSubmitSchema = z.object({
   parentName: z.string().min(1, '부모 이름 필수'),
   parentPhone: z.string().min(1, '연락처 필수'),
   depositorName: z.string().min(1, '입금자 이름 필수'),
-  waterfallParents: z.array(waterfallParentSchema).min(1, '워터풀 보호자 1명 이상 필수'),
+  // 워터풀 비활성 부서만 신청하는 경우 0명 허용 — 활성 부서 포함 시 클라이언트에서 1명 이상 검증
+  waterfallParents: z.array(waterfallParentSchema),
   children: z.array(childInputSchema).min(1, '자녀 1명 이상 필수'),
   grandTotal: z.number().nonnegative(),
 });
@@ -93,6 +94,14 @@ export const eventConfigUpdateSchema = z.object({
   campDuration: z.number().optional(),
   isStepRecruitmentActive: z.boolean().optional(),
   tshirtDeadline: z.string().nullable().optional(),
+  isWaterparkActive: z.boolean().optional(),
+  waterparkInfo: z.object({
+    title: z.string().optional(),
+    date: z.string().optional(),
+    time: z.string().optional(),
+    location: z.string().optional(),
+    note: z.string().optional(),
+  }).optional(),
 });
 
 export const adminLoginSchema = z.object({

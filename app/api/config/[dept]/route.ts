@@ -13,6 +13,17 @@ function safeParse(val: any) {
 }
 
 /**
+ * 마이그레이션(/api/init) 미적용 환경에서도 설정 조회/저장이 깨지지 않도록
+ * 이 라우트가 참조하는 컬럼을 자동 보장. (applications 라우트와 동일 패턴)
+ */
+async function ensureConfigSchema() {
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_step_recruitment_active BOOLEAN DEFAULT FALSE`);
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS tshirt_deadline TIMESTAMP`);
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_waterpark_active BOOLEAN DEFAULT TRUE`);
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS waterpark_info JSONB DEFAULT '{}'::jsonb`);
+}
+
+/**
  * GET /api/config/[dept]
  * 부서별 설정 조회 (title, colors, custom fields, 셔츠 사이즈, 행사 등)
  */
@@ -24,6 +35,7 @@ export async function GET(
   try {
     const { dept } = await params;
     department = dept;
+    await ensureConfigSchema();
 
     const config = await queryOne(
       `SELECT
@@ -31,6 +43,7 @@ export async function GET(
         primary_color, bg_color, camp_start_date, camp_schedule,
         camp_type, camp_duration, poster_url,
         is_step_recruitment_active, tshirt_deadline,
+        is_waterpark_active, waterpark_info,
         sub_departments, events, tshirt_sizes, custom_field_mappings
        FROM event_configs WHERE department = $1`,
       [department]
@@ -50,6 +63,10 @@ export async function GET(
         posterUrl: config.poster_url || '',
         isStepRecruitmentActive: config.is_step_recruitment_active || false,
         tshirtDeadline: config.tshirt_deadline || null,
+        isWaterparkActive: config.is_waterpark_active ?? true,
+        waterparkInfo: (typeof config.waterpark_info === 'string'
+          ? (() => { try { return JSON.parse(config.waterpark_info); } catch { return {}; } })()
+          : config.waterpark_info) || {},
         subDepartments: safeParse(config.sub_departments),
         events: safeParse(config.events),
         tshirtSizes: safeParse(config.tshirt_sizes),
@@ -75,12 +92,14 @@ export async function POST(
   try {
     const { dept } = await params;
     department = dept;
+    await ensureConfigSchema();
     const body = await request.json();
     const {
       title, eventType, subtitle, scripture, primaryColor, bgColor,
       subDepartments, events, tshirtSizes, customFieldMappings,
       campStartDate, campSchedule, campType, campDuration, posterUrl,
-      isStepRecruitmentActive, tshirtDeadline
+      isStepRecruitmentActive, tshirtDeadline,
+      isWaterparkActive, waterparkInfo
     } = body;
 
     const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
@@ -99,8 +118,9 @@ export async function POST(
             department, title, event_type, subtitle, scripture,
             primary_color, bg_color, sub_departments, events,
             tshirt_sizes, custom_field_mappings, camp_start_date, camp_schedule,
-            camp_type, camp_duration, poster_url, is_step_recruitment_active, tshirt_deadline
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
+            camp_type, camp_duration, poster_url, is_step_recruitment_active, tshirt_deadline,
+            is_waterpark_active, waterpark_info
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING id`,
           [
             department,
             title || null,
@@ -119,7 +139,9 @@ export async function POST(
             Number(campDuration || 3),
             posterUrl || null,
             isStepRecruitmentActive || false,
-            validatedTshirtDeadline
+            validatedTshirtDeadline,
+            isWaterparkActive ?? true,
+            JSON.stringify(waterparkInfo || {})
           ]
         );
     } else {
@@ -137,8 +159,10 @@ export async function POST(
           poster_url = $15,
           is_step_recruitment_active = $16,
           tshirt_deadline = $17,
+          is_waterpark_active = $18,
+          waterpark_info = $19,
           updated_at = NOW()
-         WHERE department = $18`,
+         WHERE department = $20`,
         [
           title || null,
           eventType || null,
@@ -157,6 +181,8 @@ export async function POST(
           posterUrl || null,
           isStepRecruitmentActive || false,
           validatedTshirtDeadline,
+          isWaterparkActive ?? true,
+          JSON.stringify(waterparkInfo || {}),
           department
         ]
       );

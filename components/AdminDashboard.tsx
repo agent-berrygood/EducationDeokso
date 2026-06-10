@@ -56,6 +56,10 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [error, setError] = useState('');
   const [editingApp, setEditingApp] = useState<any>(null);
 
+  // 워터풀 명단 탭 state (가족 단위)
+  const [waterparkFamilies, setWaterparkFamilies] = useState<any[]>([]);
+  const [waterparkSummary, setWaterparkSummary] = useState({ familyCount: 0, parentCount: 0, childCount: 0 });
+
   // 페이징, 검색 및 정렬 상태 추가
   const [offset, setOffset] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,6 +89,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     events: [],
     isStepRecruitmentActive: false,
     tshirtDeadline: '',
+    isWaterparkActive: true,
+    waterparkInfo: { title: '', date: '', time: '', location: '', note: '' },
   });
   
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -152,9 +158,27 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         events: data.events || [],
         isStepRecruitmentActive: data.isStepRecruitmentActive || false,
         tshirtDeadline: (data.tshirtDeadline && !isNaN(new Date(data.tshirtDeadline).getTime())) ? new Date(data.tshirtDeadline).toISOString() : '',
+        isWaterparkActive: data.isWaterparkActive ?? true,
+        waterparkInfo: { title: '', date: '', time: '', location: '', note: '', ...(data.waterparkInfo || {}) },
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadWaterparkList = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await fetch(`/api/waterpark/applicants?department=${department}`);
+      if (!res.ok) throw new Error('Fetch failed');
+      const json = await res.json();
+      setWaterparkFamilies(json.data || []);
+      setWaterparkSummary(json.summary || { familyCount: 0, parentCount: 0, childCount: 0 });
+    } catch (err) {
+      setError('워터풀 신청 명단을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -165,6 +189,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       loadApplications();
     } else if (activeTab === 'settings') {
       loadConfig();
+    } else if (activeTab === 'waterpark') {
+      loadWaterparkList();
     }
   }, [activeTab, offset, department, sortField, sortDirection]);
 
@@ -264,6 +290,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           events: settingsForm.events,
           isStepRecruitmentActive: settingsForm.isStepRecruitmentActive,
           tshirtDeadline: (settingsForm.tshirtDeadline && !isNaN(new Date(settingsForm.tshirtDeadline).getTime())) ? new Date(settingsForm.tshirtDeadline).toISOString() : null,
+          isWaterparkActive: settingsForm.isWaterparkActive,
+          waterparkInfo: settingsForm.waterparkInfo,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -515,6 +543,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         <div className="flex border-b border-gray-300 dark:border-slate-800 gap-4 overflow-x-auto whitespace-nowrap">
           {[
             { id: 'applications', label: `📝 신청 현황 (${processedChildren.length}명)` },
+            { id: 'waterpark', label: '💦 워터풀 명단' },
             { id: 'settings', label: '🎨 CMS & 스킨 설정' },
             { id: 'surveys', label: '📊 설문조사 관리 (Phase 2)' }
           ].map((tab) => (
@@ -905,6 +934,85 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                   </div>
                 </div>
 
+                {/* 워터풀선데이 설정 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">💦 워터풀선데이 설정</h3>
+                  <div className="mb-5">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium mb-1">
+                      <input
+                        type="checkbox"
+                        checked={settingsForm.isWaterparkActive}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, isWaterparkActive: e.target.checked })}
+                        className="h-5 w-5 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                      />
+                      이 부서의 워터풀선데이 신청 활성화
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1 ml-7">
+                      비활성화하면 신청서에서 이 부서 자녀의 워터풀선데이 참석 항목이 노출되지 않습니다.
+                    </p>
+                  </div>
+
+                  {settingsForm.isWaterparkActive && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-dashed">
+                      <div className="md:col-span-2">
+                        <p className="text-sm font-semibold text-gray-500 mb-2">
+                          📌 부서별 커스텀 안내 — 일정이 다른 부서(예: 나우틴즈)는 여기에서 별도 일정/장소를 지정하세요.
+                          입력한 내용이 신청서의 워터풀 참석 항목에 안내로 표시됩니다.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">행사명 (비우면 기본: 워터풀선데이)</label>
+                        <input
+                          type="text"
+                          placeholder="예: 워터풀선데이"
+                          value={settingsForm.waterparkInfo.title}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, title: e.target.value } })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">날짜</label>
+                        <input
+                          type="date"
+                          value={settingsForm.waterparkInfo.date}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, date: e.target.value } })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">시간</label>
+                        <input
+                          type="text"
+                          placeholder="예: 14:00 - 18:00"
+                          value={settingsForm.waterparkInfo.time}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, time: e.target.value } })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">장소</label>
+                        <input
+                          type="text"
+                          placeholder="예: 교회 앞마당 야외풀장"
+                          value={settingsForm.waterparkInfo.location}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, location: e.target.value } })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1">추가 안내문</label>
+                        <textarea
+                          rows={2}
+                          placeholder="예: 나우틴즈는 본 캠프와 별도 일정으로 진행됩니다. 수영복과 여벌 옷을 준비해주세요."
+                          value={settingsForm.waterparkInfo.note}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, note: e.target.value } })}
+                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* 단체티 사이즈 관리 */}
                 <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
                   <h3 className="text-xl font-bold mb-4 border-b pb-2">👕 부서별 티셔츠 사이즈 옵션 관리</h3>
@@ -1140,6 +1248,103 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* 워터풀선데이 신청 명단 (가족 단위) */}
+          {activeTab === 'waterpark' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <h2 className="text-xl font-bold">💦 워터풀선데이 신청 명단</h2>
+                  <p className="text-sm text-gray-400 mt-1">
+                    성경학교 가족 단위 신청 데이터 기준 — 워터풀 참석 자녀가 1명 이상인 가족만 표시됩니다.
+                  </p>
+                </div>
+                <button
+                  onClick={() => window.open(`/api/export/waterpark?department=${department}`, '_blank')}
+                  className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer"
+                >
+                  📥 가족단위 명단 엑셀 추출
+                </button>
+              </div>
+
+              {/* 요약 카드 */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: '신청 가족', value: waterparkSummary.familyCount, unit: '가정' },
+                  { label: '동반 보호자', value: waterparkSummary.parentCount, unit: '명' },
+                  { label: '참석 자녀', value: waterparkSummary.childCount, unit: '명' },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className={`p-5 rounded-2xl border shadow-sm text-center ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}
+                  >
+                    <p className="text-xs font-semibold text-gray-400">{s.label}</p>
+                    <p className="text-3xl font-extrabold text-cyan-600 mt-1">
+                      {s.value}<span className="text-sm font-bold text-gray-400 ml-1">{s.unit}</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {/* 가족 단위 명단 */}
+              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+                {loading ? (
+                  <div className="p-12 text-center text-gray-400">명단을 불러오는 중입니다...</div>
+                ) : waterparkFamilies.length === 0 ? (
+                  <div className="p-12 text-center text-gray-400">워터풀선데이 신청 가족이 아직 없습니다.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className={`text-left text-xs uppercase tracking-wider ${department === 'teens' ? 'bg-slate-800 text-slate-400' : 'bg-gray-50 text-gray-500'}`}>
+                          <th className="px-4 py-3">대표 보호자</th>
+                          <th className="px-4 py-3">연락처</th>
+                          <th className="px-4 py-3">동반 보호자</th>
+                          <th className="px-4 py-3">참석 자녀</th>
+                          <th className="px-4 py-3 text-center">인원</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
+                        {waterparkFamilies.map((f) => (
+                          <tr key={f.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-800/40">
+                            <td className="px-4 py-3 font-bold">{f.parentName}</td>
+                            <td className="px-4 py-3 text-gray-500">{f.parentPhone}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1.5">
+                                {f.parents.map((p: any, i: number) => (
+                                  <span key={i} className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
+                                    {p.name} ({p.relation})
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-wrap gap-1.5">
+                                {f.children.map((c: any) => (
+                                  <span
+                                    key={c.id}
+                                    className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                      c.department === department
+                                        ? 'bg-cyan-50 text-cyan-700'
+                                        : 'bg-gray-100 text-gray-500'
+                                    }`}
+                                    title={c.department !== department ? '다른 부서 소속 자녀' : undefined}
+                                  >
+                                    {c.name} ({deptNames[c.department]?.split(' ')[0] || c.department})
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center font-bold text-cyan-600">{f.totalCount}명</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

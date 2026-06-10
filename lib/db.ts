@@ -229,6 +229,15 @@ const MIGRATIONS: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_staff_entries_dept ON staff_application_entries(department)`,
     ],
   },
+  {
+    version: 10,
+    description: 'Add per-department waterpark toggle and custom info to event_configs',
+    up: [
+      // 기존 동작 보존을 위해 디폴트 활성화
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_waterpark_active BOOLEAN DEFAULT TRUE`,
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS waterpark_info JSONB DEFAULT '{}'::jsonb`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {

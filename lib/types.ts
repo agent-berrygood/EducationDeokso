@@ -61,6 +61,17 @@ export interface EventConfig {
   poster_url?: string;
   is_step_recruitment_active?: boolean;
   tshirt_deadline?: string;
+  is_waterpark_active?: boolean;
+  /** 부서별 워터풀선데이 커스텀 정보 (틴즈 등 일정이 다른 부서 대응) */
+  waterpark_info?: WaterparkInfo;
+}
+
+export interface WaterparkInfo {
+  title?: string;
+  date?: string;     // YYYY-MM-DD
+  time?: string;     // 예: "14:00 - 18:00"
+  location?: string;
+  note?: string;
 }
 
 export interface ChildInput {

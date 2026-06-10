@@ -213,6 +213,13 @@ export default function ApplyWizard() {
 
   const grandTotal = breakdown.total;
 
+  // 워터풀선데이가 활성화된 부서가 하나라도 있는지 (설정 로드 전에는 기존 동작 유지를 위해 true)
+  const anyWaterparkActive = useMemo(() => {
+    const loaded = DEPARTMENTS.map((d) => configs[d.id]).filter(Boolean) as any[];
+    if (loaded.length === 0) return true;
+    return loaded.some((c) => c.isWaterparkActive ?? c.is_waterpark_active ?? true);
+  }, [configs]);
+
   // ─── 헬퍼: draft 업데이트 ───
   function patch(partial: Partial<DraftState>) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -238,10 +245,13 @@ export default function ApplyWizard() {
     if (!draft.parentName.trim()) return setError('부모 이름을 입력하세요');
     if (!draft.parentPhone.trim()) return setError('부모 연락처를 입력하세요');
     if (!draft.depositorName.trim()) return setError('입금자 이름을 입력하세요');
-    if (draft.waterfallParents.length === 0) return setError('워터풀 보호자를 1명 이상 등록하세요');
-    for (const p of draft.waterfallParents) {
-      if (!p.name.trim()) return setError('워터풀 보호자 이름을 모두 입력하세요');
-      if (!p.phone?.trim()) return setError('워터풀 보호자 연락처를 모두 입력하세요');
+    // 워터풀선데이가 활성화된 부서가 있을 때만 보호자 등록 필수
+    if (anyWaterparkActive) {
+      if (draft.waterfallParents.length === 0) return setError('워터풀 보호자를 1명 이상 등록하세요');
+      for (const p of draft.waterfallParents) {
+        if (!p.name.trim()) return setError('워터풀 보호자 이름을 모두 입력하세요');
+        if (!p.phone?.trim()) return setError('워터풀 보호자 연락처를 모두 입력하세요');
+      }
     }
     setStep(2);
   }
@@ -268,7 +278,10 @@ export default function ApplyWizard() {
         parentName: draft.parentName,
         parentPhone: draft.parentPhone,
         depositorName: draft.depositorName,
-        waterfallParents: draft.waterfallParents,
+        // 전 부서 워터풀 비활성 시 미입력 기본 행이 남아있을 수 있으므로 빈 항목 제외
+        waterfallParents: anyWaterparkActive
+          ? draft.waterfallParents
+          : draft.waterfallParents.filter((p) => p.name.trim()),
         grandTotal,
         children: draft.children.map((c) => {
           const customs: Record<string, string | null> = {};
@@ -405,6 +418,7 @@ export default function ApplyWizard() {
           removeParent={removeWaterfallParent}
           updateParent={updateWaterfallParent}
           onNext={goToStep2}
+          showWaterfallSection={anyWaterparkActive}
         />
       )}
 
@@ -473,9 +487,11 @@ interface Step1Props {
   removeParent: (idx: number) => void;
   updateParent: (idx: number, field: keyof WaterfallParent, value: string) => void;
   onNext: () => void;
+  /** 워터풀선데이 활성 부서가 하나라도 있는지 — 없으면 보호자 섹션 숨김 */
+  showWaterfallSection: boolean;
 }
 
-function Step1({ draft, patch, addParent, removeParent, updateParent, onNext }: Step1Props) {
+function Step1({ draft, patch, addParent, removeParent, updateParent, onNext, showWaterfallSection }: Step1Props) {
   return (
     <div className="space-y-6">
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
@@ -512,6 +528,7 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext }: 
         </div>
       </section>
 
+      {showWaterfallSection && (
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
         <div className="flex items-start justify-between mb-1">
           <h2 className="text-xl font-bold text-slate-900">워터풀 선데이 보호자</h2>
@@ -566,6 +583,7 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext }: 
           + 보호자 추가
         </button>
       </section>
+      )}
 
       <div className="flex justify-end gap-3">
         <button
@@ -725,6 +743,7 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
               department: e.target.value as DepartmentId,
               subDepartment: '',
               attendedSessions: [], // 부서 변경 시 시간표가 달라지므로 세션 리셋
+              attendsWaterpark: false, // 부서별 워터풀 활성화/일정이 다르므로 리셋
             })}
             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
           >
@@ -828,20 +847,37 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
           />
         </Field>
 
-        <label className="flex items-center mt-4 gap-2">
-          <input
-            type="checkbox"
-            checked={child.attendsWaterpark}
-            onChange={(e) => patchChild(child.uid, { attendsWaterpark: e.target.checked })}
-            className="w-4 h-4 accent-cyan-500"
-          />
-          <span className="text-sm text-slate-700">
-            워터풀선데이 참석
-            <span className="block text-xs text-slate-500 mt-0.5">
-              자녀 입장료 + 등록된 워터풀 보호자 인원 × 학부모 입장료가 합계에 추가됩니다.
-            </span>
-          </span>
-        </label>
+        {(() => {
+          // 부서별 워터풀선데이 활성화 여부 — 부서 미선택 시에는 노출하지 않음
+          if (!activeConfig) return null;
+          const wpActive = (activeConfig as any).isWaterparkActive ?? (activeConfig as any).is_waterpark_active ?? true;
+          if (!wpActive) return null;
+          // 부서별 커스텀 일정 안내 (예: 나우틴즈는 별도 일정)
+          const info = (activeConfig as any).waterparkInfo || (activeConfig as any).waterpark_info || {};
+          const infoLine = [info.date, info.time, info.location].filter(Boolean).join(' · ');
+          return (
+            <label className="flex items-start mt-4 gap-2">
+              <input
+                type="checkbox"
+                checked={child.attendsWaterpark}
+                onChange={(e) => patchChild(child.uid, { attendsWaterpark: e.target.checked })}
+                className="w-4 h-4 accent-cyan-500 mt-0.5"
+              />
+              <span className="text-sm text-slate-700">
+                {info.title?.trim() || '워터풀선데이'} 참석
+                {infoLine && (
+                  <span className="block text-xs font-semibold text-cyan-700 mt-0.5">📅 {infoLine}</span>
+                )}
+                {info.note?.trim() && (
+                  <span className="block text-xs text-slate-500 mt-0.5">{info.note}</span>
+                )}
+                <span className="block text-xs text-slate-500 mt-0.5">
+                  자녀 입장료 + 등록된 워터풀 보호자 인원 × 학부모 입장료가 합계에 추가됩니다.
+                </span>
+              </span>
+            </label>
+          );
+        })()}
       </div>
 
       {/* 참석 일정 선택 */}
