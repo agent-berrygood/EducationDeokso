@@ -897,7 +897,7 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
         return (
           <div className="px-6 py-4 border-t">
             <div className="flex items-center justify-between mb-3">
-              <h5 className="text-sm font-bold text-slate-800">📅 참석 일정 선택</h5>
+              <h5 className="text-sm font-bold text-slate-800">📅 성경학교 참석 일정 선택</h5>
               <button
                 type="button"
                 onClick={() => patchChild(child.uid, { attendedSessions: allSelected ? [] : days.map(d => d.date) })}
@@ -1301,13 +1301,19 @@ function Step3({
       {/* 입금 계좌 안내 (읽기 전용) */}
       <section className="bg-slate-50 p-6 rounded-2xl border-2 border-cyan-200">
         <h3 className="text-lg font-bold text-slate-900 mb-1">💰 입금 계좌 안내</h3>
-        <p className="text-xs text-slate-500 mb-4">
+        <p className="text-xs text-slate-500 mb-2">
           항목별로 계좌가 다르니 <strong className="text-slate-700">각각의 금액을 정확히 분리하여 입금</strong>해 주세요.
         </p>
+        <div className="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4 space-y-1">
+          <p className="font-bold text-amber-800">📌 입금자명 입력 안내</p>
+          <p>· 성경학교 회비: <strong className="text-slate-800">&quot;부서 + 자녀 이름&quot;</strong>으로 입금해 주세요.</p>
+          <p>· 워터풀선데이 회비: 처음 입력하신 입금자명 <strong className="text-slate-800">&quot;{draft.depositorName}&quot;</strong>으로 입금해 주세요.</p>
+        </div>
         <div className="space-y-3">
           {usedDepartments.map((d) => {
             const acc = deptAccount(fees, d);
             const subtotal = deptTotal(breakdown, d);
+            const firstChild = draft.children.find((c) => c.department === d)?.name || '자녀이름';
             return (
               <AccountInfoCard
                 key={d}
@@ -1315,6 +1321,7 @@ function Step3({
                 account={acc}
                 amount={subtotal}
                 meta={`${deptCount(breakdown, d)}명`}
+                depositorNote={`입금자명: "${DEPT_META[d].label} ${firstChild}" (부서 + 자녀 이름)`}
               />
             );
           })}
@@ -1325,6 +1332,7 @@ function Step3({
               account={waterparkAccount}
               amount={waterparkSubtotal}
               meta={`자녀 ${breakdown.attendingChildren}명 + 보호자 ${draft.waterfallParents.length}명`}
+              depositorNote={`입금자명: "${draft.depositorName}" (처음 입력하신 입금자명)`}
             />
           )}
         </div>
@@ -1354,12 +1362,14 @@ function Step3({
 
 // ─── 입금 계좌 안내 카드 (읽기 전용) ───
 function AccountInfoCard({
-  title, account, amount, meta,
+  title, account, amount, meta, depositorNote,
 }: {
   title: string;
   account: string | null;
   amount: number;
   meta?: string;
+  /** 입금자명 입력 규칙 안내 (예: 부서+자녀이름 / 처음 입력한 입금자명) */
+  depositorNote?: string;
 }) {
   return (
     <div className="rounded-lg p-4 border-2 border-slate-200 bg-white">
@@ -1369,6 +1379,9 @@ function AccountInfoCard({
           <p className="font-semibold text-slate-900 mt-1">
             {account || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
           </p>
+          {depositorNote && (
+            <p className="text-[11px] font-bold text-amber-700 mt-1">✍️ {depositorNote}</p>
+          )}
           {meta && <p className="text-[11px] text-slate-400 mt-1">{meta}</p>}
         </div>
         <div className="text-right md:min-w-[140px]">
