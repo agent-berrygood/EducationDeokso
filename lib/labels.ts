@@ -48,6 +48,31 @@ const SUB_DEPT_FALLBACK: Record<string, string> = {
   high: '고등부',
 };
 
+// ── 세부 부서 약칭 (입금자명 안내용: "약칭 + 자녀 이름") ──
+const SUB_DEPT_SHORT: Record<string, string> = {
+  // 킨더
+  integrated_preschool: '통미',
+  infant: '영유',
+  kindergarten: '유치',
+  // 키즈
+  integrated_kids: '통아',
+  junior: '유년',
+  senior: '소년',
+  // 틴즈
+  middle: '중등',
+  high: '고등',
+};
+
+/**
+ * 세부 부서 ID → 입금자명용 약칭 (통미/영유/유치/통아/유년/소년/중등/고등).
+ * 어드민이 추가한 커스텀 세부 부서 등 약칭이 없는 경우 풀 라벨로 fallback.
+ */
+export function subDepartmentShortLabel(id: any): string {
+  if (!id) return '';
+  const key = String(id);
+  return SUB_DEPT_SHORT[key] ?? SUB_DEPT_FALLBACK[key] ?? key;
+}
+
 /**
  * 세부 부서 ID → 한글 라벨.
  * 1) DB의 event_configs.sub_departments에서 받은 매핑이 있으면 그것을 우선 사용

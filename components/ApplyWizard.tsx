@@ -12,6 +12,7 @@ import type {
 } from '@/lib/types';
 import { suggestDepartment } from '@/lib/age-to-department';
 import { applicationSubmitSchema } from '@/lib/schemas';
+import { subDepartmentShortLabel } from '@/lib/labels';
 
 function formatPhoneNumber(val: string): string {
   const clean = val.replace(/\D/g, '');
@@ -1306,14 +1307,23 @@ function Step3({
         </p>
         <div className="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4 space-y-1">
           <p className="font-bold text-amber-800">📌 입금자명 입력 안내</p>
-          <p>· 성경학교 회비: <strong className="text-slate-800">&quot;부서 + 자녀 이름&quot;</strong>으로 입금해 주세요.</p>
+          <p>
+            · 수련회(성경학교) 회비: <strong className="text-slate-800">&quot;세부부서 약칭 + 자녀 이름&quot;</strong>으로 입금해 주세요.
+            <span className="block text-[11px] text-slate-500 mt-0.5 ml-2">
+              약칭: 통미(통합미취학부) / 영유(영유아부) / 유치(유치부) / 통아(통합아동부) / 유년(유년부) / 소년(소년부) / 중등(중등부) / 고등(고등부)
+            </span>
+          </p>
           <p>· 워터풀선데이 회비: 처음 입력하신 입금자명 <strong className="text-slate-800">&quot;{draft.depositorName}&quot;</strong>으로 입금해 주세요.</p>
         </div>
         <div className="space-y-3">
           {usedDepartments.map((d) => {
             const acc = deptAccount(fees, d);
             const subtotal = deptTotal(breakdown, d);
-            const firstChild = draft.children.find((c) => c.department === d)?.name || '자녀이름';
+            // 해당 부서 자녀별로 "세부부서 약칭 + 이름" 입금자명 생성 (예: 유년 홍길동)
+            const depositorNames = draft.children
+              .filter((c) => c.department === d)
+              .map((c) => `"${[subDepartmentShortLabel(c.subDepartment), c.name].filter(Boolean).join(' ')}"`)
+              .join(', ');
             return (
               <AccountInfoCard
                 key={d}
@@ -1321,7 +1331,7 @@ function Step3({
                 account={acc}
                 amount={subtotal}
                 meta={`${deptCount(breakdown, d)}명`}
-                depositorNote={`입금자명: "${DEPT_META[d].label} ${firstChild}" (부서 + 자녀 이름)`}
+                depositorNote={`입금자명: ${depositorNames} (세부부서 약칭 + 자녀 이름)`}
               />
             );
           })}
