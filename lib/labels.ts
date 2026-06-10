@@ -63,14 +63,33 @@ const SUB_DEPT_SHORT: Record<string, string> = {
   high: '고등',
 };
 
+// 어드민에서 세부부서를 직접 등록하면 id가 한글 라벨 그대로 저장되므로
+// (예: id="통합아동부") 한글 풀네임 기준 매핑도 함께 둔다.
+const SUB_DEPT_SHORT_BY_LABEL: Record<string, string> = {
+  '통합미취학부': '통미',
+  '영유아부': '영유',
+  '유치부': '유치',
+  '통합아동부': '통아',
+  '유년부': '유년',
+  '소년부': '소년',
+  '중등부': '중등',
+  '고등부': '고등',
+};
+
 /**
- * 세부 부서 ID → 입금자명용 약칭 (통미/영유/유치/통아/유년/소년/중등/고등).
- * 어드민이 추가한 커스텀 세부 부서 등 약칭이 없는 경우 풀 라벨로 fallback.
+ * 세부 부서 ID 또는 한글 라벨 → 입금자명용 약칭
+ * (통미/영유/유치/통아/유년/소년/중등/고등).
+ * 약칭이 정의되지 않은 커스텀 세부 부서는 풀 라벨로 fallback.
  */
 export function subDepartmentShortLabel(id: any): string {
   if (!id) return '';
-  const key = String(id);
-  return SUB_DEPT_SHORT[key] ?? SUB_DEPT_FALLBACK[key] ?? key;
+  const key = String(id).trim();
+  if (SUB_DEPT_SHORT[key]) return SUB_DEPT_SHORT[key];
+  if (SUB_DEPT_SHORT_BY_LABEL[key]) return SUB_DEPT_SHORT_BY_LABEL[key];
+  // 영문 id → 풀 라벨 → 약칭 경유 변환
+  const full = SUB_DEPT_FALLBACK[key];
+  if (full && SUB_DEPT_SHORT_BY_LABEL[full]) return SUB_DEPT_SHORT_BY_LABEL[full];
+  return full ?? key;
 }
 
 /**
