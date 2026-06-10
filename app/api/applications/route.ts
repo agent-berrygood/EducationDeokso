@@ -104,14 +104,11 @@ export async function GET(request: Request) {
             'custom16', ac.custom_16, 'custom17', ac.custom_17, 'custom18', ac.custom_18,
             'custom19', ac.custom_19, 'custom20', ac.custom_20
           )
-        ) FILTER (WHERE ac.id IS NOT NULL) AS children,
-        ps.id AS payment_id,
-        ps.kinder_paid, ps.kids_paid, ps.teens_paid, ps.waterpark_paid
+        ) FILTER (WHERE ac.id IS NOT NULL) AS children
       FROM applications a
       LEFT JOIN application_children ac ON a.id = ac.application_id
-      LEFT JOIN payment_status ps ON a.id = ps.application_id
       ${whereClause}
-      GROUP BY a.id, ps.id
+      GROUP BY a.id
       ORDER BY a.${sortColumn} ${sortOrder}
       LIMIT $${idx++} OFFSET $${idx}
     `;
@@ -214,7 +211,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await query(`INSERT INTO payment_status (application_id) VALUES ($1) ON CONFLICT DO NOTHING`, [applicationId]);
+    // payment_status insert removed
 
     return Response.json({ success: true, data: { id: applicationId } }, { status: 201 });
   } catch (error) {

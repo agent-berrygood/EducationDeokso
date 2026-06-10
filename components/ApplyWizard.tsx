@@ -86,6 +86,8 @@ export default function ApplyWizard() {
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [hydrated, setHydrated] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [submittedDepts, setSubmittedDepts] = useState<DepartmentId[]>([]);
   const [error, setError] = useState('');
   const [configs, setConfigs] = useState<Record<DepartmentId, EventConfig | null>>({
     kinder: null, kids: null, teens: null,
@@ -282,6 +284,7 @@ export default function ApplyWizard() {
             customAllergy: c.customAllergy || undefined,
             attendsWaterpark: c.attendsWaterpark,
             attendedSessions: c.attendedSessions,
+            partialAttendanceReason: c.partialAttendanceReason || undefined,
             ...customs,
           };
         }),
@@ -310,8 +313,8 @@ export default function ApplyWizard() {
       try {
         localStorage.removeItem(DRAFT_KEY);
       } catch {}
-      alert('신청이 완료되었습니다. 감사합니다!');
-      router.push('/');
+      setSubmitted(true);
+      setSubmittedDepts(draft.children.map(c => c.department).filter(Boolean) as DepartmentId[]);
     } catch (err) {
       console.error(err);
       setError('네트워크 오류가 발생했습니다');
@@ -350,6 +353,39 @@ export default function ApplyWizard() {
   }
 
   if (!hydrated) return <div className="text-center py-20 text-slate-500">불러오는 중...</div>;
+
+  // 완료 화면
+  if (submitted) {
+    const stepDepts = submittedDepts.filter(d => {
+      const cfg = configs[d];
+      return cfg && (cfg as any).is_step_recruitment_active;
+    });
+    return (
+      <div className="max-w-3xl mx-auto">
+        <section className="bg-white p-8 rounded-2xl shadow-sm border text-center">
+          <div className="text-6xl mb-4">🎉</div>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">신청이 완료되었습니다</h2>
+          <p className="text-slate-600 mb-6">감사합니다. 신청 내용이 정상적으로 접수되었습니다.</p>
+          {stepDepts.length > 0 && (
+            <div className="mb-6">
+              <a
+                href="/step-apply"
+                className="inline-block px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg shadow-md transition-colors"
+              >
+                여름칠캠프 스텝 신청하기
+              </a>
+            </div>
+          )}
+          <a
+            href="/"
+            className="text-sm text-slate-500 hover:text-cyan-600 underline transition-colors"
+          >
+            메인 페이지로 돌아가기
+          </a>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -1117,7 +1153,6 @@ function Step3({
   onSubmit: () => void;
   submitting: boolean;
 }) {
-  // 자녀가 속한 부서 집합 (자녀 등록 순서 안정성을 위해 Set 사용)
   const usedDepartments = useMemo<DepartmentId[]>(() => {
     const order: DepartmentId[] = ['kinder', 'kids', 'teens'];
     return order.filter((d) => deptCount(breakdown, d) > 0);
@@ -1128,32 +1163,6 @@ function Step3({
     : null;
   const showWaterparkAccount = breakdown.attendingChildren > 0;
   const waterparkSubtotal = breakdown.childWaterparkTotal + breakdown.parentWaterparkTotal;
-
-  // 송금 완료 상태 ─ 각 항목(부서별 + 워터풀)이 입금되었는지 사용자가 직접 체크
-  const transferKeys: string[] = useMemo(() => {
-    const keys: string[] = usedDepartments.map((d) => `dept:${d}`);
-    if (showWaterparkAccount) keys.push('waterpark');
-    return keys;
-  }, [usedDepartments, showWaterparkAccount]);
-  const [transferred, setTransferred] = useState<Record<string, boolean>>({});
-
-  // 입금 항목 구성이 바뀌면(부서 변경 등) 기존 체크 상태 정리
-  useEffect(() => {
-    setTransferred((prev) => {
-      const next: Record<string, boolean> = {};
-      for (const k of transferKeys) next[k] = prev[k] ?? false;
-      return next;
-    });
-  }, [transferKeys.join('|')]);
-
-  const transferredCount = transferKeys.filter((k) => transferred[k]).length;
-  const totalCount = transferKeys.length;
-  const allTransferred = totalCount > 0 && transferredCount === totalCount;
-  const canSubmit = allTransferred && !submitting;
-
-  function toggleTransferred(key: string) {
-    setTransferred((prev) => ({ ...prev, [key]: !prev[key] }));
-  }
 
   return (
     <div className="space-y-6">
@@ -1183,7 +1192,7 @@ function Step3({
         </dl>
       </section>
 
-      {/* 금액 내역 - 부서별로 분리 표시 */}
+      {/* 금액 내역 */}
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
         <h3 className="text-lg font-bold text-slate-900 mb-4">금액 내역</h3>
         <dl className="space-y-2 text-sm">
@@ -1230,7 +1239,7 @@ function Step3({
         </div>
       </section>
 
-      {/* 입금 계좌 - 부서별 입금 금액과 계좌를 함께 표시 */}
+      {/* 입금 계좌 안내 (읽기 전용) */}
       <section className="bg-slate-50 p-6 rounded-2xl border-2 border-cyan-200">
         <h3 className="text-lg font-bold text-slate-900 mb-1">💰 입금 계좌 안내</h3>
         <p className="text-xs text-slate-500 mb-4">
@@ -1239,54 +1248,25 @@ function Step3({
         <div className="space-y-3">
           {usedDepartments.map((d) => {
             const acc = deptAccount(fees, d);
-            const count = deptCount(breakdown, d);
             const subtotal = deptTotal(breakdown, d);
-            const key = `dept:${d}`;
-            const isPaid = !!transferred[key];
             return (
-              <TransferCard
+              <AccountInfoCard
                 key={d}
                 title={`${DEPT_META[d].label} 회비 입금 계좌`}
                 account={acc}
                 amount={subtotal}
-                meta={`${count}명`}
-                paid={isPaid}
-                onTogglePaid={() => toggleTransferred(key)}
+                meta={`${deptCount(breakdown, d)}명`}
               />
             );
           })}
 
           {showWaterparkAccount && (
-            <TransferCard
+            <AccountInfoCard
               title="워터풀선데이 입장료 입금 계좌"
               account={waterparkAccount}
               amount={waterparkSubtotal}
               meta={`자녀 ${breakdown.attendingChildren}명 + 보호자 ${draft.waterfallParents.length}명`}
-              paid={!!transferred['waterpark']}
-              onTogglePaid={() => toggleTransferred('waterpark')}
             />
-          )}
-        </div>
-
-        {/* 입금 진행률 안내 */}
-        <div className="mt-4 p-3 rounded-lg bg-white border text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-slate-600">
-              {allTransferred
-                ? '✅ 모든 항목 송금 완료'
-                : `입금 완료 항목 ${transferredCount} / ${totalCount}`}
-            </span>
-            <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-emerald-500 transition-all"
-                style={{ width: totalCount > 0 ? `${(transferredCount / totalCount) * 100}%` : '0%' }}
-              />
-            </div>
-          </div>
-          {!allTransferred && (
-            <p className="text-xs text-amber-600 mt-2">
-              ⚠ 모든 항목을 송금하신 후 각 카드의 <strong>"송금 완료"</strong> 버튼을 눌러주셔야 신청을 제출할 수 있습니다.
-            </p>
           )}
         </div>
       </section>
@@ -1303,33 +1283,27 @@ function Step3({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={!canSubmit}
-          title={!allTransferred ? '모든 송금 완료 버튼을 눌러주세요.' : ''}
+          disabled={submitting}
           className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg shadow-md transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
-          {submitting ? '제출 중...' : allTransferred ? '신청 완료' : '송금 완료 후 신청 가능'}
+          {submitting ? '제출 중...' : '✅ 회비 및 계좌 확인 완료'}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── 입금 카드 (송금 완료 버튼 포함) ───
-function TransferCard({
-  title, account, amount, meta, paid, onTogglePaid,
+// ─── 입금 계좌 안내 카드 (읽기 전용) ───
+function AccountInfoCard({
+  title, account, amount, meta,
 }: {
   title: string;
   account: string | null;
   amount: number;
   meta?: string;
-  paid: boolean;
-  onTogglePaid: () => void;
 }) {
-  const accountReady = !!account;
   return (
-    <div className={`rounded-lg p-4 border-2 transition-colors ${
-      paid ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'
-    }`}>
+    <div className="rounded-lg p-4 border-2 border-slate-200 bg-white">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex-1">
           <p className="text-xs text-slate-500">{title}</p>
@@ -1345,19 +1319,6 @@ function TransferCard({
           </p>
         </div>
       </div>
-
-      <button
-        type="button"
-        onClick={onTogglePaid}
-        disabled={!accountReady}
-        className={`mt-3 w-full py-2.5 rounded-lg font-bold text-sm transition-colors ${
-          paid
-            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow'
-            : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300'
-        } ${!accountReady ? 'opacity-50 cursor-not-allowed' : ''}`}
-      >
-        {paid ? '✓ 송금 완료 (취소하려면 클릭)' : '💸 송금 완료 버튼'}
-      </button>
     </div>
   );
 }

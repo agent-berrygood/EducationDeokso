@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
+import ApplicationEditModal from '@/components/ApplicationEditModal';
 import type { FeesConfig } from '@/lib/types';
 import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
 
@@ -17,13 +18,7 @@ interface Application {
   children: any[];
 }
 
-interface PaymentStatus {
-  application_id: string;
-  kinder_paid: boolean;
-  kids_paid: boolean;
-  teens_paid: boolean;
-  waterpark_paid: boolean;
-}
+
 
 interface CustomField {
   id: string;
@@ -44,12 +39,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'applications' | 'settings' | 'payment' | 'surveys' | string>('applications');
   const [applications, setApplications] = useState<Application[]>([]);
-  const [paymentStatuses, setPaymentStatuses] = useState<Record<string, PaymentStatus>>({});
+
   const [config, setConfig] = useState<any>(null);
   const [fees, setFees] = useState<FeesConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editingApp, setEditingApp] = useState<any>(null);
 
   // 페이징, 검색 및 정렬 상태 추가
   const [offset, setOffset] = useState(0);
@@ -77,6 +73,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     campType: 'continuous',
     campDuration: 3,
     posterUrl: '',
+    events: [],
+    isStepRecruitmentActive: false,
+    tshirtDeadline: '',
   });
   
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -140,6 +139,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         campType: data.campType || 'continuous',
         campDuration: Number(data.campDuration || 3),
         posterUrl: data.posterUrl || '',
+        events: data.events || [],
+        isStepRecruitmentActive: data.isStepRecruitmentActive || false,
+        tshirtDeadline: data.tshirtDeadline || '',
       });
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
@@ -148,35 +150,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
-  const loadPaymentStatuses = async () => {
-    try {
-      for (const app of applications) {
-        const res = await fetch(`/api/payment?applicationId=${app.id}`);
-        if (res.ok) {
-          const { data } = await res.json();
-          if (data) {
-            setPaymentStatuses((prev) => ({ ...prev, [app.id]: data }));
-          }
-        }
-      }
-    } catch (err) {
-      console.error('결제 상태 로드 실패:', err);
-    }
-  };
-
   useEffect(() => {
-    if (activeTab === 'applications' || activeTab === 'payment') {
+    if (activeTab === 'applications') {
       loadApplications();
     } else if (activeTab === 'settings') {
       loadConfig();
     }
   }, [activeTab, offset, department, sortField, sortDirection]);
-
-  useEffect(() => {
-    if ((activeTab === 'applications' || activeTab === 'payment') && applications.length > 0) {
-      loadPaymentStatuses();
-    }
-  }, [applications, activeTab]);
 
   // 글로벌 요금 정보 로드 (수납 모니터에서 사용)
   useEffect(() => {
@@ -203,21 +183,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
-  const updatePaymentStatus = async (applicationId: string, field: string, value: boolean) => {
-    try {
-      await fetch('/api/payment', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ applicationId, [field]: value }),
-      });
-      setPaymentStatuses((prev) => ({
-        ...prev,
-        [applicationId]: { ...prev[applicationId], [field]: value },
-      }));
-    } catch (err) {
-      alert('수납 상태 업데이트에 실패했습니다.');
-    }
-  };
+
 
   const exportExcel = async () => {
     try {
@@ -285,6 +251,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           campType: settingsForm.campType,
           campDuration: settingsForm.campDuration,
           posterUrl: settingsForm.posterUrl,
+          events: settingsForm.events,
+          isStepRecruitmentActive: settingsForm.isStepRecruitmentActive,
+          tshirtDeadline: settingsForm.tshirtDeadline,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -520,7 +489,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           {[
             { id: 'applications', label: `📝 신청 현황 (${processedChildren.length}명)` },
             { id: 'settings', label: '🎨 CMS & 스킨 설정' },
-            { id: 'payment', label: '💳 수납 확인 모니터' },
             { id: 'surveys', label: '📊 설문조사 관리 (Phase 2)' }
           ].map((tab) => (
             <button
@@ -697,12 +665,20 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                               {new Date(row.createdAt).toLocaleString('ko-KR')}
                             </td>
                             <td className="p-4 text-center">
-                              <button
-                                onClick={() => deleteApplication(row.appId)}
-                                className="px-3 py-1 bg-red-500 hover:bg-red-650 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer"
-                              >
-                                🗑️ 삭제
-                              </button>
+                              <div className="flex flex-col gap-2 items-center justify-center">
+                                <button
+                                  onClick={() => setEditingApp(applications.find((a) => a.id === row.appId))}
+                                  className="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer w-full"
+                                >
+                                  ✏️ 수정
+                                </button>
+                                <button
+                                  onClick={() => deleteApplication(row.appId)}
+                                  className="px-3 py-1 bg-red-500 hover:bg-red-650 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer w-full"
+                                >
+                                  🗑️ 삭제
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -869,6 +845,35 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                         onChange={(e) => setSettingsForm({ ...settingsForm, bgColor: e.target.value })}
                         className="w-full h-12 border rounded-lg p-1 bg-white cursor-pointer"
                       />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 캠프 부가 설정 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-4 border-b pb-2">⚙️ 기타 캠프 부가 설정</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer font-medium mb-1">
+                        <input
+                          type="checkbox"
+                          checked={settingsForm.isStepRecruitmentActive}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, isStepRecruitmentActive: e.target.checked })}
+                          className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        여름캠프 스텝 모집 활성화
+                      </label>
+                      <p className="text-xs text-gray-500 mt-1 ml-7">신청서 작성 완료 페이지에 스텝 지원 버튼이 노출됩니다.</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">티셔츠 신청 마감일시</label>
+                      <input
+                        type="datetime-local"
+                        value={settingsForm.tshirtDeadline ? new Date(settingsForm.tshirtDeadline).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, tshirtDeadline: e.target.value })}
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">이 시각 이후로는 신청서에 티셔츠 선택 항목이 노출되지 않습니다.</p>
                     </div>
                   </div>
                 </div>
@@ -1069,17 +1074,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
             </div>
           )}
 
-          {/* 3. Payment Status Tab */}
-          {activeTab === 'payment' && (
-            <PaymentMonitor
-              department={department}
-              applications={applications}
-              paymentStatuses={paymentStatuses}
-              fees={fees}
-              updatePaymentStatus={updatePaymentStatus}
-            />
-          )}
-
           {/* 4. Surveys Tab */}
           {activeTab === 'surveys' && (
             <SurveyFormPlaceholder department={department as 'kinder' | 'kids' | 'teens'} />
@@ -1087,406 +1081,18 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
         </div>
       </div>
-    </div>
-  );
-}
 
-// ────────────────────────────────────────────────────────────
-// 수납 확인 모니터 (자녀수 × 회비 + 부서별 체크박스)
-// ────────────────────────────────────────────────────────────
-interface PaymentMonitorProps {
-  department: string;
-  applications: Application[];
-  paymentStatuses: Record<string, PaymentStatus>;
-  fees: FeesConfig | null;
-  updatePaymentStatus: (applicationId: string, field: string, value: boolean) => void | Promise<void>;
-}
-
-interface PaymentDeptFilterOption {
-  id: 'all' | 'kinder' | 'kids' | 'teens';
-  label: string;
-}
-
-const PAYMENT_DEPT_OPTIONS: PaymentDeptFilterOption[] = [
-  { id: 'all', label: '전체' },
-  { id: 'kinder', label: '나우킨더' },
-  { id: 'kids', label: '나우키즈' },
-  { id: 'teens', label: '나우틴즈' },
-];
-
-// 부서별 세부부서 매핑 캐시 (config API 호출 결과 임시 저장)
-const SUB_DEPT_CACHE: Record<string, { id: string; label: string }[]> = {};
-
-interface PaymentRow {
-  appId: string;
-  parentName: string;
-  parentPhone: string;
-  depositorName: string;
-  counts: { kinder: number; kids: number; teens: number };
-  waterparkChildren: number;
-  waterfallParentsCount: number;
-  childNames: string[];
-}
-
-function PaymentMonitor({
-  department, applications, paymentStatuses, fees, updatePaymentStatus,
-}: PaymentMonitorProps) {
-  // 부서 / 세부부서 필터 상태
-  const [activeDept, setActiveDept] = useState<PaymentDeptFilterOption['id']>('all');
-  const [activeSubDept, setActiveSubDept] = useState<string>('all');
-  const [subDeptList, setSubDeptList] = useState<{ id: string; label: string }[]>([]);
-  const [downloading, setDownloading] = useState(false);
-
-  // 부서 변경 시 세부부서 옵션 동적 로드
-  useEffect(() => {
-    setActiveSubDept('all');
-    if (activeDept === 'all') {
-      setSubDeptList([]);
-      return;
-    }
-    const cached = SUB_DEPT_CACHE[activeDept];
-    if (cached) {
-      setSubDeptList(cached);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await fetch(`/api/config/${activeDept}`);
-        const json = await res.json();
-        if (json.success) {
-          const list = Array.isArray(json.data.subDepartments) ? json.data.subDepartments : [];
-          SUB_DEPT_CACHE[activeDept] = list;
-          setSubDeptList(list);
-        }
-      } catch {
-        setSubDeptList([]);
-      }
-    })();
-  }, [activeDept]);
-
-  // 행 가공 + 부서/세부부서 필터링
-  const allRows: (PaymentRow & {
-    childDepartments: Set<'kinder' | 'kids' | 'teens'>;
-    childSubDeps: Set<string>;
-  })[] = useMemo(() => {
-    return applications.map((app: any) => {
-      const counts = { kinder: 0, kids: 0, teens: 0 };
-      let waterparkChildren = 0;
-      const childNames: string[] = [];
-      const childDepartments = new Set<'kinder' | 'kids' | 'teens'>();
-      const childSubDeps = new Set<string>();
-
-      if (Array.isArray(app.children)) {
-        app.children.forEach((c: any) => {
-          const dep = (c?.department || '') as 'kinder' | 'kids' | 'teens';
-          if (dep === 'kinder' || dep === 'kids' || dep === 'teens') {
-            counts[dep] += 1;
-            childDepartments.add(dep);
-          }
-          const sd = c?.subDepartment || c?.sub_department;
-          if (sd) childSubDeps.add(String(sd));
-          if (c?.attendsWaterpark ?? c?.attends_waterpark) waterparkChildren += 1;
-          if (c?.name) childNames.push(c.name);
-        });
-      }
-
-      const wfRaw = app.waterfall_parents;
-      const wfArr = Array.isArray(wfRaw)
-        ? wfRaw
-        : (typeof wfRaw === 'string' && wfRaw.trim().startsWith('[')
-            ? (() => { try { return JSON.parse(wfRaw); } catch { return []; } })()
-            : []);
-
-      return {
-        appId: app.id,
-        parentName: app.parent_name,
-        parentPhone: app.parent_phone,
-        depositorName: app.depositor_name || app.parent_name,
-        counts,
-        waterparkChildren,
-        waterfallParentsCount: Array.isArray(wfArr) ? wfArr.length : 0,
-        childNames,
-        childDepartments,
-        childSubDeps,
-      };
-    });
-  }, [applications]);
-
-  const rows = useMemo(() => {
-    let filtered = allRows;
-    if (activeDept !== 'all') {
-      filtered = filtered.filter((r) => r.childDepartments.has(activeDept as any));
-    }
-    if (activeDept !== 'all' && activeSubDept !== 'all') {
-      filtered = filtered.filter((r) => r.childSubDeps.has(activeSubDept));
-    }
-    return filtered;
-  }, [allRows, activeDept, activeSubDept]);
-
-  const kinderUnit = Number(fees?.kinder || 0);
-  const kidsUnit = Number(fees?.kids || 0);
-  const teensUnit = Number(fees?.teens || 0);
-  const childWaterUnit = Number(fees?.child_waterpark || 0);
-  const parentWaterUnit = Number(fees?.parent_waterpark || 0);
-
-  // 합계 (현재 보이는 모든 행)
-  const totals = useMemo(() => {
-    let kinderTotal = 0, kidsTotal = 0, teensTotal = 0, waterparkTotal = 0;
-    let paidKinder = 0, paidKids = 0, paidTeens = 0, paidWater = 0;
-    rows.forEach((r) => {
-      const p = paymentStatuses[r.appId];
-      const kAmount = r.counts.kinder * kinderUnit;
-      const kdAmount = r.counts.kids * kidsUnit;
-      const tAmount = r.counts.teens * teensUnit;
-      const wAmount = r.waterparkChildren * childWaterUnit
-                    + (r.waterparkChildren > 0 ? r.waterfallParentsCount * parentWaterUnit : 0);
-      kinderTotal += kAmount;
-      kidsTotal += kdAmount;
-      teensTotal += tAmount;
-      waterparkTotal += wAmount;
-      if (p?.kinder_paid && r.counts.kinder > 0) paidKinder += kAmount;
-      if (p?.kids_paid && r.counts.kids > 0) paidKids += kdAmount;
-      if (p?.teens_paid && r.counts.teens > 0) paidTeens += tAmount;
-      if (p?.waterpark_paid && r.waterparkChildren > 0) paidWater += wAmount;
-    });
-    return {
-      kinderTotal, kidsTotal, teensTotal, waterparkTotal,
-      paidKinder, paidKids, paidTeens, paidWater,
-      grandTotal: kinderTotal + kidsTotal + teensTotal + waterparkTotal,
-      grandPaid: paidKinder + paidKids + paidTeens + paidWater,
-    };
-  }, [rows, paymentStatuses, kinderUnit, kidsUnit, teensUnit, childWaterUnit, parentWaterUnit]);
-
-  async function downloadExcel() {
-    try {
-      setDownloading(true);
-      const res = await fetch('/api/payment/export');
-      if (!res.ok) {
-        alert('엑셀 생성에 실패했습니다.');
-        return;
-      }
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `수납현황_${new Date().toISOString().split('T')[0]}.xlsx`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      alert('엑셀 다운로드 중 오류가 발생했습니다.');
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
-        <div>
-          <h3 className="text-xl font-bold">💳 실시간 수납 및 입금자 확인 모니터</h3>
-          <p className="text-sm text-gray-500">
-            각 신청 건의 자녀 부서별 회비(자녀수 × 단가)와 워터풀선데이 비용을 표시합니다. 해당 항목이 있는 행만 체크 가능합니다.
-          </p>
-        </div>
-        <div className="text-right text-xs text-gray-500">
-          <div>전체 청구: <strong className="text-slate-800 dark:text-slate-200">{totals.grandTotal.toLocaleString()}원</strong></div>
-          <div>수납 완료: <strong className="text-emerald-600">{totals.grandPaid.toLocaleString()}원</strong></div>
-          <div>잔여: <strong className="text-red-600">{(totals.grandTotal - totals.grandPaid).toLocaleString()}원</strong></div>
-        </div>
-      </div>
-
-      {/* 필터 + 다운로드 컨트롤 */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 bg-white rounded-xl border p-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-500 font-semibold">부서</span>
-          {PAYMENT_DEPT_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setActiveDept(opt.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition cursor-pointer ${
-                activeDept === opt.id
-                  ? 'bg-indigo-600 text-white shadow'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-
-          {activeDept !== 'all' && subDeptList.length > 0 && (
-            <>
-              <span className="ml-3 text-xs text-gray-500 font-semibold">세부</span>
-              <button
-                onClick={() => setActiveSubDept('all')}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
-                  activeSubDept === 'all'
-                    ? 'bg-cyan-600 text-white shadow'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                전체
-              </button>
-              {subDeptList.map((sd) => (
-                <button
-                  key={sd.id}
-                  onClick={() => setActiveSubDept(sd.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
-                    activeSubDept === sd.id
-                      ? 'bg-cyan-600 text-white shadow'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {sd.label}
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">{rows.length}건</span>
-          <button
-            onClick={downloadExcel}
-            disabled={downloading}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white text-sm font-bold rounded-lg shadow transition cursor-pointer"
-          >
-            {downloading ? '생성 중...' : '📥 엑셀 다운로드 (4시트)'}
-          </button>
-        </div>
-      </div>
-
-      <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className={`border-b text-xs font-semibold uppercase tracking-wider ${department === 'teens' ? 'bg-slate-950/50 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}>
-                <th className="p-4">보호자명</th>
-                <th className="p-4">연락처</th>
-                <th className="p-4">입금자명</th>
-                <th className="p-4 text-center">나우킨더 회비<br /><span className="text-[10px] text-gray-400">@{kinderUnit.toLocaleString()}원</span></th>
-                <th className="p-4 text-center">나우키즈 회비<br /><span className="text-[10px] text-gray-400">@{kidsUnit.toLocaleString()}원</span></th>
-                <th className="p-4 text-center">나우틴즈 회비<br /><span className="text-[10px] text-gray-400">@{teensUnit.toLocaleString()}원</span></th>
-                <th className="p-4 text-center">워터풀선데이<br /><span className="text-[10px] text-gray-400">자녀 @{childWaterUnit.toLocaleString()} · 부모 @{parentWaterUnit.toLocaleString()}</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-slate-800">
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-12 text-center text-gray-400">수납 확인 대상 신청 정보가 존재하지 않습니다.</td>
-                </tr>
-              ) : (
-                rows.map((row) => {
-                  const payment = paymentStatuses[row.appId] || {
-                    kinder_paid: false, kids_paid: false, teens_paid: false, waterpark_paid: false,
-                  };
-                  return (
-                    <tr key={row.appId} className={`${department === 'teens' ? 'hover:bg-slate-800/40' : 'hover:bg-gray-50/50'}`}>
-                      <td className="p-4">
-                        <div className="font-bold">{row.parentName}</div>
-                        <div className="text-[11px] text-gray-400 mt-0.5">{row.childNames.join(', ')}</div>
-                      </td>
-                      <td className="p-4 text-gray-400 text-xs">{row.parentPhone}</td>
-                      <td className="p-4 text-indigo-700 font-semibold dark:text-indigo-400">{row.depositorName}</td>
-
-                      <PaymentCell
-                        count={row.counts.kinder}
-                        amount={row.counts.kinder * kinderUnit}
-                        paid={!!payment.kinder_paid}
-                        onToggle={(v) => updatePaymentStatus(row.appId, 'kinder_paid', v)}
-                      />
-                      <PaymentCell
-                        count={row.counts.kids}
-                        amount={row.counts.kids * kidsUnit}
-                        paid={!!payment.kids_paid}
-                        onToggle={(v) => updatePaymentStatus(row.appId, 'kids_paid', v)}
-                      />
-                      <PaymentCell
-                        count={row.counts.teens}
-                        amount={row.counts.teens * teensUnit}
-                        paid={!!payment.teens_paid}
-                        onToggle={(v) => updatePaymentStatus(row.appId, 'teens_paid', v)}
-                      />
-                      <PaymentCell
-                        count={row.waterparkChildren}
-                        amount={
-                          row.waterparkChildren * childWaterUnit
-                          + (row.waterparkChildren > 0 ? row.waterfallParentsCount * parentWaterUnit : 0)
-                        }
-                        paid={!!payment.waterpark_paid}
-                        onToggle={(v) => updatePaymentStatus(row.appId, 'waterpark_paid', v)}
-                        breakdown={
-                          row.waterparkChildren > 0
-                            ? `자녀 ${row.waterparkChildren} + 부모 ${row.waterfallParentsCount}`
-                            : undefined
-                        }
-                      />
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-            {rows.length > 0 && (
-              <tfoot>
-                <tr className={`font-bold text-xs ${department === 'teens' ? 'bg-slate-950/70 border-t border-slate-800' : 'bg-gray-50 border-t'}`}>
-                  <td colSpan={3} className="p-4 text-right text-gray-500 uppercase tracking-wide">합계 (수납 / 청구)</td>
-                  <TotalCell paid={totals.paidKinder} total={totals.kinderTotal} />
-                  <TotalCell paid={totals.paidKids} total={totals.kidsTotal} />
-                  <TotalCell paid={totals.paidTeens} total={totals.teensTotal} />
-                  <TotalCell paid={totals.paidWater} total={totals.waterparkTotal} />
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 부서별 셀: 해당 부서에 자녀가 없으면 비활성("-"), 있으면 자녀수 × 회비 + 체크박스
-function PaymentCell({
-  count, amount, paid, onToggle, breakdown,
-}: {
-  count: number;
-  amount: number;
-  paid: boolean;
-  onToggle: (next: boolean) => void;
-  breakdown?: string;
-}) {
-  if (count === 0) {
-    return <td className="p-4 text-center text-gray-300">—</td>;
-  }
-  return (
-    <td className={`p-4 text-center ${paid ? 'bg-emerald-50 dark:bg-emerald-950/30' : ''}`}>
-      <div className="font-bold text-slate-800 dark:text-slate-100">{amount.toLocaleString()}원</div>
-      <div className="text-[10px] text-gray-500 mt-0.5">
-        {breakdown ? breakdown : `자녀 ${count}명`}
-      </div>
-      <label className="inline-flex items-center gap-2 cursor-pointer mt-2">
-        <input
-          type="checkbox"
-          checked={paid}
-          onChange={(e) => onToggle(e.target.checked)}
-          className="h-4 w-4 rounded text-emerald-600 border-gray-300 focus:ring-emerald-500"
+      {editingApp && (
+        <ApplicationEditModal
+          application={editingApp}
+          config={config}
+          onClose={() => setEditingApp(null)}
+          onSaved={() => {
+            setEditingApp(null);
+            loadApplications();
+          }}
         />
-        <span className={`text-xs font-semibold ${paid ? 'text-emerald-600' : 'text-gray-400'}`}>
-          {paid ? '✓ 수납' : '미수납'}
-        </span>
-      </label>
-    </td>
-  );
-}
-
-function TotalCell({ paid, total }: { paid: number; total: number }) {
-  if (total === 0) return <td className="p-4 text-center text-gray-300">—</td>;
-  const remaining = total - paid;
-  return (
-    <td className="p-4 text-center">
-      <div className="text-emerald-600 font-bold">{paid.toLocaleString()}</div>
-      <div className="text-[10px] text-gray-400">/ {total.toLocaleString()}원</div>
-      {remaining > 0 && (
-        <div className="text-[10px] text-red-600 mt-0.5">잔여 {remaining.toLocaleString()}</div>
       )}
-    </td>
+    </div>
   );
 }

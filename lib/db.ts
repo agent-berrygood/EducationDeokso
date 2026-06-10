@@ -197,6 +197,13 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE application_children ADD COLUMN IF NOT EXISTS partial_attendance_reason TEXT`,
     ],
   },
+  {
+    version: 8,
+    description: 'Drop payment_status table',
+    up: [
+      `DROP TABLE IF EXISTS payment_status CASCADE`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {
@@ -330,19 +337,7 @@ export async function initializeDatabase() {
       CREATE INDEX IF NOT EXISTS idx_event_attendance_event ON event_attendance(event_id);
     `);
 
-    // 6. 결제 상태
-    await query(`
-      CREATE TABLE IF NOT EXISTS payment_status (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        application_id UUID NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
-        kinder_paid BOOLEAN DEFAULT FALSE,
-        kids_paid BOOLEAN DEFAULT FALSE,
-        teens_paid BOOLEAN DEFAULT FALSE,
-        waterpark_paid BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-      );
-    `);
+    // 결제 상태 테이블 생성 구문 삭제됨 (v8 마이그레이션에서 DROP)
 
     // 7. 기본 부서 설정 시드 (한글 정상 표기)
     await query(`
