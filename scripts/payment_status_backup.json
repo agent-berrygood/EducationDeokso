@@ -1,0 +1,22 @@
+[
+  {
+    "id": "ba5bf04b-dd84-43ba-b8da-8b0e61ae427b",
+    "application_id": "bf545696-7293-4dcd-a2cb-a3898c023401",
+    "kinder_paid": false,
+    "kids_paid": false,
+    "teens_paid": false,
+    "waterpark_paid": false,
+    "created_at": "2026-05-27T21:57:11.972Z",
+    "updated_at": "2026-05-27T21:57:11.972Z"
+  },
+  {
+    "id": "12c67c75-e44c-49fc-b7fb-f24ddf7bca7f",
+    "application_id": "0a4cada9-8677-4ab2-9472-678038a095b1",
+    "kinder_paid": false,
+    "kids_paid": false,
+    "teens_paid": false,
+    "waterpark_paid": false,
+    "created_at": "2026-05-27T22:59:51.493Z",
+    "updated_at": "2026-05-27T22:59:51.493Z"
+  }
+]

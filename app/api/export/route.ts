@@ -57,11 +57,9 @@ export async function GET(request: Request) {
         ac.custom_1, ac.custom_2, ac.custom_3, ac.custom_4, ac.custom_5,
         ac.custom_6, ac.custom_7, ac.custom_8, ac.custom_9, ac.custom_10,
         ac.custom_11, ac.custom_12, ac.custom_13, ac.custom_14, ac.custom_15,
-        ac.custom_16, ac.custom_17, ac.custom_18, ac.custom_19, ac.custom_20,
-        ps.kinder_paid, ps.kids_paid, ps.teens_paid, ps.waterpark_paid
+        ac.custom_16, ac.custom_17, ac.custom_18, ac.custom_19, ac.custom_20
        FROM applications a
        INNER JOIN application_children ac ON a.id = ac.application_id AND ac.department = $1
-       LEFT JOIN payment_status ps ON a.id = ps.application_id
        ORDER BY a.created_at DESC`,
       [department]
     );
@@ -74,7 +72,7 @@ export async function GET(request: Request) {
       '부모이름', '부모폰', '입금자',
       '자녀이름', '생년월일', '성별', '하위부서', '셔츠사이즈', '알러지', '물놀이',
       ...customFields.map((f: any) => f.label),
-      '결제상태', '신청날짜',
+      '신청날짜',
     ];
     ws1.addRow(headers1);
 
@@ -91,12 +89,6 @@ export async function GET(request: Request) {
         r.allergies ?? '',
         r.attends_waterpark ? '참석' : '불참',
         ...customFields.map((f: any) => r[`custom_${f.columnIndex}`] ?? ''),
-        [
-          r.kinder_paid ? '✓킨더' : '',
-          r.kids_paid ? '✓키즈' : '',
-          r.teens_paid ? '✓틴즈' : '',
-          r.waterpark_paid ? '✓워터풀' : '',
-        ].filter(Boolean).join('/') || '미결제',
         r.created_at ?? '',
       ]);
     });
