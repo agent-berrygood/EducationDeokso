@@ -372,7 +372,7 @@ export default function ApplyWizard() {
                 href="/step-apply"
                 className="inline-block px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg shadow-md transition-colors"
               >
-                여름칠캠프 스텝 신청하기
+                성경학교 스텝 신청하기
               </a>
             </div>
           )}

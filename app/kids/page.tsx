@@ -15,6 +15,7 @@ interface EventConfig {
   campType?: string;
   campDuration?: number;
   posterUrl?: string;
+  isStepRecruitmentActive?: boolean;
 }
 
 const DEFAULT_CONFIG: EventConfig = {
@@ -318,14 +319,25 @@ export default function KidsPage() {
             );
           })()}
 
-          {/* 메인 페이지 이동 안내 */}
-          <Link
-            href="/"
-            className="inline-block px-12 py-5 font-bold text-xl rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 text-white"
-            style={{ backgroundColor: primaryColor, boxShadow: `0 10px 20px -5px ${primaryColor}50` }}
-          >
-            ✏️ 메인 페이지에서 신청하기
-          </Link>
+          {/* 메인 페이지 이동 안내 + 스텝 신청 */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/"
+              className="inline-block px-12 py-5 font-bold text-xl rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 text-white"
+              style={{ backgroundColor: primaryColor, boxShadow: `0 10px 20px -5px ${primaryColor}50` }}
+            >
+              ✏️ 메인 페이지에서 신청하기
+            </Link>
+            {config.isStepRecruitmentActive && (
+              <Link
+                href="/step-apply?dept=kids"
+                className="inline-block px-12 py-5 font-bold text-xl rounded-full shadow-lg transform hover:scale-105 transition-all duration-300 border-2 bg-white"
+                style={{ borderColor: primaryColor, color: primaryColor }}
+              >
+                🙌 성경학교 스텝 신청하기
+              </Link>
+            )}
+          </div>
         </div>
       </main>
     </div>

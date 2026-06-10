@@ -100,6 +100,22 @@ export const adminLoginSchema = z.object({
   password: z.string().min(1),
 });
 
+/** 스텝 신청 — 캠프(부서)별 참석 형태 */
+export const staffEntrySchema = z.object({
+  department: departmentSchema,
+  attendanceType: z.enum(['full', 'partial']),
+  /** 부분 참석 시 세션 키 배열 (예: ["1-morning", "2-evening"]) */
+  attendedSessions: z.array(z.string()).default([]),
+});
+
+export const staffApplicationSubmitSchema = z.object({
+  name: z.string().min(1, '이름 필수'),
+  phone: z.string().min(1, '연락처 필수'),
+  note: z.string().optional(),
+  entries: z.array(staffEntrySchema).min(1, '신청할 캠프를 1개 이상 선택하세요'),
+});
+
 export type ApplicationSubmit = z.infer<typeof applicationSubmitSchema>;
 export type EventConfigUpdate = z.infer<typeof eventConfigUpdateSchema>;
 export type AdminLogin = z.infer<typeof adminLoginSchema>;
+export type StaffApplicationSubmit = z.infer<typeof staffApplicationSubmitSchema>;

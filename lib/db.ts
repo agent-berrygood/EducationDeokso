@@ -204,6 +204,31 @@ const MIGRATIONS: Migration[] = [
       `DROP TABLE IF EXISTS payment_status CASCADE`,
     ],
   },
+  {
+    version: 9,
+    description: 'Add staff application tables (multi-camp, full/partial attendance)',
+    up: [
+      `CREATE TABLE IF NOT EXISTS staff_applications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(100) NOT NULL,
+        phone VARCHAR(20) NOT NULL,
+        note TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE TABLE IF NOT EXISTS staff_application_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        staff_application_id UUID NOT NULL REFERENCES staff_applications(id) ON DELETE CASCADE,
+        department VARCHAR(50) NOT NULL,
+        attendance_type VARCHAR(20) NOT NULL DEFAULT 'full',
+        attended_sessions JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE (staff_application_id, department)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_entries_app ON staff_application_entries(staff_application_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_staff_entries_dept ON staff_application_entries(department)`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {
