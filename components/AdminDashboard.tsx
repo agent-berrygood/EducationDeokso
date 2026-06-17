@@ -67,6 +67,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [selectedSubDept, setSelectedSubDept] = useState<string>('all');
   const effectiveSubDept = externalSubDepartment ?? selectedSubDept;
 
+  // 트랙(연합/분리 운영) state
+  const [operatingMode, setOperatingMode] = useState<'union' | 'split'>('union');
+  const [tracks, setTracks] = useState<{ trackKey: string; label: string; subDepartmentIds: string[] }[]>([]);
+  const [activeTrackKey, setActiveTrackKey] = useState<string>('main'); // 설정 탭에서 편집 중인 트랙
+  const [selectedTrack, setSelectedTrack] = useState<string>('all');    // 신청 현황 탭 필터
+  const [newTrack, setNewTrack] = useState<{ label: string; subs: string[] }>({ label: '', subs: [] });
+
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<any>({
     title: '',
@@ -86,11 +93,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     events: [],
     isStepRecruitmentActive: false,
     tshirtDeadline: '',
+    stepTshirtSizes: [],
     isWaterparkActive: true,
     waterparkInfo: { title: '', date: '', time: '', location: '', note: '' },
   });
-  
+
   const [newTshirtSize, setNewTshirtSize] = useState('');
+  const [newStepTshirtSize, setNewStepTshirtSize] = useState('');
   const [newSchedule, setNewSchedule] = useState({
     day: 1,
     time: '',
@@ -118,7 +127,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       setError('');
       // 어드민 SQL 페이징 및 정렬 연동 호출
       const sqlSortField = sortField === 'childName' ? 'parentName' : 'createdAt'; // API가 'createdAt' 외의 값은 parent_name 정렬로 처리
-      const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}&sortBy=${sqlSortField}&sortOrder=${sortDirection.toUpperCase()}`);
+      const trackParam = operatingMode === 'split' && selectedTrack !== 'all' ? `&track=${encodeURIComponent(selectedTrack)}` : '';
+      const res = await fetch(`/api/applications?department=${department}&limit=100&offset=${offset}&sortBy=${sqlSortField}&sortOrder=${sortDirection.toUpperCase()}${trackParam}`);
       if (!res.ok) throw new Error('Fetch failed');
       const { data } = await res.json();
       setApplications(data || []);
@@ -129,37 +139,68 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
+  const populateForm = (data: any) => {
+    setConfig(data);
+    setSettingsForm({
+      title: data.title || '',
+      eventType: data.event_type || '',
+      subtitle: data.subtitle || '',
+      scripture: data.scripture || '',
+      primaryColor: data.primary_color || (department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E'),
+      bgColor: data.bg_color || (department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A'),
+      tshirtSizes: data.tshirtSizes || [],
+      customFields: data.customFieldMappings || [],
+      subDepartments: data.subDepartments || [],
+      campStartDate: data.camp_start_date || '',
+      campSchedule: data.campSchedule || [],
+      campType: data.campType || 'continuous',
+      campDuration: Number(data.campDuration || 3),
+      posterUrl: data.posterUrl || '',
+      events: data.events || [],
+      isStepRecruitmentActive: data.isStepRecruitmentActive || false,
+      tshirtDeadline: (data.tshirtDeadline && !isNaN(new Date(data.tshirtDeadline).getTime())) ? new Date(data.tshirtDeadline).toISOString() : '',
+      stepTshirtSizes: data.stepTshirtSizes || [],
+      isWaterparkActive: data.isWaterparkActive ?? true,
+      waterparkInfo: { title: '', date: '', time: '', location: '', note: '', ...(data.waterparkInfo || {}) },
+    });
+  };
+
+  const loadTrackConfig = async (trackKey: string) => {
+    const res = await fetch(`/api/config/${department}?track=${encodeURIComponent(trackKey)}`);
+    if (!res.ok) throw new Error('Fetch failed');
+    const { data } = await res.json();
+    populateForm(data);
+  };
+
   const loadConfig = async () => {
     try {
       setLoading(true);
       setError('');
-      const res = await fetch(`/api/config/${department}`);
-      if (!res.ok) throw new Error('Fetch failed');
-      const { data } = await res.json();
-      setConfig(data);
-      setSettingsForm({
-        title: data.title || '',
-        eventType: data.event_type || '',
-        subtitle: data.subtitle || '',
-        scripture: data.scripture || '',
-        primaryColor: data.primary_color || (department === 'kinder' ? '#EAB308' : department === 'kids' ? '#3B82F6' : '#22C55E'),
-        bgColor: data.bg_color || (department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A'),
-        tshirtSizes: data.tshirtSizes || [],
-        customFields: data.customFieldMappings || [],
-        subDepartments: data.subDepartments || [],
-        campStartDate: data.camp_start_date || '',
-        campSchedule: data.campSchedule || [],
-        campType: data.campType || 'continuous',
-        campDuration: Number(data.campDuration || 3),
-        posterUrl: data.posterUrl || '',
-        events: data.events || [],
-        isStepRecruitmentActive: data.isStepRecruitmentActive || false,
-        tshirtDeadline: (data.tshirtDeadline && !isNaN(new Date(data.tshirtDeadline).getTime())) ? new Date(data.tshirtDeadline).toISOString() : '',
-        isWaterparkActive: data.isWaterparkActive ?? true,
-        waterparkInfo: { title: '', date: '', time: '', location: '', note: '', ...(data.waterparkInfo || {}) },
-      });
+      // 트랙 목록 + 운영모드 로드
+      const listRes = await fetch(`/api/config/${department}?list=1`);
+      const listJson = await listRes.json();
+      const mode: 'union' | 'split' = listJson?.data?.operatingMode === 'split' ? 'split' : 'union';
+      const trackList = listJson?.data?.tracks || [];
+      setOperatingMode(mode);
+      setTracks(trackList);
+      const tk = trackList.some((t: any) => t.trackKey === activeTrackKey) ? activeTrackKey : 'main';
+      setActiveTrackKey(tk);
+      await loadTrackConfig(tk);
     } catch (err) {
       setError('CMS 설정을 로드하는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 설정 탭에서 편집 트랙 전환
+  const switchTrack = async (trackKey: string) => {
+    setActiveTrackKey(trackKey);
+    try {
+      setLoading(true);
+      await loadTrackConfig(trackKey);
+    } catch {
+      setError('트랙 설정을 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -171,7 +212,25 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     } else if (activeTab === 'settings') {
       loadConfig();
     }
-  }, [activeTab, offset, department, sortField, sortDirection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, offset, department, sortField, sortDirection, selectedTrack]);
+
+  // 트랙 메타 로드 (모든 탭에서 운영모드/트랙 필터 사용 가능하도록 부서 변경 시 1회)
+  useEffect(() => {
+    setSelectedTrack('all');
+    (async () => {
+      try {
+        const res = await fetch(`/api/config/${department}?list=1`);
+        const json = await res.json();
+        if (json?.success) {
+          setOperatingMode(json.data.operatingMode === 'split' ? 'split' : 'union');
+          setTracks(json.data.tracks || []);
+        }
+      } catch {
+        /* noop */
+      }
+    })();
+  }, [department]);
 
   // 글로벌 요금 정보 로드 (수납 모니터에서 사용)
   useEffect(() => {
@@ -269,8 +328,14 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           events: settingsForm.events,
           isStepRecruitmentActive: settingsForm.isStepRecruitmentActive,
           tshirtDeadline: (settingsForm.tshirtDeadline && !isNaN(new Date(settingsForm.tshirtDeadline).getTime())) ? new Date(settingsForm.tshirtDeadline).toISOString() : null,
+          stepTshirtSizes: settingsForm.stepTshirtSizes,
           isWaterparkActive: settingsForm.isWaterparkActive,
           waterparkInfo: settingsForm.waterparkInfo,
+          // 현재 편집 중인 트랙 + 운영 모드
+          trackKey: activeTrackKey,
+          trackLabel: tracks.find((t) => t.trackKey === activeTrackKey)?.label ?? null,
+          subDepartmentIds: tracks.find((t) => t.trackKey === activeTrackKey)?.subDepartmentIds ?? [],
+          operatingMode,
         }),
       });
       if (!res.ok) throw new Error('Save failed');
@@ -278,6 +343,95 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       loadConfig();
     } catch (err) {
       alert('설정 저장 도중 문제가 발생했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 현재 settingsForm을 config POST body로 직렬화 (트랙 필드 제외)
+  const configBodyFromForm = () => ({
+    title: settingsForm.title,
+    eventType: settingsForm.eventType,
+    subtitle: settingsForm.subtitle,
+    scripture: settingsForm.scripture,
+    primaryColor: settingsForm.primaryColor,
+    bgColor: settingsForm.bgColor,
+    tshirtSizes: settingsForm.tshirtSizes,
+    customFieldMappings: settingsForm.customFields,
+    subDepartments: settingsForm.subDepartments,
+    campStartDate: settingsForm.campStartDate,
+    campSchedule: settingsForm.campSchedule,
+    campType: settingsForm.campType,
+    campDuration: settingsForm.campDuration,
+    posterUrl: settingsForm.posterUrl,
+    events: settingsForm.events,
+    isStepRecruitmentActive: settingsForm.isStepRecruitmentActive,
+    tshirtDeadline: (settingsForm.tshirtDeadline && !isNaN(new Date(settingsForm.tshirtDeadline).getTime())) ? new Date(settingsForm.tshirtDeadline).toISOString() : null,
+    stepTshirtSizes: settingsForm.stepTshirtSizes,
+    isWaterparkActive: settingsForm.isWaterparkActive,
+    waterparkInfo: settingsForm.waterparkInfo,
+  });
+
+  const postConfig = async (extra: Record<string, any>) => {
+    const res = await fetch(`/api/config/${department}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...configBodyFromForm(), ...extra }),
+    });
+    if (!res.ok) throw new Error('Save failed');
+    return res.json();
+  };
+
+  // 운영 모드(연합/분리) 전환 — main 트랙 기준으로 현재 폼 데이터 보존하며 반영
+  const changeOperatingMode = async (mode: 'union' | 'split') => {
+    try {
+      setIsSaving(true);
+      setActiveTrackKey('main');
+      await postConfig({ trackKey: 'main', operatingMode: mode });
+      setOperatingMode(mode);
+      await loadConfig();
+    } catch {
+      alert('운영 모드 변경에 실패했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 트랙(그룹) 추가 — 현재 설정을 템플릿으로 복사해 신규 트랙 생성
+  const addTrack = async () => {
+    if (!newTrack.label.trim()) { alert('트랙(그룹) 이름을 입력하세요.'); return; }
+    if (newTrack.subs.length === 0) { alert('이 트랙에 포함할 세부부서를 1개 이상 선택하세요.'); return; }
+    try {
+      setIsSaving(true);
+      const trackKey = `track_${Date.now()}`;
+      await postConfig({
+        trackKey,
+        trackLabel: newTrack.label.trim(),
+        subDepartmentIds: newTrack.subs,
+        operatingMode: 'split',
+      });
+      setNewTrack({ label: '', subs: [] });
+      setOperatingMode('split');
+      await loadConfig();
+      await switchTrack(trackKey);
+    } catch {
+      alert('트랙 추가에 실패했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTrack = async (trackKey: string) => {
+    if (trackKey === 'main') return;
+    if (!confirm('이 트랙을 삭제하시겠습니까? 트랙 설정이 제거됩니다. (신청 데이터는 보존)')) return;
+    try {
+      setIsSaving(true);
+      const res = await fetch(`/api/config/${department}?track=${encodeURIComponent(trackKey)}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Delete failed');
+      if (activeTrackKey === trackKey) setActiveTrackKey('main');
+      await loadConfig();
+    } catch {
+      alert('트랙 삭제에 실패했습니다.');
     } finally {
       setIsSaving(false);
     }
@@ -296,6 +450,22 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     setSettingsForm((prev: any) => ({
       ...prev,
       tshirtSizes: prev.tshirtSizes.filter((s: string) => s !== size),
+    }));
+  };
+
+  const addStepTshirtSize = () => {
+    if (!newStepTshirtSize.trim()) return;
+    setSettingsForm((prev: any) => ({
+      ...prev,
+      stepTshirtSizes: [...(prev.stepTshirtSizes || []), newStepTshirtSize.trim().toUpperCase()],
+    }));
+    setNewStepTshirtSize('');
+  };
+
+  const removeStepTshirtSize = (size: string) => {
+    setSettingsForm((prev: any) => ({
+      ...prev,
+      stepTshirtSizes: (prev.stepTshirtSizes || []).filter((s: string) => s !== size),
     }));
   };
 
@@ -552,8 +722,38 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           {/* 1. Applications Tab */}
           {activeTab === 'applications' && (
             <div className="space-y-4">
-              {/* 하위 부서 탭 필터 (외부 subDepartment prop이 있으면 숨김) */}
-              {!externalSubDepartment && config?.subDepartments && config.subDepartments.length > 0 && (
+              {/* 트랙(분리 운영) 필터 — 분리 모드일 때 세부부서 칩 대신 트랙 칩 노출 */}
+              {operatingMode === 'split' && !externalSubDepartment && tracks.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="text-xs font-bold text-gray-400 self-center mr-1">트랙:</span>
+                  <button
+                    onClick={() => setSelectedTrack('all')}
+                    className={`px-4 py-1.5 rounded-full text-sm font-semibold transition cursor-pointer ${
+                      selectedTrack === 'all'
+                        ? 'bg-cyan-600 text-white shadow'
+                        : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200'
+                    }`}
+                  >
+                    전체
+                  </button>
+                  {tracks.filter((t) => t.trackKey !== 'main' || (t.subDepartmentIds?.length ?? 0) > 0).map((t) => (
+                    <button
+                      key={t.trackKey}
+                      onClick={() => setSelectedTrack(t.trackKey)}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold transition cursor-pointer ${
+                        selectedTrack === t.trackKey
+                          ? 'bg-cyan-600 text-white shadow'
+                          : 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-300 hover:bg-gray-200'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* 하위 부서 탭 필터 (연합 모드 + 외부 subDepartment prop이 없을 때) */}
+              {operatingMode === 'union' && !externalSubDepartment && config?.subDepartments && config.subDepartments.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     onClick={() => setSelectedSubDept('all')}
@@ -747,7 +947,131 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           {activeTab === 'settings' && (
             <div className="space-y-8">
               <form onSubmit={(e) => { e.preventDefault(); saveSettings(); }} className="space-y-8">
-                
+
+                {/* 운영 모드 & 트랙(연합/분리) 관리 */}
+                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
+                  <h3 className="text-xl font-bold mb-1 border-b pb-2">🔀 운영 모드 (연합 / 분리)</h3>
+                  <p className="text-xs text-gray-400 mt-2 mb-4">
+                    이 대부서의 세부부서가 함께 운영(연합)되는지, 별도 트랙으로 분리 운영되는지 설정합니다.
+                    분리 시 트랙마다 독립된 CMS 설정·일정과 신청/워터풀 명단 분리 조회가 가능합니다.
+                  </p>
+                  <div className="flex gap-3 mb-4">
+                    {([
+                      { v: 'union', label: '전체 연합', desc: '세부부서 모두 함께' },
+                      { v: 'split', label: '부서 분리', desc: '트랙별 독립 운영' },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        disabled={isSaving}
+                        onClick={() => changeOperatingMode(opt.v)}
+                        className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-colors disabled:opacity-50 ${
+                          operatingMode === opt.v
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="block font-bold">{opt.label}</span>
+                        <span className="block text-xs">{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {operatingMode === 'split' && (
+                    <div className="space-y-4 pt-4 border-t border-dashed">
+                      {/* 편집 트랙 선택 */}
+                      <div>
+                        <p className="text-sm font-semibold text-gray-500 mb-2">편집할 트랙 선택 — 아래 모든 설정은 선택된 트랙에 저장됩니다.</p>
+                        <div className="flex flex-wrap gap-2">
+                          {tracks.map((t) => (
+                            <span
+                              key={t.trackKey}
+                              className={`inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold border-2 ${
+                                activeTrackKey === t.trackKey
+                                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                  : 'border-gray-200 bg-white text-gray-500'
+                              }`}
+                            >
+                              <button type="button" onClick={() => switchTrack(t.trackKey)}>
+                                {t.label}
+                                {t.trackKey !== 'main' && (
+                                  <span className="text-xs text-gray-400 ml-1">({t.subDepartmentIds.length}개 부서)</span>
+                                )}
+                              </button>
+                              {t.trackKey !== 'main' && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteTrack(t.trackKey)}
+                                  className="text-red-400 hover:text-red-600 font-bold"
+                                  aria-label="트랙 삭제"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                        {activeTrackKey !== 'main' && (
+                          <p className="text-[11px] text-indigo-600 mt-2 font-semibold">
+                            ✎ 현재 「{tracks.find((t) => t.trackKey === activeTrackKey)?.label}」 트랙을 편집 중입니다.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* 새 트랙(그룹) 추가 */}
+                      <div className="p-4 rounded-xl bg-gray-50/60 dark:bg-slate-800/30 border border-dashed">
+                        <p className="text-sm font-semibold text-gray-600 mb-2">＋ 새 트랙(그룹) 추가</p>
+                        <input
+                          type="text"
+                          placeholder="트랙 이름 (예: 유치부 단독, 통미+영유 연합)"
+                          value={newTrack.label}
+                          onChange={(e) => setNewTrack({ ...newTrack, label: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg bg-white text-gray-900 text-sm mb-2"
+                        />
+                        <p className="text-xs text-gray-500 mb-1">포함할 세부부서 선택:</p>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {(settingsForm.subDepartments || []).length === 0 ? (
+                            <span className="text-xs text-gray-400">먼저 아래 「세부 부서 관리」에서 세부부서를 등록하세요.</span>
+                          ) : (
+                            settingsForm.subDepartments.map((sd: any) => {
+                              const checked = newTrack.subs.includes(sd.id);
+                              return (
+                                <label
+                                  key={sd.id}
+                                  className={`px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
+                                    checked ? 'bg-indigo-100 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(e) => {
+                                      const subs = e.target.checked
+                                        ? [...newTrack.subs, sd.id]
+                                        : newTrack.subs.filter((s) => s !== sd.id);
+                                      setNewTrack({ ...newTrack, subs });
+                                    }}
+                                    className="hidden"
+                                  />
+                                  {sd.label}
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addTrack}
+                          disabled={isSaving}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow disabled:opacity-50"
+                        >
+                          트랙 추가
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 {/* 기본 정보 */}
                 <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
                   <h3 className="text-xl font-bold mb-4 border-b pb-2">🎨 기본 행사 정보 설정</h3>
@@ -911,6 +1235,54 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                       <p className="text-xs text-gray-500 mt-1">이 시각 이후로는 신청서에 티셔츠 선택 항목이 노출되지 않습니다.</p>
                     </div>
                   </div>
+
+                  {/* 스텝 티셔츠 사이즈 — 스텝 모집 활성화 시 표시 */}
+                  {settingsForm.isStepRecruitmentActive && (
+                    <div className="mt-5 pt-5 border-t border-dashed">
+                      <label className="block text-sm font-semibold mb-2">👕 스텝 티셔츠 사이즈 옵션</label>
+                      <p className="text-xs text-gray-500 mb-3">
+                        입력한 사이즈가 스텝 신청서에 선택 항목으로 노출됩니다. 비워두면 선택 항목이 표시되지 않습니다.
+                      </p>
+                      <div className="flex gap-3 mb-3">
+                        <input
+                          type="text"
+                          value={newStepTshirtSize}
+                          onChange={(e) => setNewStepTshirtSize(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStepTshirtSize())}
+                          placeholder="예: S, M, L, XL"
+                          className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                        />
+                        <button
+                          type="button"
+                          onClick={addStepTshirtSize}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
+                        >
+                          추가
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(!settingsForm.stepTshirtSizes || settingsForm.stepTshirtSizes.length === 0) ? (
+                          <p className="text-sm text-gray-400">등록된 스텝 티셔츠 사이즈가 없습니다.</p>
+                        ) : (
+                          settingsForm.stepTshirtSizes.map((size: string) => (
+                            <div
+                              key={size}
+                              className="flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-sm font-bold"
+                            >
+                              {size}
+                              <button
+                                type="button"
+                                onClick={() => removeStepTshirtSize(size)}
+                                className="ml-1 text-indigo-400 hover:text-red-500 text-xs font-bold"
+                              >
+                                ✕
+                            </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* 워터풀선데이 설정 */}

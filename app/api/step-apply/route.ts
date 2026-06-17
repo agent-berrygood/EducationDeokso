@@ -73,13 +73,14 @@ export async function POST(request: Request) {
     for (const e of entries) {
       await query(
         `INSERT INTO staff_application_entries
-           (staff_application_id, department, attendance_type, attended_sessions)
-         VALUES ($1, $2, $3, $4)`,
+           (staff_application_id, department, attendance_type, attended_sessions, tshirt_size)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
           app.id,
           e.department,
           e.attendanceType,
           JSON.stringify(e.attendanceType === 'full' ? [] : e.attendedSessions),
+          e.tshirtSize || null,
         ]
       );
     }
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
     const rows = await queryMany(
       `SELECT
          sa.id, sa.name, sa.phone, sa.note, sa.created_at,
-         se.department, se.attendance_type, se.attended_sessions
+         se.department, se.attendance_type, se.attended_sessions, se.tshirt_size
        FROM staff_applications sa
        INNER JOIN staff_application_entries se ON sa.id = se.staff_application_id
        ${department ? 'WHERE se.department = $1' : ''}
@@ -121,6 +122,7 @@ export async function GET(request: Request) {
         department: r.department,
         attendanceType: r.attendance_type,
         attendedSessions: safeParse(r.attended_sessions),
+        tshirtSize: r.tshirt_size || null,
       });
     }
 

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { queryMany } from '@/lib/db';
 import { checkDepartmentAccess } from '@/lib/auth';
+import { trackSubDepartments } from '@/lib/track-query';
 import type { DepartmentId } from '@/lib/types';
 
 function safeParse(val: any): any[] {
@@ -43,12 +44,23 @@ export async function GET(request: Request) {
       }
     }
 
+    const track = searchParams.get('track');
+
     const params: any[] = [];
     let deptHaving = '';
     if (department) {
       params.push(department);
       // 해당 부서 자녀 중 워터풀 참석자가 1명 이상인 가족만
-      deptHaving = `AND bool_or(ac.attends_waterpark AND ac.department = $1)`;
+      let deptCond = `ac.attends_waterpark AND ac.department = $1`;
+      // 트랙(분리) 필터: 트랙이 커버하는 세부부서로 추가 제한
+      if (track) {
+        const trackSubs = await trackSubDepartments(department, track);
+        if (trackSubs.length > 0) {
+          params.push(trackSubs);
+          deptCond += ` AND ac.sub_department = ANY($${params.length}::text[])`;
+        }
+      }
+      deptHaving = `AND bool_or(${deptCond})`;
     }
 
     const rows = await queryMany(

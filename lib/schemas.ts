@@ -94,6 +94,7 @@ export const eventConfigUpdateSchema = z.object({
   campDuration: z.number().optional(),
   isStepRecruitmentActive: z.boolean().optional(),
   tshirtDeadline: z.string().nullable().optional(),
+  stepTshirtSizes: z.array(z.string()).optional(),
   isWaterparkActive: z.boolean().optional(),
   waterparkInfo: z.object({
     title: z.string().optional(),
@@ -115,6 +116,8 @@ export const staffEntrySchema = z.object({
   attendanceType: z.enum(['full', 'partial']),
   /** 부분 참석 시 세션 키 배열 (예: ["1-morning", "2-evening"]) */
   attendedSessions: z.array(z.string()).default([]),
+  /** 스텝 티셔츠 사이즈 (해당 캠프에 step_tshirt_sizes가 설정된 경우) */
+  tshirtSize: z.string().optional(),
 });
 
 export const staffApplicationSubmitSchema = z.object({

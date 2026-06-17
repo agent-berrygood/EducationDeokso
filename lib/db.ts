@@ -238,6 +238,41 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS waterpark_info JSONB DEFAULT '{}'::jsonb`,
     ],
   },
+  {
+    version: 11,
+    description: 'Add event track support (union/split operating mode) to event_configs',
+    up: [
+      // 트랙 식별/정의 컬럼 — 기존 행은 모두 'main'(연합) 트랙이 됨
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS track_key VARCHAR(50) DEFAULT 'main'`,
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS track_label VARCHAR(100)`,
+      // 이 트랙이 커버하는 세부부서 id 배열 ([] = 대부서 전체 = 연합)
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS sub_department_ids JSONB DEFAULT '[]'::jsonb`,
+      // 대부서 운영 모드 ('union' | 'split') — 대부서의 'main' 행에 저장
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS operating_mode VARCHAR(20) DEFAULT 'union'`,
+      // 기존 NULL 값 보정
+      `UPDATE event_configs SET track_key = 'main' WHERE track_key IS NULL`,
+      `UPDATE event_configs SET operating_mode = 'union' WHERE operating_mode IS NULL`,
+      // UNIQUE(department) → UNIQUE(department, track_key)
+      `ALTER TABLE event_configs DROP CONSTRAINT IF EXISTS event_configs_department_key`,
+      `DO $$
+       BEGIN
+         IF NOT EXISTS (
+           SELECT 1 FROM pg_constraint
+           WHERE conrelid = 'event_configs'::regclass AND conname = 'event_configs_dept_track_key'
+         ) THEN
+           ALTER TABLE event_configs ADD CONSTRAINT event_configs_dept_track_key UNIQUE (department, track_key);
+         END IF;
+       END $$;`,
+    ],
+  },
+  {
+    version: 12,
+    description: 'Add step t-shirt sizes to event_configs and tshirt_size to staff_application_entries',
+    up: [
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS step_tshirt_sizes JSONB DEFAULT '[]'::jsonb`,
+      `ALTER TABLE staff_application_entries ADD COLUMN IF NOT EXISTS tshirt_size VARCHAR(20)`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {

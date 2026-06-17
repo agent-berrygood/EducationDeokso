@@ -53,6 +53,7 @@ export interface EventConfig {
   subDepartments: SubDepartment[];
   events: any[];
   tshirtSizes: string[];
+  stepTshirtSizes?: string[];
   customFieldMappings: CustomField[];
   camp_start_date?: string;
   camp_schedule?: EventScheduleSlot[];
@@ -64,6 +65,13 @@ export interface EventConfig {
   is_waterpark_active?: boolean;
   /** 부서별 워터풀선데이 커스텀 정보 (틴즈 등 일정이 다른 부서 대응) */
   waterpark_info?: WaterparkInfo;
+  /** 트랙(연합/분리) — 기본 'main'. @see lib/tracks */
+  track_key?: string;
+  track_label?: string | null;
+  /** 이 트랙이 커버하는 세부부서 id 배열 ([] = 대부서 전체 = 연합) */
+  sub_department_ids?: string[];
+  /** 대부서 운영 모드 ('union' | 'split') */
+  operating_mode?: 'union' | 'split';
 }
 
 export interface WaterparkInfo {

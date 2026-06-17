@@ -21,15 +21,17 @@ interface DeptConfig {
   campSchedule?: any[];
   campDuration?: number;
   isStepRecruitmentActive?: boolean;
+  stepTshirtSizes?: string[];
 }
 
 interface EntryDraft {
   checked: boolean;
   attendanceType: 'full' | 'partial';
   attendedSessions: string[];
+  tshirtSize: string;
 }
 
-const emptyEntry = (): EntryDraft => ({ checked: false, attendanceType: 'full', attendedSessions: [] });
+const emptyEntry = (): EntryDraft => ({ checked: false, attendanceType: 'full', attendedSessions: [], tshirtSize: '' });
 
 function formatPhoneNumber(val: string): string {
   const clean = val.replace(/\D/g, '');
@@ -116,6 +118,7 @@ function StepApplyForm() {
         department: d.id,
         attendanceType: entries[d.id].attendanceType,
         attendedSessions: entries[d.id].attendanceType === 'partial' ? entries[d.id].attendedSessions : [],
+        tshirtSize: entries[d.id].tshirtSize || undefined,
       })),
     };
 
@@ -287,6 +290,31 @@ function StepApplyForm() {
                         schedule={cfg.campSchedule}
                         campDuration={cfg.campDuration}
                       />
+                    )}
+
+                    {/* 스텝 티셔츠 사이즈 (캠프에 설정된 경우만) */}
+                    {cfg.stepTshirtSizes && cfg.stepTshirtSizes.length > 0 && (
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 mb-1">
+                          👕 스텝 티셔츠 사이즈
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {cfg.stepTshirtSizes.map((size) => (
+                            <button
+                              key={size}
+                              type="button"
+                              onClick={() => patchEntry(d.id, { tshirtSize: entry.tshirtSize === size ? '' : size })}
+                              className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
+                                entry.tshirtSize === size
+                                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                  : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                              }`}
+                            >
+                              {size}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

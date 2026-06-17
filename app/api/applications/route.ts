@@ -4,6 +4,7 @@ import { applicationSubmitSchema } from '@/lib/schemas';
 import { checkDepartmentAccess, decryptSession } from '@/lib/auth';
 import type { DepartmentId } from '@/lib/types';
 import { validateSessionKeys, validateAttendedDates, deriveDayCount } from '@/lib/session-grid';
+import { trackSubDepartments } from '@/lib/track-query';
 
 /**
  * 마이그레이션이 운영 DB에 적용되지 않은 상황에서도 GET/POST가 정상 작동하도록
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
     const subDepartment = searchParams.get('subDepartment');
+    const track = searchParams.get('track');
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
     const sortBy = searchParams.get('sortBy') || 'createdAt';
@@ -71,6 +73,14 @@ export async function GET(request: Request) {
     if (subDepartment) {
       conditions.push(`ac.sub_department = $${idx++}`);
       params.push(subDepartment);
+    }
+    // 트랙(연합/분리) 필터: 트랙이 커버하는 세부부서로 제한 (빈 목록=연합이면 필터 없음)
+    if (track && department) {
+      const trackSubs = await trackSubDepartments(department, track);
+      if (trackSubs.length > 0) {
+        conditions.push(`ac.sub_department = ANY($${idx++}::text[])`);
+        params.push(trackSubs);
+      }
     }
 
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
