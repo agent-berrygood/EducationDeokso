@@ -6,6 +6,7 @@ import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
 import WaterparkRoster from '@/components/WaterparkRoster';
+import { useToast, useConfirm } from '@/components/ui/Feedback';
 import type { FeesConfig } from '@/lib/types';
 import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
 
@@ -47,6 +48,8 @@ interface AdminDashboardProps {
 
 export default function AdminDashboard({ department, subDepartment: externalSubDepartment }: AdminDashboardProps) {
   const router = useRouter();
+  const showToast = useToast();
+  const confirmDialog = useConfirm();
   const [activeTab, setActiveTab] = useState<'applications' | 'settings' | 'payment' | 'surveys' | string>('applications');
   const [applications, setApplications] = useState<Application[]>([]);
 
@@ -227,7 +230,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           setTracks(json.data.tracks || []);
         }
       } catch {
-        /* noop */
+        showToast('트랙/운영모드 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.', 'error');
       }
     })();
   }, [department]);
@@ -240,20 +243,20 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         const json = await res.json();
         if (json.success) setFees(json.data);
       } catch {
-        /* noop */
+        showToast('요금 정보를 불러오지 못했습니다.', 'error');
       }
     })();
   }, []);
 
   const deleteApplication = async (id: string) => {
-    if (!confirm('정말 이 신청 정보 및 동반 자녀 데이터를 삭제하시겠습니까? 관련 데이터가 영구히 제거됩니다.')) return;
+    if (!(await confirmDialog('정말 이 신청 정보 및 동반 자녀 데이터를 삭제하시겠습니까?\n관련 데이터가 영구히 제거됩니다.'))) return;
     try {
       const res = await fetch(`/api/applications?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      alert('데이터가 성공적으로 제거되었습니다.');
+      showToast('데이터가 성공적으로 제거되었습니다.', 'success');
       loadApplications();
     } catch (err) {
-      alert('삭제 도중 에러가 발생했습니다.');
+      showToast('삭제 도중 에러가 발생했습니다.', 'error');
     }
   };
 
@@ -270,7 +273,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       a.download = `신청현황_${department}_${new Date().toISOString().slice(0, 10)}.xlsx`;
       a.click();
     } catch (err) {
-      alert('엑셀 파일 생성에 실패했습니다.');
+      showToast('엑셀 파일 생성에 실패했습니다.', 'error');
     }
   };
 
@@ -280,7 +283,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
     // 파일 크기 제한 (2MB) - Neon DB 용량 최적화용
     if (file.size > 2 * 1024 * 1024) {
-      alert('파일 크기가 너무 큽니다. 데이터베이스 최적화를 위해 2MB 이하의 이미지만 업로드해주세요.');
+      showToast('파일 크기가 너무 큽니다. 데이터베이스 최적화를 위해 2MB 이하의 이미지만 업로드해주세요.', 'error');
       return;
     }
 
@@ -294,17 +297,32 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           posterUrl: base64String
         }));
         setIsSaving(false);
-        alert('포스터 이미지가 정상적으로 변환되었습니다! 하단 저장 버튼을 눌러 확정해주세요.');
+        showToast('포스터 이미지가 정상적으로 변환되었습니다! 하단 저장 버튼을 눌러 확정해주세요.', 'success');
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      console.error(err);
-      alert('이미지 파일 변환 중 에러가 발생했습니다.');
+      if (process.env.NODE_ENV === 'development') console.error(err);
+      showToast('이미지 파일 변환 중 에러가 발생했습니다.', 'error');
       setIsSaving(false);
     }
   };
 
+  // 저장 전 필수 입력값 검증
+  const validateSettings = (): string | null => {
+    if (!settingsForm.title.trim()) return '공식 행사 명칭을 입력해주세요.';
+    if (!/^#[0-9A-Fa-f]{6}$/.test(settingsForm.primaryColor)) return '메인 테마 컬러 값이 올바르지 않습니다.';
+    if (!/^#[0-9A-Fa-f]{6}$/.test(settingsForm.bgColor)) return '배경 톤 컬러 값이 올바르지 않습니다.';
+    const duration = Number(settingsForm.campDuration);
+    if (!Number.isFinite(duration) || duration < 1 || duration > 30) return '수련회 기간은 1~30 사이의 숫자여야 합니다.';
+    return null;
+  };
+
   const saveSettings = async () => {
+    const validationError = validateSettings();
+    if (validationError) {
+      showToast(validationError, 'error');
+      return;
+    }
     try {
       setIsSaving(true);
       const res = await fetch(`/api/config/${department}`, {
@@ -339,10 +357,10 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         }),
       });
       if (!res.ok) throw new Error('Save failed');
-      alert('CMS 테마 및 행사 설정이 반영되었습니다.');
+      showToast('CMS 테마 및 행사 설정이 반영되었습니다.', 'success');
       loadConfig();
     } catch (err) {
-      alert('설정 저장 도중 문제가 발생했습니다.');
+      showToast('설정 저장 도중 문제가 발생했습니다.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -391,7 +409,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       setOperatingMode(mode);
       await loadConfig();
     } catch {
-      alert('운영 모드 변경에 실패했습니다.');
+      showToast('운영 모드 변경에 실패했습니다.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -399,8 +417,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
   // 트랙(그룹) 추가 — 현재 설정을 템플릿으로 복사해 신규 트랙 생성
   const addTrack = async () => {
-    if (!newTrack.label.trim()) { alert('트랙(그룹) 이름을 입력하세요.'); return; }
-    if (newTrack.subs.length === 0) { alert('이 트랙에 포함할 세부부서를 1개 이상 선택하세요.'); return; }
+    if (!newTrack.label.trim()) { showToast('트랙(그룹) 이름을 입력하세요.', 'error'); return; }
+    if (newTrack.subs.length === 0) { showToast('이 트랙에 포함할 세부부서를 1개 이상 선택하세요.', 'error'); return; }
     try {
       setIsSaving(true);
       const trackKey = `track_${Date.now()}`;
@@ -415,7 +433,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       await loadConfig();
       await switchTrack(trackKey);
     } catch {
-      alert('트랙 추가에 실패했습니다.');
+      showToast('트랙 추가에 실패했습니다.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -423,7 +441,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
   const deleteTrack = async (trackKey: string) => {
     if (trackKey === 'main') return;
-    if (!confirm('이 트랙을 삭제하시겠습니까? 트랙 설정이 제거됩니다. (신청 데이터는 보존)')) return;
+    if (!(await confirmDialog('이 트랙을 삭제하시겠습니까?\n트랙 설정이 제거됩니다. (신청 데이터는 보존)'))) return;
     try {
       setIsSaving(true);
       const res = await fetch(`/api/config/${department}?track=${encodeURIComponent(trackKey)}`, { method: 'DELETE' });
@@ -431,17 +449,22 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       if (activeTrackKey === trackKey) setActiveTrackKey('main');
       await loadConfig();
     } catch {
-      alert('트랙 삭제에 실패했습니다.');
+      showToast('트랙 삭제에 실패했습니다.', 'error');
     } finally {
       setIsSaving(false);
     }
   };
 
   const addTshirtSize = () => {
-    if (!newTshirtSize.trim()) return;
+    const size = newTshirtSize.trim().toUpperCase();
+    if (!size) return;
+    if (settingsForm.tshirtSizes.includes(size)) {
+      showToast('이미 등록된 사이즈입니다.', 'error');
+      return;
+    }
     setSettingsForm((prev: any) => ({
       ...prev,
-      tshirtSizes: [...prev.tshirtSizes, newTshirtSize.trim().toUpperCase()],
+      tshirtSizes: [...prev.tshirtSizes, size],
     }));
     setNewTshirtSize('');
   };
@@ -454,10 +477,15 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   };
 
   const addStepTshirtSize = () => {
-    if (!newStepTshirtSize.trim()) return;
+    const size = newStepTshirtSize.trim().toUpperCase();
+    if (!size) return;
+    if ((settingsForm.stepTshirtSizes || []).includes(size)) {
+      showToast('이미 등록된 사이즈입니다.', 'error');
+      return;
+    }
     setSettingsForm((prev: any) => ({
       ...prev,
-      stepTshirtSizes: [...(prev.stepTshirtSizes || []), newStepTshirtSize.trim().toUpperCase()],
+      stepTshirtSizes: [...(prev.stepTshirtSizes || []), size],
     }));
     setNewStepTshirtSize('');
   };
@@ -509,7 +537,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
   const addScheduleItem = () => {
     if (!newSchedule.time.trim() || !newSchedule.title.trim()) {
-      alert('시간과 일정명은 필수 입력 항목입니다.');
+      showToast('시간과 일정명은 필수 입력 항목입니다.', 'error');
       return;
     }
     setSettingsForm((prev: any) => ({
@@ -593,7 +621,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         });
       });
     } catch (err) {
-      console.error('processedChildren 변환 오류:', err);
+      if (process.env.NODE_ENV === 'development') console.error('processedChildren 변환 오류:', err);
     }
 
     // 1. 검색어 필터링
@@ -648,7 +676,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   }, [applications, department, searchQuery, sortField, sortDirection, effectiveSubDept]);
 
   const handleLogout = async () => {
-    if (confirm("로그아웃 하시겠습니까?")) {
+    if (await confirmDialog('로그아웃 하시겠습니까?')) {
       await fetch('/api/admin/logout', { method: 'POST' });
       router.push(`/admin/login?dept=${department}`);
     }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useToast } from '@/components/ui/Feedback';
 
 export default function ApplicationEditModal({
   application,
@@ -11,12 +12,13 @@ export default function ApplicationEditModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const showToast = useToast();
   const [formData, setFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (application) {
-      setFormData({ ...application });
+      setFormData({ ...application, children: application.children || [] });
     }
   }, [application]);
 
@@ -27,7 +29,9 @@ export default function ApplicationEditModal({
   };
 
   const handleChildChange = (index: number, field: string, value: any) => {
-    const newChildren = [...formData.children];
+    const children: any[] = formData.children || [];
+    if (index < 0 || index >= children.length) return;
+    const newChildren = [...children];
     newChildren[index] = { ...newChildren[index], [field]: value };
     setFormData((prev: any) => ({ ...prev, children: newChildren }));
   };
@@ -44,7 +48,7 @@ export default function ApplicationEditModal({
         depositorName: formData.depositor_name,
         waterfallParents: typeof formData.waterfall_parents === 'string' ? JSON.parse(formData.waterfall_parents || '[]') : formData.waterfall_parents || [],
         grandTotal: formData.grand_total,
-        children: formData.children.map((c: any) => ({
+        children: (formData.children || []).map((c: any) => ({
           name: c.name,
           birthDate: c.birth_date,
           gender: c.gender,
@@ -75,10 +79,10 @@ export default function ApplicationEditModal({
         throw new Error(result.error || '저장 실패');
       }
 
-      alert('수정되었습니다.');
+      showToast('수정되었습니다.', 'success');
       onSaved();
     } catch (err: any) {
-      alert('오류 발생: ' + err.message);
+      showToast('오류 발생: ' + err.message, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -135,7 +139,7 @@ export default function ApplicationEditModal({
           {/* 자녀 정보 섹션 */}
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200">자녀 정보</h3>
-            {formData.children.map((child: any, idx: number) => (
+            {(formData.children || []).map((child: any, idx: number) => (
               <div key={idx} className="p-4 border border-gray-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm relative">
                 <div className="absolute top-2 right-4 text-xs font-bold text-gray-400">자녀 {idx + 1}</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">

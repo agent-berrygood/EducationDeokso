@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# unrelated standalone tooling (not part of the Next.js app)
+/pdfmd/

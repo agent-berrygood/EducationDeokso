@@ -182,7 +182,7 @@ export default function ApplicationForm({ department, onClose }: ApplicationForm
           setDeptSubDepartments(subs);
         }
       } catch (e) {
-        console.error('부서 config 로드 실패:', e);
+        if (process.env.NODE_ENV === 'development') console.error('부서 config 로드 실패:', e);
       }
     }
     

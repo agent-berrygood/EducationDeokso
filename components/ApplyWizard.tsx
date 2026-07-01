@@ -163,7 +163,7 @@ export default function ApplyWizard() {
         const feesJson = await feesRes.json();
         if (feesJson.success) setFees(feesJson.data);
       } catch (err) {
-        console.error('설정 로드 실패', err);
+        if (process.env.NODE_ENV === 'development') console.error('설정 로드 실패', err);
       }
     })();
   }, []);
@@ -330,7 +330,7 @@ export default function ApplyWizard() {
       setSubmitted(true);
       setSubmittedDepts(draft.children.map(c => c.department).filter(Boolean) as DepartmentId[]);
     } catch (err) {
-      console.error(err);
+      if (process.env.NODE_ENV === 'development') console.error(err);
       setError('네트워크 오류가 발생했습니다');
     } finally {
       setSubmitting(false);
