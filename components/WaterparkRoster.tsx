@@ -1,12 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-
-const DEPT_SHORT_LABELS: Record<string, string> = {
-  kinder: '나우킨더',
-  kids: '나우키즈',
-  teens: '나우틴즈',
-};
+import { departmentLabel } from '@/lib/labels';
 
 interface WaterparkRosterProps {
   /** 지정 시 해당 부서 자녀가 워터풀 참석하는 가족만 표시. 미지정 시 전체 명단. */
@@ -87,8 +82,50 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
         ))}
       </div>
 
-      {/* 가족 단위 명단 */}
-      <div className={`rounded-xl border overflow-hidden shadow-md ${tableCls}`}>
+      {/* 가족 단위 명단 — 모바일 카드 뷰 */}
+      <div className={`md:hidden rounded-xl border overflow-hidden shadow-md ${tableCls}`}>
+        {loading ? (
+          <div className="p-12 text-center text-gray-400">명단을 불러오는 중입니다...</div>
+        ) : families.length === 0 ? (
+          <div className="p-12 text-center text-gray-400">워터풀선데이 신청 가족이 아직 없습니다.</div>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-slate-800">
+            {families.map((f) => (
+              <div key={f.id} className="p-4 space-y-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold">{f.parentName}</span>
+                  <span className="font-bold text-cyan-600">{f.totalCount}명</span>
+                </div>
+                <div className="text-gray-500">{f.parentPhone}</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {f.parents.map((p: any, i: number) => (
+                    <span key={i} className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold">
+                      {p.name} ({p.relation})
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {f.children.map((c: any) => (
+                    <span
+                      key={c.id}
+                      className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        !department || c.department === department
+                          ? 'bg-cyan-50 text-cyan-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {c.name} ({departmentLabel(c.department) || c.department})
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 가족 단위 명단 — 데스크톱 테이블 뷰 */}
+      <div className={`hidden md:block rounded-xl border overflow-hidden shadow-md ${tableCls}`}>
         {loading ? (
           <div className="p-12 text-center text-gray-400">명단을 불러오는 중입니다...</div>
         ) : families.length === 0 ? (
@@ -131,7 +168,7 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
                             }`}
                             title={department && c.department !== department ? '다른 부서 소속 자녀' : undefined}
                           >
-                            {c.name} ({DEPT_SHORT_LABELS[c.department] || c.department})
+                            {c.name} ({departmentLabel(c.department) || c.department})
                           </span>
                         ))}
                       </div>

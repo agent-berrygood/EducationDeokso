@@ -2,13 +2,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import RichTextEditor from '@/components/RichTextEditor';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
 import WaterparkRoster from '@/components/WaterparkRoster';
+import AdminSettingsPanel from '@/components/admin/AdminSettingsPanel';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useToast, useConfirm } from '@/components/ui/Feedback';
 import type { FeesConfig } from '@/lib/types';
-import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
+import { genderLabel, departmentFullLabel } from '@/lib/labels';
+import type { NewCustomFieldDraft, SettingsForm, TrackInfo } from '@/components/admin/types';
 
 interface Application {
   id: string;
@@ -18,26 +20,6 @@ interface Application {
   grand_total: number;
   created_at: string;
   children: any[];
-}
-
-const formatToLocalDatetime = (dateString: string | null | undefined) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '';
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
-
-
-
-
-interface CustomField {
-  id: string;
-  label: string;
-  type: 'text' | 'textarea' | 'select' | 'checkbox';
-  required: boolean;
-  options?: string[];
-  columnIndex: number;
 }
 
 interface AdminDashboardProps {
@@ -72,13 +54,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
   // 트랙(연합/분리 운영) state
   const [operatingMode, setOperatingMode] = useState<'union' | 'split'>('union');
-  const [tracks, setTracks] = useState<{ trackKey: string; label: string; subDepartmentIds: string[] }[]>([]);
+  const [tracks, setTracks] = useState<TrackInfo[]>([]);
   const [activeTrackKey, setActiveTrackKey] = useState<string>('main'); // 설정 탭에서 편집 중인 트랙
   const [selectedTrack, setSelectedTrack] = useState<string>('all');    // 신청 현황 탭 필터
   const [newTrack, setNewTrack] = useState<{ label: string; subs: string[] }>({ label: '', subs: [] });
 
   // Settings form state
-  const [settingsForm, setSettingsForm] = useState<any>({
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>({
     title: '',
     eventType: '',
     subtitle: '',
@@ -110,19 +92,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     description: '',
   });
   const [newSubDeptLabel, setNewSubDeptLabel] = useState('');
-  const [newCustomField, setNewCustomField] = useState<any>({
+  const [newCustomField, setNewCustomField] = useState<NewCustomFieldDraft>({
     label: '',
     type: 'text',
     required: false,
     options: '',
     columnIndex: 1,
   });
-
-  const deptNames: Record<string, string> = {
-    kinder: '나우킨더 (미취학)',
-    kids: '나우키즈 (초등부)',
-    teens: '나우틴즈 (중고등부)',
-  };
 
   const loadApplications = async () => {
     try {
@@ -691,24 +667,24 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       } as React.CSSProperties}
     >
       {/* Header Bar */}
-      <header className={`border-b p-6 flex flex-col md:flex-row justify-between items-center gap-4 ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200 shadow-sm'}`}>
+      <header className={`border-b p-4 sm:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200 shadow-sm'}`}>
         <div className="flex items-center gap-3">
           <span className="text-3xl">🔑</span>
           <div>
-            <h1 className="text-2xl font-bold">{deptNames[department] || department} 관리자 패널</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">{departmentFullLabel(department) || department} 관리자 패널</h1>
             <p className="text-sm text-gray-400">교사 전용 성경학교 및 여름 수련회 실시간 CMS 통합 대시보드</p>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3 w-full md:w-auto">
           <button
             onClick={exportExcel}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer"
+            className="flex-1 md:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer whitespace-nowrap"
           >
-            📥 엑셀 내보내기 (xlsx)
+            📥 엑셀 내보내기
           </button>
           <button
             onClick={handleLogout}
-            className="px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-sm font-semibold rounded-lg transition duration-200 cursor-pointer"
+            className="flex-1 md:flex-none px-4 py-2 border border-red-500 text-red-500 hover:bg-red-500 hover:text-white text-sm font-semibold rounded-lg transition duration-200 cursor-pointer whitespace-nowrap"
           >
             🔒 로그아웃
           </button>
@@ -749,6 +725,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           
           {/* 1. Applications Tab */}
           {activeTab === 'applications' && (
+            <ErrorBoundary label="신청 현황">
             <div className="space-y-4">
               {/* 트랙(분리 운영) 필터 — 분리 모드일 때 세부부서 칩 대신 트랙 칩 노출 */}
               {operatingMode === 'split' && !externalSubDepartment && tracks.length > 0 && (
@@ -827,7 +804,57 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 </div>
               </div>
 
-              <div className={`rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+              {/* 모바일 카드 뷰 (md 미만) — 가로 스크롤 테이블 대신 세로 카드 목록 */}
+              <div className={`md:hidden rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
+                {loading ? (
+                  <div className="p-12 text-center text-gray-400">데이터를 스트리밍 중입니다...</div>
+                ) : !processedChildren.length ? (
+                  <div className="p-12 text-center text-gray-400">조건에 일치하는 자녀 정보가 존재하지 않습니다.</div>
+                ) : (
+                  <div className="divide-y divide-gray-200 dark:divide-slate-800">
+                    {processedChildren.map((row, idx) => (
+                      <div key={`m-${row.appId}-${idx}`} className="p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-base text-indigo-600 dark:text-indigo-400">{row.childName}</span>
+                          <span className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-100 dark:bg-slate-800 text-gray-800 dark:text-slate-200">
+                            {row.age}세 ({row.birthDate})
+                          </span>
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-slate-400 grid grid-cols-2 gap-1">
+                          <div>성별: {genderLabel(row.originalChild?.gender) || row.originalChild?.custom20 || row.originalChild?.custom_20 || '-'}</div>
+                          <div>단체티: {row.tshirtSize || '미선택'}</div>
+                          <div className="col-span-2">보호자: {row.parentName} ({row.parentPhone})</div>
+                          {row.depositorName !== row.parentName && <div className="col-span-2">입금자: {row.depositorName}</div>}
+                          <div className="col-span-2 text-red-500">⚠️ 알러지: {row.allergies.join(', ') || '없음'}{row.customAllergy ? ` / 기타: ${row.customAllergy}` : ''}</div>
+                          <div>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${row.attendsWaterpark ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30' : 'bg-gray-100 text-gray-400 dark:bg-slate-800'}`}>
+                              {row.attendsWaterpark ? '워터파크 참가' : '워터파크 미참가'}
+                            </span>
+                          </div>
+                          <div>{new Date(row.createdAt).toLocaleString('ko-KR')}</div>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            onClick={() => setEditingApp(applications.find((a) => a.id === row.appId))}
+                            className="flex-1 px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer"
+                          >
+                            ✏️ 수정
+                          </button>
+                          <button
+                            onClick={() => deleteApplication(row.appId)}
+                            className="flex-1 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer"
+                          >
+                            🗑️ 삭제
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 데스크톱 테이블 뷰 (md 이상) */}
+              <div className={`hidden md:block rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
                 {loading ? (
                   <div className="p-12 text-center text-gray-400">데이터를 스트리밍 중입니다...</div>
                 ) : !processedChildren.length ? (
@@ -912,11 +939,11 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                               <div className="font-semibold">{row.parentName}</div>
                               <div className="text-xs text-gray-400 mt-0.5">{row.parentPhone}</div>
                               {row.depositorName !== row.parentName && (
-                                <div className="text-[11px] text-gray-500">입금자: {row.depositorName}</div>
+                                <div className="text-xs text-gray-500">입금자: {row.depositorName}</div>
                               )}
                             </td>
                             <td className="p-4 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                                 row.attendsWaterpark
                                   ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30'
                                   : 'bg-gray-100 text-gray-400 dark:bg-slate-800'
@@ -969,670 +996,54 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 </button>
               </div>
             </div>
+            </ErrorBoundary>
           )}
 
           {/* 2. Settings Tab */}
           {activeTab === 'settings' && (
-            <div className="space-y-8">
-              <form onSubmit={(e) => { e.preventDefault(); saveSettings(); }} className="space-y-8">
-
-                {/* 운영 모드 & 트랙(연합/분리) 관리 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-1 border-b pb-2">🔀 운영 모드 (연합 / 분리)</h3>
-                  <p className="text-xs text-gray-400 mt-2 mb-4">
-                    이 대부서의 세부부서가 함께 운영(연합)되는지, 별도 트랙으로 분리 운영되는지 설정합니다.
-                    분리 시 트랙마다 독립된 CMS 설정·일정과 신청/워터풀 명단 분리 조회가 가능합니다.
-                  </p>
-                  <div className="flex gap-3 mb-4">
-                    {([
-                      { v: 'union', label: '전체 연합', desc: '세부부서 모두 함께' },
-                      { v: 'split', label: '부서 분리', desc: '트랙별 독립 운영' },
-                    ] as const).map((opt) => (
-                      <button
-                        key={opt.v}
-                        type="button"
-                        disabled={isSaving}
-                        onClick={() => changeOperatingMode(opt.v)}
-                        className={`flex-1 px-4 py-3 rounded-xl border-2 text-left transition-colors disabled:opacity-50 ${
-                          operatingMode === opt.v
-                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                        }`}
-                      >
-                        <span className="block font-bold">{opt.label}</span>
-                        <span className="block text-xs">{opt.desc}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {operatingMode === 'split' && (
-                    <div className="space-y-4 pt-4 border-t border-dashed">
-                      {/* 편집 트랙 선택 */}
-                      <div>
-                        <p className="text-sm font-semibold text-gray-500 mb-2">편집할 트랙 선택 — 아래 모든 설정은 선택된 트랙에 저장됩니다.</p>
-                        <div className="flex flex-wrap gap-2">
-                          {tracks.map((t) => (
-                            <span
-                              key={t.trackKey}
-                              className={`inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold border-2 ${
-                                activeTrackKey === t.trackKey
-                                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                                  : 'border-gray-200 bg-white text-gray-500'
-                              }`}
-                            >
-                              <button type="button" onClick={() => switchTrack(t.trackKey)}>
-                                {t.label}
-                                {t.trackKey !== 'main' && (
-                                  <span className="text-xs text-gray-400 ml-1">({t.subDepartmentIds.length}개 부서)</span>
-                                )}
-                              </button>
-                              {t.trackKey !== 'main' && (
-                                <button
-                                  type="button"
-                                  onClick={() => deleteTrack(t.trackKey)}
-                                  className="text-red-400 hover:text-red-600 font-bold"
-                                  aria-label="트랙 삭제"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                        {activeTrackKey !== 'main' && (
-                          <p className="text-[11px] text-indigo-600 mt-2 font-semibold">
-                            ✎ 현재 「{tracks.find((t) => t.trackKey === activeTrackKey)?.label}」 트랙을 편집 중입니다.
-                          </p>
-                        )}
-                      </div>
-
-                      {/* 새 트랙(그룹) 추가 */}
-                      <div className="p-4 rounded-xl bg-gray-50/60 dark:bg-slate-800/30 border border-dashed">
-                        <p className="text-sm font-semibold text-gray-600 mb-2">＋ 새 트랙(그룹) 추가</p>
-                        <input
-                          type="text"
-                          placeholder="트랙 이름 (예: 유치부 단독, 통미+영유 연합)"
-                          value={newTrack.label}
-                          onChange={(e) => setNewTrack({ ...newTrack, label: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-lg bg-white text-gray-900 text-sm mb-2"
-                        />
-                        <p className="text-xs text-gray-500 mb-1">포함할 세부부서 선택:</p>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          {(settingsForm.subDepartments || []).length === 0 ? (
-                            <span className="text-xs text-gray-400">먼저 아래 「세부 부서 관리」에서 세부부서를 등록하세요.</span>
-                          ) : (
-                            settingsForm.subDepartments.map((sd: any) => {
-                              const checked = newTrack.subs.includes(sd.id);
-                              return (
-                                <label
-                                  key={sd.id}
-                                  className={`px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
-                                    checked ? 'bg-indigo-100 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'
-                                  }`}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    onChange={(e) => {
-                                      const subs = e.target.checked
-                                        ? [...newTrack.subs, sd.id]
-                                        : newTrack.subs.filter((s) => s !== sd.id);
-                                      setNewTrack({ ...newTrack, subs });
-                                    }}
-                                    className="hidden"
-                                  />
-                                  {sd.label}
-                                </label>
-                              );
-                            })
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={addTrack}
-                          disabled={isSaving}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow disabled:opacity-50"
-                        >
-                          트랙 추가
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 기본 정보 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">🎨 기본 행사 정보 설정</h3>
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">공식 행사 명칭</label>
-                        <input
-                          type="text"
-                          value={settingsForm.title}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, title: e.target.value })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                          placeholder="예: 2026 나우킨더 여름성경학교"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">행사 종류 (Top-Right 배지 텍스트)</label>
-                        <input
-                          type="text"
-                          value={settingsForm.eventType}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, eventType: e.target.value })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                          placeholder="예: 여름성경학교, 여름수련회"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold mb-2">📢 공식 홍보 포스터 등록 (다이렉트 파일 업로드 지원)</label>
-                      <div className="flex flex-col md:flex-row gap-4 items-center">
-                        <label className="w-full md:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-center cursor-pointer shadow transition duration-200">
-                          📁 내 컴퓨터에서 이미지 선택...
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePosterUpload}
-                            className="hidden"
-                          />
-                        </label>
-                        <div className="flex-1 w-full">
-                          <input
-                            type="text"
-                            value={settingsForm.posterUrl}
-                            onChange={(e) => setSettingsForm({ ...settingsForm, posterUrl: e.target.value })}
-                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-gray-50 text-gray-900"
-                            placeholder="파일을 선택하면 주소가 자동 주입되며 직접 입력도 가능합니다."
-                          />
-                        </div>
-                      </div>
-                      {settingsForm.posterUrl && (
-                        <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-between">
-                          <div className="text-xs text-gray-500 truncate mr-4">등록된 포스터: <span className="font-semibold text-indigo-650">{settingsForm.posterUrl}</span></div>
-                          <button
-                            type="button"
-                            onClick={() => setSettingsForm({ ...settingsForm, posterUrl: '' })}
-                            className="px-2 py-1 text-xs font-bold text-red-500 hover:text-red-700 transition"
-                          >
-                            ✕ 삭제
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">📅 캠프 시작일 (카운트다운 기준)</label>
-                        <input
-                          type="date"
-                          value={settingsForm.campStartDate}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, campStartDate: e.target.value })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">🗓️ 수련회 진행 방식</label>
-                        <select
-                          value={settingsForm.campType}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, campType: e.target.value })}
-                          className="w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 text-sm"
-                        >
-                          <option value="continuous">연속 수련회 (예: 2박 3일 연속)</option>
-                          <option value="weekly">주일 분산 수련회 (예: 수주에 걸쳐 매주일)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">⏳ 수련회 기간 (총 일차 / 주차)</label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={30}
-                          value={settingsForm.campDuration}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, campDuration: Number(e.target.value) })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">행사 주제 (Theme Slogan) - 리치 텍스트</label>
-                      <RichTextEditor
-                        value={settingsForm.subtitle}
-                        onChange={(html) => setSettingsForm({ ...settingsForm, subtitle: html })}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">성경 구절 (Scripture Verse) - 리치 텍스트</label>
-                      <RichTextEditor
-                        value={settingsForm.scripture}
-                        onChange={(html) => setSettingsForm({ ...settingsForm, scripture: html })}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 테마 컬러 제어 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">🎨 배너 & 테마 스킨 제어</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-1">메인 테마 컬러 (Hex)</label>
-                      <input
-                        type="color"
-                        value={settingsForm.primaryColor}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, primaryColor: e.target.value })}
-                        className="w-full h-12 border rounded-lg p-1 bg-white cursor-pointer"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">배경 톤 컬러 (Hex)</label>
-                      <input
-                        type="color"
-                        value={settingsForm.bgColor}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, bgColor: e.target.value })}
-                        className="w-full h-12 border rounded-lg p-1 bg-white cursor-pointer"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 캠프 부가 설정 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">⚙️ 기타 캠프 부가 설정</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="flex items-center gap-2 cursor-pointer font-medium mb-1">
-                        <input
-                          type="checkbox"
-                          checked={settingsForm.isStepRecruitmentActive}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, isStepRecruitmentActive: e.target.checked })}
-                          className="h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                        여름캠프 스텝 모집 활성화
-                      </label>
-                      <p className="text-xs text-gray-500 mt-1 ml-7">신청서 작성 완료 페이지에 스텝 지원 버튼이 노출됩니다.</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">티셔츠 신청 마감일시</label>
-                      <input
-                        type="datetime-local"
-                        value={formatToLocalDatetime(settingsForm.tshirtDeadline)}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, tshirtDeadline: e.target.value })}
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">이 시각 이후로는 신청서에 티셔츠 선택 항목이 노출되지 않습니다.</p>
-                    </div>
-                  </div>
-
-                  {/* 스텝 티셔츠 사이즈 — 스텝 모집 활성화 시 표시 */}
-                  {settingsForm.isStepRecruitmentActive && (
-                    <div className="mt-5 pt-5 border-t border-dashed">
-                      <label className="block text-sm font-semibold mb-2">👕 스텝 티셔츠 사이즈 옵션</label>
-                      <p className="text-xs text-gray-500 mb-3">
-                        입력한 사이즈가 스텝 신청서에 선택 항목으로 노출됩니다. 비워두면 선택 항목이 표시되지 않습니다.
-                      </p>
-                      <div className="flex gap-3 mb-3">
-                        <input
-                          type="text"
-                          value={newStepTshirtSize}
-                          onChange={(e) => setNewStepTshirtSize(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addStepTshirtSize())}
-                          placeholder="예: S, M, L, XL"
-                          className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
-                        />
-                        <button
-                          type="button"
-                          onClick={addStepTshirtSize}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700"
-                        >
-                          추가
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {(!settingsForm.stepTshirtSizes || settingsForm.stepTshirtSizes.length === 0) ? (
-                          <p className="text-sm text-gray-400">등록된 스텝 티셔츠 사이즈가 없습니다.</p>
-                        ) : (
-                          settingsForm.stepTshirtSizes.map((size: string) => (
-                            <div
-                              key={size}
-                              className="flex items-center gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full text-sm font-bold"
-                            >
-                              {size}
-                              <button
-                                type="button"
-                                onClick={() => removeStepTshirtSize(size)}
-                                className="ml-1 text-indigo-400 hover:text-red-500 text-xs font-bold"
-                              >
-                                ✕
-                            </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 워터풀선데이 설정 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">💦 워터풀선데이 설정</h3>
-                  <div className="mb-5">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium mb-1">
-                      <input
-                        type="checkbox"
-                        checked={settingsForm.isWaterparkActive}
-                        onChange={(e) => setSettingsForm({ ...settingsForm, isWaterparkActive: e.target.checked })}
-                        className="h-5 w-5 rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
-                      />
-                      이 부서의 워터풀선데이 신청 활성화
-                    </label>
-                    <p className="text-xs text-gray-500 mt-1 ml-7">
-                      비활성화하면 신청서에서 이 부서 자녀의 워터풀선데이 참석 항목이 노출되지 않습니다.
-                    </p>
-                  </div>
-
-                  {settingsForm.isWaterparkActive && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-dashed">
-                      <div className="md:col-span-2">
-                        <p className="text-sm font-semibold text-gray-500 mb-2">
-                          📌 부서별 커스텀 안내 — 일정이 다른 부서(예: 나우틴즈)는 여기에서 별도 일정/장소를 지정하세요.
-                          입력한 내용이 신청서의 워터풀 참석 항목에 안내로 표시됩니다.
-                        </p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">행사명 (비우면 기본: 워터풀선데이)</label>
-                        <input
-                          type="text"
-                          placeholder="예: 워터풀선데이"
-                          value={settingsForm.waterparkInfo.title}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, title: e.target.value } })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">날짜</label>
-                        <input
-                          type="date"
-                          value={settingsForm.waterparkInfo.date}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, date: e.target.value } })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">시간</label>
-                        <input
-                          type="text"
-                          placeholder="예: 14:00 - 18:00"
-                          value={settingsForm.waterparkInfo.time}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, time: e.target.value } })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-1">장소</label>
-                        <input
-                          type="text"
-                          placeholder="예: 교회 앞마당 야외풀장"
-                          value={settingsForm.waterparkInfo.location}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, location: e.target.value } })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium mb-1">추가 안내문</label>
-                        <textarea
-                          rows={2}
-                          placeholder="예: 나우틴즈는 본 캠프와 별도 일정으로 진행됩니다. 수영복과 여벌 옷을 준비해주세요."
-                          value={settingsForm.waterparkInfo.note}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, waterparkInfo: { ...settingsForm.waterparkInfo, note: e.target.value } })}
-                          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 bg-white text-gray-900"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* 단체티 사이즈 관리 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">👕 부서별 티셔츠 사이즈 옵션 관리</h3>
-                  <div className="flex gap-3 mb-4">
-                    <input
-                      type="text"
-                      placeholder="추가할 사이즈 입력 (예: L, 100, 2XL)"
-                      value={newTshirtSize}
-                      onChange={(e) => setNewTshirtSize(e.target.value)}
-                      className="flex-1 px-4 py-2 border rounded-lg bg-white text-gray-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={addTshirtSize}
-                      className="px-5 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow cursor-pointer"
-                    >
-                      옵션 추가
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {settingsForm.tshirtSizes.length === 0 ? (
-                      <p className="text-sm text-gray-400">등록된 커스텀 사이즈가 없습니다. (기본 사이즈가 드롭다운에 노출됩니다)</p>
-                    ) : (
-                      settingsForm.tshirtSizes.map((size: string) => (
-                        <div
-                          key={size}
-                          className="flex items-center gap-2 bg-indigo-50 border border-indigo-150 px-3.5 py-1.5 rounded-full text-indigo-700 font-semibold text-sm"
-                        >
-                          <span>{size}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeTshirtSize(size)}
-                            className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 세부 부서 관리 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <h3 className="text-xl font-bold mb-4 border-b pb-2">📂 하위/세부 부서 관리</h3>
-                  <div className="flex gap-3 mb-4">
-                    <input
-                      type="text"
-                      placeholder="추가할 세부 부서 이름 (예: 초등1부, 유치부 등)"
-                      value={newSubDeptLabel}
-                      onChange={(e) => setNewSubDeptLabel(e.target.value)}
-                      className="flex-1 px-4 py-2 border rounded-lg bg-white text-gray-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={addSubDepartment}
-                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow cursor-pointer"
-                    >
-                      부서 추가
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(!settingsForm.subDepartments || settingsForm.subDepartments.length === 0) ? (
-                      <p className="text-sm text-gray-400">등록된 세부 부서가 없습니다. (추가하지 않으면 메인 부서만 표시됩니다)</p>
-                    ) : (
-                      settingsForm.subDepartments.map((sd: any) => (
-                        <div
-                          key={sd.id}
-                          className="flex items-center gap-2 bg-blue-50 border border-blue-150 px-3.5 py-1.5 rounded-full text-blue-700 font-semibold text-sm"
-                        >
-                          <span>{sd.label}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeSubDepartment(sd.id)}
-                            className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
-                          >
-                            &times;
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* 수련회 세부 일정(타임라인) 설정 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4 border-b pb-4">
-                    <div>
-                      <h3 className="text-xl font-bold">📅 수련회 세부 일정(타임라인) 그래픽 설정</h3>
-                      <p className="text-xs text-gray-400 mt-1">드래그 앤 드롭과 프리셋이 지원되는 단독 전체화면 디자인 에디터에서 일정을 한눈에 편집하세요.</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open(`/${department}/admin/schedule`, '_blank')}
-                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow-lg cursor-pointer flex items-center gap-2 transform active:scale-95 transition"
-                    >
-                      🎨 일정 그래픽 캔버스 에디터 열기
-                    </button>
-                  </div>
-                  
-                  {/* 대시보드 내에서는 약식 등록 및 현황 조회만 제공 */}
-                  <div className="text-sm p-4 rounded-xl bg-indigo-50/50 dark:bg-slate-800/20 text-indigo-700 dark:text-indigo-300 font-semibold mb-6">
-                    💡 현재 설정된 방식: <strong className="underline">{settingsForm.campType === 'continuous' ? '연속 수련회' : '주일 분산 수련회'}</strong> ({settingsForm.campDuration}일간 / {settingsForm.campDuration}주간)
-                  </div>
-                  
-                  {/* 등록된 일정 목록 (간략히 10개만 리스트업) */}
-                  <div className="space-y-2">
-                    {!settingsForm.campSchedule || settingsForm.campSchedule.length === 0 ? (
-                      <p className="text-center p-6 border border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400">등록된 세부 일정이 없습니다. 그래픽 에디터를 열고 프리셋 템플릿을 생성해보세요.</p>
-                    ) : (
-                      settingsForm.campSchedule.slice(0, 10).map((item: any) => (
-                        <div key={item.id} className="flex items-center justify-between p-3 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800 text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold">
-                              {item.day}{settingsForm.campType === 'continuous' ? '일차' : '주차'}
-                            </span>
-                            <span className="font-bold text-gray-500">
-                              🕒 {item.time}
-                            </span>
-                            <span className="font-bold text-gray-800 dark:text-white">
-                              {item.title}
-                            </span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                    {settingsForm.campSchedule && settingsForm.campSchedule.length > 10 && (
-                      <p className="text-center text-xs text-gray-400 mt-2">외에 {settingsForm.campSchedule.length - 10}개의 일정이 더 있습니다. 에디터에서 전체 상세 보기가 가능합니다.</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* 추가 맞춤 문항 질문 설정 */}
-                <div className={`p-6 rounded-2xl border shadow-sm ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100'}`}>
-                  <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h3 className="text-xl font-bold">📋 신청서 추가 수집 질문 문항 설정</h3>
-                    <button
-                      type="button"
-                      onClick={addCustomField}
-                      className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-lg shadow cursor-pointer"
-                    >
-                      ➕ 새 문항 임시 추가
-                    </button>
-                  </div>
-
-                  <div className="space-y-4 mb-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-800/40">
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-500 mb-1">문항 질문 제목 (Label)</label>
-                        <input
-                          type="text"
-                          placeholder="예: 셔틀버스를 어디서 타시나요?"
-                          value={newCustomField.label}
-                          onChange={(e) => setNewCustomField({ ...newCustomField, label: e.target.value })}
-                          className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-gray-500 mb-1">입력 컨트롤 타입 (Type)</label>
-                        <select
-                          value={newCustomField.type}
-                          onChange={(e) => setNewCustomField({ ...newCustomField, type: e.target.value as any })}
-                          className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
-                        >
-                          <option value="text">단답형 텍스트</option>
-                          <option value="textarea">장문형 텍스트</option>
-                          <option value="select">드롭다운 선택 (Select)</option>
-                          <option value="checkbox">동의/체크박스 (Checkbox)</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center pt-5">
-                        <label className="flex items-center space-x-2 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={newCustomField.required}
-                            onChange={(e) => setNewCustomField({ ...newCustomField, required: e.target.checked })}
-                            className="h-4 w-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
-                          />
-                          <span className="text-sm font-semibold">필수 응답 항목 지정</span>
-                        </label>
-                      </div>
-                      {(newCustomField.type === 'select' || newCustomField.type === 'checkbox') && (
-                        <div className="md:col-span-3 pt-2 border-t border-dashed border-gray-200">
-                          <label className="block text-xs font-semibold text-gray-500 mb-1">선택지 옵션 리스트 (콤마 , 로 구분)</label>
-                          <input
-                            type="text"
-                            placeholder="예: 덕소역 탑승, 삼패동 탑승, 개별 이동"
-                            value={newCustomField.options}
-                            onChange={(e) => setNewCustomField({ ...newCustomField, options: e.target.value })}
-                            className="w-full px-3 py-1.5 border rounded-lg bg-white text-gray-900 text-sm"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 등록된 추가 질문 리스트 */}
-                  <div className="space-y-3">
-                    {settingsForm.customFields.length === 0 ? (
-                      <p className="text-center p-6 border-2 border-dashed border-gray-200 dark:border-slate-800 rounded-xl text-gray-400">추가적으로 수집할 맞춤 질문이 없습니다.</p>
-                    ) : (
-                      settingsForm.customFields.map((field: any, idx: number) => (
-                        <div key={field.id} className="flex items-center justify-between p-4 border rounded-xl bg-gray-50/50 dark:bg-slate-900/50 dark:border-slate-800">
-                          <div>
-                            <p className="font-bold text-base flex items-center gap-1.5">
-                              <span>❓</span> {field.label} {field.required && <span className="text-red-500 font-bold text-xs">*필수</span>}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                              타입: {field.type === 'text' ? '단답형' : field.type === 'textarea' ? '장문형' : field.type === 'select' ? '드롭다운' : '체크박스'}
-                              {field.options && field.options.length > 0 && ` | 선택지: [${field.options.join(', ')}]`}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => removeCustomField(field.id)}
-                            className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded shadow transition cursor-pointer"
-                          >
-                            삭제
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="px-10 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg transition duration-200 disabled:opacity-50 cursor-pointer transform active:scale-95"
-                  >
-                    {isSaving ? '설정 데이터 동기화 중...' : '💾 CMS 설정 최종 적용'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <ErrorBoundary label="CMS 설정">
+              <AdminSettingsPanel
+                department={department}
+                dark={department === 'teens'}
+                isSaving={isSaving}
+                operatingMode={operatingMode}
+                tracks={tracks}
+                activeTrackKey={activeTrackKey}
+                newTrack={newTrack}
+                setNewTrack={setNewTrack}
+                settingsForm={settingsForm}
+                setSettingsForm={setSettingsForm}
+                newTshirtSize={newTshirtSize}
+                setNewTshirtSize={setNewTshirtSize}
+                newStepTshirtSize={newStepTshirtSize}
+                setNewStepTshirtSize={setNewStepTshirtSize}
+                newSubDeptLabel={newSubDeptLabel}
+                setNewSubDeptLabel={setNewSubDeptLabel}
+                newCustomField={newCustomField}
+                setNewCustomField={setNewCustomField}
+                saveSettings={saveSettings}
+                changeOperatingMode={changeOperatingMode}
+                switchTrack={switchTrack}
+                addTrack={addTrack}
+                deleteTrack={deleteTrack}
+                addTshirtSize={addTshirtSize}
+                removeTshirtSize={removeTshirtSize}
+                addStepTshirtSize={addStepTshirtSize}
+                removeStepTshirtSize={removeStepTshirtSize}
+                addSubDepartment={addSubDepartment}
+                removeSubDepartment={removeSubDepartment}
+                addCustomField={addCustomField}
+                removeCustomField={removeCustomField}
+                handlePosterUpload={handlePosterUpload}
+              />
+            </ErrorBoundary>
           )}
 
           {/* 워터풀선데이 신청 명단 (가족 단위) — 공용 컴포넌트 */}
           {activeTab === 'waterpark' && (
-            <WaterparkRoster department={department} dark={department === 'teens'} />
+            <ErrorBoundary label="워터풀 명단">
+              <WaterparkRoster department={department} dark={department === 'teens'} />
+            </ErrorBoundary>
           )}
 
           {/* 4. Surveys Tab */}
@@ -1644,15 +1055,17 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       </div>
 
       {editingApp && (
-        <ApplicationEditModal
-          application={editingApp}
-          config={config}
-          onClose={() => setEditingApp(null)}
-          onSaved={() => {
-            setEditingApp(null);
-            loadApplications();
-          }}
-        />
+        <ErrorBoundary label="신청서 수정">
+          <ApplicationEditModal
+            application={editingApp}
+            config={config}
+            onClose={() => setEditingApp(null)}
+            onSaved={() => {
+              setEditingApp(null);
+              loadApplications();
+            }}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );

@@ -1,0 +1,13 @@
+#!/bin/sh
+# TypeScript 타입 오류를 커밋 전에 잡기 위한 로컬 pre-commit 훅.
+# 활성화: git config core.hooksPath .githooks
+
+echo "[pre-commit] Running tsc --noEmit..."
+npx tsc --noEmit
+if [ $? -ne 0 ]; then
+  echo "[pre-commit] Type errors found. Commit aborted."
+  exit 1
+fi
+
+echo "[pre-commit] OK"
+exit 0

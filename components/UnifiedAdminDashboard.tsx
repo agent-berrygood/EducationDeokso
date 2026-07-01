@@ -5,12 +5,8 @@ import AdminDashboard from '@/components/AdminDashboard';
 import GlobalFeesSettings from '@/components/GlobalFeesSettings';
 import WaterparkRoster from '@/components/WaterparkRoster';
 import type { DepartmentId, EventConfig, SubDepartment } from '@/lib/types';
-
-const DEPT_LABELS: Record<DepartmentId, string> = {
-  kinder: '나우킨더',
-  kids: '나우키즈',
-  teens: '나우틴즈',
-};
+import { departmentLabel } from '@/lib/labels';
+import { useToast } from '@/components/ui/Feedback';
 
 interface Props {
   allowedDepartments: DepartmentId[];
@@ -21,6 +17,7 @@ type TopTab = DepartmentId | 'global' | 'waterpark';
 export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
   // 교역자 단일 운영 - 어드민은 항상 글로벌 설정 노출
   const canSeeGlobal = true;
+  const showToast = useToast();
 
   const [activeTab, setActiveTab] = useState<TopTab>(allowedDepartments[0]);
   const [activeSubDept, setActiveSubDept] = useState<string>('all');
@@ -40,8 +37,10 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
         if (json.success) setConfig(json.data);
       } catch {
         setConfig(null);
+        showToast('부서 설정을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.', 'error');
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const subDepartments: SubDepartment[] = useMemo(
@@ -54,7 +53,7 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="bg-slate-900 text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">통합 관리자</h1>
             <p className="text-xs text-cyan-300">GODS WILL · 지금세대교육부</p>
@@ -78,7 +77,7 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
                   : 'text-slate-300 hover:text-white'
               }`}
             >
-              {DEPT_LABELS[dept]}
+              {departmentLabel(dept)}
             </button>
           ))}
           <button

@@ -23,6 +23,18 @@ export function departmentLabel(value: any): string {
   return String(value);
 }
 
+// ── 대부서 (전체 표기, 어드민 헤더용) ───────────────────────
+const DEPT_FULL_LABELS: Record<string, string> = {
+  kinder: '나우킨더 (미취학)',
+  kids: '나우키즈 (초등부)',
+  teens: '나우틴즈 (중고등부)',
+};
+export function departmentFullLabel(value: any): string {
+  if (!value) return '';
+  const key = String(value).toLowerCase().trim();
+  return DEPT_FULL_LABELS[key] ?? departmentLabel(value);
+}
+
 // ── 워터풀 보호자 관계 ─────────────────────────────────────
 const RELATION_LABELS: Record<string, string> = {
   '부': '부', '모': '모', '조부': '조부', '조모': '조모', '기타': '기타',

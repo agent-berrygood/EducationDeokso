@@ -1309,7 +1309,7 @@ function Step3({
           <p className="font-bold text-amber-800">📌 입금자명 입력 안내</p>
           <p>
             · 수련회(성경학교) 회비: <strong className="text-slate-800">&quot;세부부서 약칭 + 자녀 이름&quot;</strong>으로 입금해 주세요.
-            <span className="block text-[11px] text-slate-500 mt-0.5 ml-2">
+            <span className="block text-xs text-slate-500 mt-0.5 ml-2">
               약칭: 통미(통합미취학부) / 영유(영유아부) / 유치(유치부) / 통아(통합아동부) / 유년(유년부) / 소년(소년부) / 중등(중등부) / 고등(고등부)
             </span>
           </p>
@@ -1390,12 +1390,12 @@ function AccountInfoCard({
             {account || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
           </p>
           {depositorNote && (
-            <p className="text-[11px] font-bold text-amber-700 mt-1">✍️ {depositorNote}</p>
+            <p className="text-xs font-bold text-amber-700 mt-1">✍️ {depositorNote}</p>
           )}
-          {meta && <p className="text-[11px] text-slate-400 mt-1">{meta}</p>}
+          {meta && <p className="text-xs text-slate-400 mt-1">{meta}</p>}
         </div>
         <div className="text-right md:min-w-[140px]">
-          <p className="text-[10px] text-slate-400">입금 금액</p>
+          <p className="text-xs text-slate-400">입금 금액</p>
           <p className="text-xl font-extrabold text-cyan-600">
             {amount.toLocaleString()}원
           </p>
