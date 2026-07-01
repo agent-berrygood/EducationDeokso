@@ -13,6 +13,7 @@ import type {
 import { suggestDepartment } from '@/lib/age-to-department';
 import { applicationSubmitSchema } from '@/lib/schemas';
 import { subDepartmentShortLabel } from '@/lib/labels';
+import { getPresetSubDepartments } from '@/lib/subDepartments';
 
 function formatPhoneNumber(val: string): string {
   const clean = val.replace(/\D/g, '');
@@ -771,24 +772,18 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
           </div>
         )}
 
-        {activeConfig && (
+        {child.department && (
           <Field label="세부 부서">
-            {activeConfig.subDepartments && activeConfig.subDepartments.length > 0 ? (
-              <select
-                value={child.subDepartment}
-                onChange={(e) => patchChild(child.uid, { subDepartment: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
-              >
-                <option value="">선택</option>
-                {activeConfig.subDepartments.map((sd) => (
-                  <option key={sd.id} value={sd.id}>{sd.label}</option>
-                ))}
-              </select>
-            ) : (
-              <div className="px-4 py-3 border border-amber-300 bg-amber-50 text-amber-800 text-sm rounded-lg">
-                세부 부서 정보가 아직 설정되지 않았습니다. 관리자에게 문의해 주세요.
-              </div>
-            )}
+            <select
+              value={child.subDepartment}
+              onChange={(e) => patchChild(child.uid, { subDepartment: e.target.value })}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+            >
+              <option value="">선택</option>
+              {getPresetSubDepartments(child.department).map((sd) => (
+                <option key={sd.id} value={sd.id}>{sd.label}</option>
+              ))}
+            </select>
           </Field>
         )}
 

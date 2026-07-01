@@ -4,6 +4,7 @@ import React from 'react';
 import RichTextEditor from '@/components/RichTextEditor';
 import Accordion from '@/components/ui/Accordion';
 import { formatToLocalDatetime } from '@/lib/datetime';
+import { getPresetSubDepartments } from '@/lib/subDepartments';
 import type { NewCustomFieldDraft, SettingsForm, TrackInfo } from './types';
 
 interface AdminSettingsPanelProps {
@@ -21,8 +22,6 @@ interface AdminSettingsPanelProps {
   setNewTshirtSize: (v: string) => void;
   newStepTshirtSize: string;
   setNewStepTshirtSize: (v: string) => void;
-  newSubDeptLabel: string;
-  setNewSubDeptLabel: (v: string) => void;
   newCustomField: NewCustomFieldDraft;
   setNewCustomField: React.Dispatch<React.SetStateAction<NewCustomFieldDraft>>;
   saveSettings: () => void;
@@ -34,8 +33,6 @@ interface AdminSettingsPanelProps {
   removeTshirtSize: (size: string) => void;
   addStepTshirtSize: () => void;
   removeStepTshirtSize: (size: string) => void;
-  addSubDepartment: () => void;
-  removeSubDepartment: (id: string) => void;
   addCustomField: () => void;
   removeCustomField: (id: string) => void;
   handlePosterUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -56,8 +53,6 @@ export default function AdminSettingsPanel({
   setNewTshirtSize,
   newStepTshirtSize,
   setNewStepTshirtSize,
-  newSubDeptLabel,
-  setNewSubDeptLabel,
   newCustomField,
   setNewCustomField,
   saveSettings,
@@ -69,8 +64,6 @@ export default function AdminSettingsPanel({
   removeTshirtSize,
   addStepTshirtSize,
   removeStepTshirtSize,
-  addSubDepartment,
-  removeSubDepartment,
   addCustomField,
   removeCustomField,
   handlePosterUpload,
@@ -158,34 +151,30 @@ export default function AdminSettingsPanel({
                 />
                 <p className="text-xs text-gray-500 mb-1">포함할 세부부서 선택:</p>
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {(settingsForm.subDepartments || []).length === 0 ? (
-                    <span className="text-xs text-gray-400">먼저 아래 「세부 부서 관리」에서 세부부서를 등록하세요.</span>
-                  ) : (
-                    settingsForm.subDepartments.map((sd) => {
-                      const checked = newTrack.subs.includes(sd.id);
-                      return (
-                        <label
-                          key={sd.id}
-                          className={`px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
-                            checked ? 'bg-indigo-100 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const subs = e.target.checked
-                                ? [...newTrack.subs, sd.id]
-                                : newTrack.subs.filter((s) => s !== sd.id);
-                              setNewTrack({ ...newTrack, subs });
-                            }}
-                            className="hidden"
-                          />
-                          {sd.label}
-                        </label>
-                      );
-                    })
-                  )}
+                  {getPresetSubDepartments(department).map((sd) => {
+                    const checked = newTrack.subs.includes(sd.id);
+                    return (
+                      <label
+                        key={sd.id}
+                        className={`px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
+                          checked ? 'bg-indigo-100 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const subs = e.target.checked
+                              ? [...newTrack.subs, sd.id]
+                              : newTrack.subs.filter((s) => s !== sd.id);
+                            setNewTrack({ ...newTrack, subs });
+                          }}
+                          className="hidden"
+                        />
+                        {sd.label}
+                      </label>
+                    );
+                  })}
                 </div>
                 <button
                   type="button"
@@ -513,47 +502,6 @@ export default function AdminSettingsPanel({
                   <button
                     type="button"
                     onClick={() => removeTshirtSize(size)}
-                    className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
-                  >
-                    &times;
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        </Accordion>
-
-        {/* 세부 부서 관리 */}
-        <Accordion title="하위/세부 부서 관리" icon="📂" dark={dark}>
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              placeholder="추가할 세부 부서 이름 (예: 초등1부, 유치부 등)"
-              value={newSubDeptLabel}
-              onChange={(e) => setNewSubDeptLabel(e.target.value)}
-              className="flex-1 px-4 py-2 border rounded-lg bg-white text-gray-900"
-            />
-            <button
-              type="button"
-              onClick={addSubDepartment}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow cursor-pointer"
-            >
-              부서 추가
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(!settingsForm.subDepartments || settingsForm.subDepartments.length === 0) ? (
-              <p className="text-sm text-gray-400">등록된 세부 부서가 없습니다. (추가하지 않으면 메인 부서만 표시됩니다)</p>
-            ) : (
-              settingsForm.subDepartments.map((sd) => (
-                <div
-                  key={sd.id}
-                  className="flex items-center gap-2 bg-blue-50 border border-blue-150 px-3.5 py-1.5 rounded-full text-blue-700 font-semibold text-sm"
-                >
-                  <span>{sd.label}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeSubDepartment(sd.id)}
                     className="text-red-500 hover:text-red-700 font-bold cursor-pointer text-base"
                   >
                     &times;

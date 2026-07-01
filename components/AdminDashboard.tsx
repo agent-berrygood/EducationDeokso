@@ -10,6 +10,7 @@ import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { useToast, useConfirm } from '@/components/ui/Feedback';
 import type { FeesConfig } from '@/lib/types';
 import { genderLabel, departmentFullLabel } from '@/lib/labels';
+import { getPresetSubDepartments } from '@/lib/subDepartments';
 import type { NewCustomFieldDraft, SettingsForm, TrackInfo } from '@/components/admin/types';
 
 interface Application {
@@ -69,7 +70,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     bgColor: department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A',
     tshirtSizes: [],
     customFields: [],
-    subDepartments: [],
+    subDepartments: getPresetSubDepartments(department),
     campStartDate: '',
     campSchedule: [],
     campType: 'continuous',
@@ -91,7 +92,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     title: '',
     description: '',
   });
-  const [newSubDeptLabel, setNewSubDeptLabel] = useState('');
   const [newCustomField, setNewCustomField] = useState<NewCustomFieldDraft>({
     label: '',
     type: 'text',
@@ -129,7 +129,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       bgColor: data.bg_color || (department === 'kinder' ? '#FEF08A' : department === 'kids' ? '#DBEAFE' : '#0F172A'),
       tshirtSizes: data.tshirtSizes || [],
       customFields: data.customFieldMappings || [],
-      subDepartments: data.subDepartments || [],
+      // 세부부서는 CMS에서 편집 불가 — 항상 부서별 고정 프리셋만 사용 (DB 값은 무시)
+      subDepartments: getPresetSubDepartments(department),
       campStartDate: data.camp_start_date || '',
       campSchedule: data.campSchedule || [],
       campType: data.campType || 'continuous',
@@ -473,23 +474,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }));
   };
 
-  const addSubDepartment = () => {
-    if (!newSubDeptLabel.trim()) return;
-    const newId = newSubDeptLabel.trim().replace(/\s+/g, '_').toLowerCase();
-    setSettingsForm((prev: any) => ({
-      ...prev,
-      subDepartments: [...(prev.subDepartments || []), { id: newId, label: newSubDeptLabel.trim() }],
-    }));
-    setNewSubDeptLabel('');
-  };
-
-  const removeSubDepartment = (id: string) => {
-    setSettingsForm((prev: any) => ({
-      ...prev,
-      subDepartments: (prev.subDepartments || []).filter((sd: any) => sd.id !== id),
-    }));
-  };
-
   const addCustomField = () => {
     if (!newCustomField.label.trim()) return;
     const field = {
@@ -758,7 +742,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
               )}
 
               {/* 하위 부서 탭 필터 (연합 모드 + 외부 subDepartment prop이 없을 때) */}
-              {operatingMode === 'union' && !externalSubDepartment && config?.subDepartments && config.subDepartments.length > 0 && (
+              {operatingMode === 'union' && !externalSubDepartment && getPresetSubDepartments(department).length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   <button
                     onClick={() => setSelectedSubDept('all')}
@@ -770,7 +754,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                   >
                     전체
                   </button>
-                  {config.subDepartments.map((sub: any) => (
+                  {getPresetSubDepartments(department).map((sub) => (
                     <button
                       key={sub.id}
                       onClick={() => setSelectedSubDept(sub.id)}
@@ -1017,8 +1001,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 setNewTshirtSize={setNewTshirtSize}
                 newStepTshirtSize={newStepTshirtSize}
                 setNewStepTshirtSize={setNewStepTshirtSize}
-                newSubDeptLabel={newSubDeptLabel}
-                setNewSubDeptLabel={setNewSubDeptLabel}
                 newCustomField={newCustomField}
                 setNewCustomField={setNewCustomField}
                 saveSettings={saveSettings}
@@ -1030,8 +1012,6 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 removeTshirtSize={removeTshirtSize}
                 addStepTshirtSize={addStepTshirtSize}
                 removeStepTshirtSize={removeStepTshirtSize}
-                addSubDepartment={addSubDepartment}
-                removeSubDepartment={removeSubDepartment}
                 addCustomField={addCustomField}
                 removeCustomField={removeCustomField}
                 handlePosterUpload={handlePosterUpload}

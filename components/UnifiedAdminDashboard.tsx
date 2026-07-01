@@ -4,9 +4,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AdminDashboard from '@/components/AdminDashboard';
 import GlobalFeesSettings from '@/components/GlobalFeesSettings';
 import WaterparkRoster from '@/components/WaterparkRoster';
-import type { DepartmentId, EventConfig, SubDepartment } from '@/lib/types';
+import type { DepartmentId } from '@/lib/types';
 import { departmentLabel } from '@/lib/labels';
-import { useToast } from '@/components/ui/Feedback';
+import { getPresetSubDepartments } from '@/lib/subDepartments';
 
 interface Props {
   allowedDepartments: DepartmentId[];
@@ -17,35 +17,19 @@ type TopTab = DepartmentId | 'global' | 'waterpark';
 export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
   // 교역자 단일 운영 - 어드민은 항상 글로벌 설정 노출
   const canSeeGlobal = true;
-  const showToast = useToast();
 
   const [activeTab, setActiveTab] = useState<TopTab>(allowedDepartments[0]);
   const [activeSubDept, setActiveSubDept] = useState<string>('all');
-  const [config, setConfig] = useState<EventConfig | null>(null);
 
-  // 부서 변경 시 세부부서 reset + config 로드
+  // 부서 변경 시 세부부서 필터 초기화
   useEffect(() => {
     setActiveSubDept('all');
-    if (activeTab === 'global' || activeTab === 'waterpark') {
-      setConfig(null);
-      return;
-    }
-    (async () => {
-      try {
-        const res = await fetch(`/api/config/${activeTab}`);
-        const json = await res.json();
-        if (json.success) setConfig(json.data);
-      } catch {
-        setConfig(null);
-        showToast('부서 설정을 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.', 'error');
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  const subDepartments: SubDepartment[] = useMemo(
-    () => config?.subDepartments || [],
-    [config]
+  // 세부부서는 CMS 편집 대상이 아닌 부서별 고정 프리셋
+  const subDepartments = useMemo(
+    () => (activeTab === 'global' || activeTab === 'waterpark' ? [] : getPresetSubDepartments(activeTab)),
+    [activeTab]
   );
 
   const isDeptTab = activeTab !== 'global' && activeTab !== 'waterpark';
