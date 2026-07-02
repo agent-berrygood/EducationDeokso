@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { queryMany } from '@/lib/db';
+import { queryMany, query } from '@/lib/db';
 import { checkDepartmentAccess, requireAdmin } from '@/lib/auth';
 import { trackSubDepartments } from '@/lib/track-query';
 import type { DepartmentId } from '@/lib/types';
@@ -113,6 +113,81 @@ export async function GET(request: Request) {
     return Response.json({ success: true, data, summary });
   } catch (error) {
     console.error('GET /waterpark/applicants 오류:', error);
+    return Response.json({ success: false, error: String(error) }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/waterpark/applicants
+ * 워터풀 참석에서만 제외한다 (성경학교/수련회 신청 자체는 보존).
+ * 자녀의 attends_waterpark 플래그를 false로 바꾸는 것이므로 신청 데이터는 삭제되지 않는다.
+ *
+ * body:
+ *  - { applicationId } : 특정 가족(신청서) 제외
+ *  - { all: true }     : 현재 보고 있는 명단 전체 제외
+ *  - department 지정 시 해당 부서 자녀만 대상으로 제한 (부서 탭 범위와 일치)
+ */
+export async function PATCH(request: Request) {
+  try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ success: false, error: '요청 본문이 올바르지 않습니다.' }, { status: 400 });
+    }
+
+    const department = body?.department as string | undefined;
+    const applicationId = body?.applicationId as string | undefined;
+    const all = body?.all === true;
+
+    if (!applicationId && !all) {
+      return Response.json(
+        { success: false, error: 'applicationId 또는 all 플래그가 필요합니다.' },
+        { status: 400 }
+      );
+    }
+
+    // 부서 지정 시 접근 권한 검증 (GET과 동일)
+    if (department) {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('admin_session')?.value
+        || request.headers.get('authorization') || '';
+      const check = await checkDepartmentAccess(
+        token.startsWith('Bearer ') ? token.slice(7) : token,
+        department as DepartmentId
+      );
+      if (!check.ok) {
+        return Response.json({ success: false, error: check.reason }, { status: 403 });
+      }
+    }
+
+    const conditions = ['attends_waterpark = TRUE'];
+    const params: any[] = [];
+    if (applicationId) {
+      params.push(applicationId);
+      conditions.push(`application_id = $${params.length}`);
+    }
+    // 부서 지정 시 해당 부서 자녀만 제외 (다른 부서 자녀의 워터풀 참석은 보존)
+    if (department) {
+      params.push(department);
+      conditions.push(`department = $${params.length}`);
+    }
+
+    const result = await query(
+      `UPDATE application_children SET attends_waterpark = FALSE WHERE ${conditions.join(' AND ')}`,
+      params
+    );
+
+    return Response.json({
+      success: true,
+      message: '워터풀 명단에서 제외했습니다. (성경학교 신청은 유지됩니다)',
+      data: { childrenRemoved: result.rowCount ?? 0 },
+    });
+  } catch (error) {
+    console.error('PATCH /waterpark/applicants 오류:', error);
     return Response.json({ success: false, error: String(error) }, { status: 500 });
   }
 }

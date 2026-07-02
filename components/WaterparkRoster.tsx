@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { departmentLabel } from '@/lib/labels';
+import { useToast, useConfirm } from '@/components/ui/Feedback';
 
 interface WaterparkRosterProps {
   /** 지정 시 해당 부서 자녀가 워터풀 참석하는 가족만 표시. 미지정 시 전체 명단. */
@@ -15,29 +16,66 @@ interface WaterparkRosterProps {
  * 전체 명단 탭에서 공용으로 사용.
  */
 export default function WaterparkRoster({ department, dark = false }: WaterparkRosterProps) {
+  const showToast = useToast();
+  const confirmDialog = useConfirm();
   const [families, setFamilies] = useState<any[]>([]);
   const [summary, setSummary] = useState({ familyCount: 0, parentCount: 0, childCount: 0 });
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const qs = department ? `?department=${department}` : '';
-        const res = await fetch(`/api/waterpark/applicants${qs}`);
-        if (!res.ok) throw new Error('Fetch failed');
-        const json = await res.json();
-        setFamilies(json.data || []);
-        setSummary(json.summary || { familyCount: 0, parentCount: 0, childCount: 0 });
-      } catch {
-        setError('워터풀 신청 명단을 불러오는데 실패했습니다.');
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const loadRoster = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const qs = department ? `?department=${department}` : '';
+      const res = await fetch(`/api/waterpark/applicants${qs}`);
+      if (!res.ok) throw new Error('Fetch failed');
+      const json = await res.json();
+      setFamilies(json.data || []);
+      setSummary(json.summary || { familyCount: 0, parentCount: 0, childCount: 0 });
+    } catch {
+      setError('워터풀 신청 명단을 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
+    }
   }, [department]);
+
+  useEffect(() => {
+    loadRoster();
+  }, [loadRoster]);
+
+  // 워터풀에서만 제외 (성경학교 신청은 유지)
+  const patchWaterpark = async (payload: Record<string, any>) => {
+    setBusy(true);
+    try {
+      const res = await fetch('/api/waterpark/applicants', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payload, department }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Patch failed');
+      showToast(`워터풀 명단에서 제외했습니다. (자녀 ${json.data.childrenRemoved}명)`, 'success');
+      await loadRoster();
+    } catch {
+      showToast('워터풀 명단 제외 도중 오류가 발생했습니다.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeFamily = async (family: any) => {
+    if (!(await confirmDialog(`${family.parentName} 가족을 워터풀 명단에서 제외하시겠습니까?\n성경학교/수련회 신청은 그대로 유지됩니다.`))) return;
+    await patchWaterpark({ applicationId: family.id });
+  };
+
+  const clearAll = async () => {
+    if (families.length === 0) return;
+    const scopeLabel = department ? `${departmentLabel(department)} 부서` : '전체';
+    if (!(await confirmDialog(`현재 명단(${scopeLabel})의 모든 가족을 워터풀에서 제외하시겠습니까?\n성경학교/수련회 신청은 유지되며, 워터풀 참석만 취소됩니다.`))) return;
+    await patchWaterpark({ all: true });
+  };
 
   const cardCls = dark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-100';
   const tableCls = dark ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200';
@@ -54,12 +92,21 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
             {department ? ' 가족 내 다른 부서 자녀도 함께 표시됩니다.' : ''}
           </p>
         </div>
-        <button
-          onClick={() => window.open(`/api/export/waterpark${department ? `?department=${department}` : ''}`, '_blank')}
-          className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer"
-        >
-          📥 가족단위 명단 엑셀 추출
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => window.open(`/api/export/waterpark${department ? `?department=${department}` : ''}`, '_blank')}
+            className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white text-sm font-semibold rounded-lg shadow transition duration-200 cursor-pointer"
+          >
+            📥 가족단위 명단 엑셀 추출
+          </button>
+          <button
+            onClick={clearAll}
+            disabled={busy || families.length === 0}
+            className="px-4 py-2 border border-red-500 text-red-600 hover:bg-red-500 hover:text-white text-sm font-semibold rounded-lg transition duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            🗑️ 전체 워터풀 명단 비우기
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -118,6 +165,13 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
                     </span>
                   ))}
                 </div>
+                <button
+                  onClick={() => removeFamily(f)}
+                  disabled={busy}
+                  className="mt-1 w-full px-3 py-1.5 border border-red-400 text-red-600 hover:bg-red-500 hover:text-white text-xs font-bold rounded-lg transition disabled:opacity-40"
+                >
+                  워터풀 명단에서 제외
+                </button>
               </div>
             ))}
           </div>
@@ -140,6 +194,7 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
                   <th className="px-4 py-3">동반 보호자</th>
                   <th className="px-4 py-3">참석 자녀</th>
                   <th className="px-4 py-3 text-center">인원</th>
+                  <th className="px-4 py-3 text-center">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-slate-800">
@@ -174,6 +229,15 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-cyan-600">{f.totalCount}명</td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => removeFamily(f)}
+                        disabled={busy}
+                        className="px-3 py-1 border border-red-400 text-red-600 hover:bg-red-500 hover:text-white text-xs font-bold rounded transition disabled:opacity-40 whitespace-nowrap"
+                      >
+                        제외
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
