@@ -13,6 +13,8 @@ interface AdminSettingsPanelProps {
   isSaving: boolean;
   operatingMode: 'union' | 'split';
   tracks: TrackInfo[];
+  /** 아직 어떤 non-main 트랙에도 배정되지 않은 프리셋 세부부서 id 목록 */
+  unassignedSubDeptIds: string[];
   activeTrackKey: string;
   newTrack: { label: string; subs: string[] };
   setNewTrack: (v: { label: string; subs: string[] }) => void;
@@ -44,6 +46,7 @@ export default function AdminSettingsPanel({
   isSaving,
   operatingMode,
   tracks,
+  unassignedSubDeptIds,
   activeTrackKey,
   newTrack,
   setNewTrack,
@@ -100,95 +103,125 @@ export default function AdminSettingsPanel({
             ))}
           </div>
 
-          {operatingMode === 'split' && (
-            <div className="space-y-4 pt-4 border-t border-dashed">
-              <div>
-                <p className="text-sm font-semibold text-gray-500 mb-2">편집할 트랙 선택 — 아래 모든 설정은 선택된 트랙에 저장됩니다.</p>
-                <div className="flex flex-wrap gap-2">
-                  {tracks.map((t) => (
-                    <span
-                      key={t.trackKey}
-                      className={`inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold border-2 ${
-                        activeTrackKey === t.trackKey
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 bg-white text-gray-500'
-                      }`}
-                    >
-                      <button type="button" onClick={() => switchTrack(t.trackKey)}>
-                        {t.label}
-                        {t.trackKey !== 'main' && (
-                          <span className="text-xs text-gray-400 ml-1">({t.subDepartmentIds.length}개 부서)</span>
-                        )}
-                      </button>
-                      {t.trackKey !== 'main' && (
-                        <button
-                          type="button"
-                          onClick={() => deleteTrack(t.trackKey)}
-                          className="text-red-400 hover:text-red-600 font-bold"
-                          aria-label="트랙 삭제"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </span>
-                  ))}
-                </div>
-                {activeTrackKey !== 'main' && (
-                  <p className="text-xs text-indigo-600 mt-2 font-semibold">
-                    ✎ 현재 「{tracks.find((t) => t.trackKey === activeTrackKey)?.label}」 트랙을 편집 중입니다.
+          {operatingMode === 'split' && (() => {
+            const editableTracks = tracks.filter((t) => t.trackKey !== 'main');
+            const claimedElsewhere = new Set(editableTracks.flatMap((t) => t.subDepartmentIds));
+            const unassignedLabels = getPresetSubDepartments(department)
+              .filter((sd) => unassignedSubDeptIds.includes(sd.id))
+              .map((sd) => sd.label);
+            return (
+              <div className="space-y-4 pt-4 border-t border-dashed">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500 mb-2">
+                    편집할 트랙 선택 — 아래 모든 설정은 선택된 트랙에 저장됩니다. (분리 모드에서는
+                    「전체 연합」 트랙을 더 이상 편집할 수 없습니다)
                   </p>
-                )}
-              </div>
-
-              <div className="p-4 rounded-xl bg-gray-50/60 dark:bg-slate-800/30 border border-dashed">
-                <p className="text-sm font-semibold text-gray-600 mb-2">＋ 새 트랙(그룹) 추가</p>
-                <input
-                  type="text"
-                  placeholder="트랙 이름 (예: 유치부 단독, 통미+영유 연합)"
-                  value={newTrack.label}
-                  onChange={(e) => setNewTrack({ ...newTrack, label: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg bg-white text-gray-900 text-sm mb-2"
-                />
-                <p className="text-xs text-gray-500 mb-1">포함할 세부부서 선택:</p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {getPresetSubDepartments(department).map((sd) => {
-                    const checked = newTrack.subs.includes(sd.id);
-                    return (
-                      <label
-                        key={sd.id}
-                        className={`px-3 py-1.5 rounded-full border cursor-pointer text-sm transition-colors ${
-                          checked ? 'bg-indigo-100 border-indigo-400 text-indigo-700' : 'bg-white border-gray-300 text-gray-600'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={(e) => {
-                            const subs = e.target.checked
-                              ? [...newTrack.subs, sd.id]
-                              : newTrack.subs.filter((s) => s !== sd.id);
-                            setNewTrack({ ...newTrack, subs });
-                          }}
-                          className="hidden"
-                        />
-                        {sd.label}
-                      </label>
-                    );
-                  })}
+                  {editableTracks.length === 0 ? (
+                    <p className="text-xs text-gray-400">아직 생성된 트랙이 없습니다. 아래에서 먼저 트랙을 추가하세요.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {editableTracks.map((t) => (
+                        <span
+                          key={t.trackKey}
+                          className={`inline-flex items-center gap-1.5 pl-3 pr-2 py-1.5 rounded-full text-sm font-semibold border-2 ${
+                            activeTrackKey === t.trackKey
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                              : 'border-gray-200 bg-white text-gray-500'
+                          }`}
+                        >
+                          <button type="button" onClick={() => switchTrack(t.trackKey)}>
+                            {t.label}
+                            <span className="text-xs text-gray-400 ml-1">({t.subDepartmentIds.length}개 부서)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteTrack(t.trackKey)}
+                            className="text-red-400 hover:text-red-600 font-bold"
+                            aria-label="트랙 삭제"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {activeTrackKey !== 'main' && editableTracks.some((t) => t.trackKey === activeTrackKey) && (
+                    <p className="text-xs text-indigo-600 mt-2 font-semibold">
+                      ✎ 현재 「{editableTracks.find((t) => t.trackKey === activeTrackKey)?.label}」 트랙을 편집 중입니다.
+                    </p>
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={addTrack}
-                  disabled={isSaving}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow disabled:opacity-50"
-                >
-                  트랙 추가
-                </button>
+
+                {unassignedLabels.length > 0 && (
+                  <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm">
+                    ⚠️ 아직 트랙에 배정되지 않은 세부부서가 있습니다: <strong>{unassignedLabels.join(', ')}</strong>.
+                    이 세부부서를 선택한 신청자는 자동으로 「전체 연합」 설정으로 안내됩니다. 트랙을 추가하거나 기존 트랙에 포함시켜주세요.
+                  </div>
+                )}
+
+                <div className="p-4 rounded-xl bg-gray-50/60 dark:bg-slate-800/30 border border-dashed">
+                  <p className="text-sm font-semibold text-gray-600 mb-2">＋ 새 트랙(그룹) 추가</p>
+                  <input
+                    type="text"
+                    placeholder="트랙 이름 (예: 유치부 단독, 통미+영유 연합)"
+                    value={newTrack.label}
+                    onChange={(e) => setNewTrack({ ...newTrack, label: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg bg-white text-gray-900 text-sm mb-2"
+                  />
+                  <p className="text-xs text-gray-500 mb-1">포함할 세부부서 선택:</p>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {getPresetSubDepartments(department).map((sd) => {
+                      const checked = newTrack.subs.includes(sd.id);
+                      const claimed = claimedElsewhere.has(sd.id);
+                      return (
+                        <label
+                          key={sd.id}
+                          className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                            claimed
+                              ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                              : checked
+                              ? 'bg-indigo-100 border-indigo-400 text-indigo-700 cursor-pointer'
+                              : 'bg-white border-gray-300 text-gray-600 cursor-pointer'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={claimed}
+                            onChange={(e) => {
+                              const subs = e.target.checked
+                                ? [...newTrack.subs, sd.id]
+                                : newTrack.subs.filter((s) => s !== sd.id);
+                              setNewTrack({ ...newTrack, subs });
+                            }}
+                            className="hidden"
+                          />
+                          {sd.label}
+                          {claimed && <span className="ml-1 text-[11px]">(이미 다른 트랙에 배정됨)</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addTrack}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow disabled:opacity-50"
+                  >
+                    트랙 추가
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </Accordion>
 
+        {operatingMode === 'split' && activeTrackKey === 'main' ? (
+          <div className="p-6 rounded-2xl border border-dashed border-indigo-200 bg-indigo-50/50 text-indigo-700 text-sm text-center">
+            트랙을 선택하거나 새로 추가하면 이 아래에 해당 트랙의 CMS 설정 항목이 나타납니다.
+          </div>
+        ) : (
+        <>
         {/* 기본 정보 */}
         <Accordion title="기본 행사 정보 설정" icon="🎨" dark={dark} defaultOpen>
           <div className="grid grid-cols-1 gap-6">
@@ -651,6 +684,8 @@ export default function AdminSettingsPanel({
             {isSaving ? '설정 데이터 동기화 중...' : '💾 CMS 설정 최종 적용'}
           </button>
         </div>
+        </>
+        )}
       </form>
     </div>
   );

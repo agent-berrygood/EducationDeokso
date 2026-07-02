@@ -11,6 +11,7 @@ import { useToast, useConfirm } from '@/components/ui/Feedback';
 import type { FeesConfig } from '@/lib/types';
 import { genderLabel, departmentFullLabel } from '@/lib/labels';
 import { getPresetSubDepartments } from '@/lib/subDepartments';
+import { unassignedSubDepartmentIds } from '@/lib/tracks';
 import type { NewCustomFieldDraft, SettingsForm, TrackInfo } from '@/components/admin/types';
 
 interface Application {
@@ -59,6 +60,10 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [activeTrackKey, setActiveTrackKey] = useState<string>('main'); // 설정 탭에서 편집 중인 트랙
   const [selectedTrack, setSelectedTrack] = useState<string>('all');    // 신청 현황 탭 필터
   const [newTrack, setNewTrack] = useState<{ label: string; subs: string[] }>({ label: '', subs: [] });
+  const unassignedSubDeptIds = useMemo(
+    () => unassignedSubDepartmentIds(getPresetSubDepartments(department).map((sd) => sd.id), tracks),
+    [department, tracks]
+  );
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<SettingsForm>({
@@ -163,7 +168,12 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       const trackList = listJson?.data?.tracks || [];
       setOperatingMode(mode);
       setTracks(trackList);
-      const tk = trackList.some((t: any) => t.trackKey === activeTrackKey) ? activeTrackKey : 'main';
+      let tk = trackList.some((t: any) => t.trackKey === activeTrackKey) ? activeTrackKey : 'main';
+      // 분리 모드에서는 'main'(전체 연합)을 편집 대상으로 삼지 않음 — non-main 트랙이 있으면 자동 전환
+      if (mode === 'split' && tk === 'main') {
+        const firstNonMain = trackList.find((t: any) => t.trackKey !== 'main');
+        if (firstNonMain) tk = firstNonMain.trackKey;
+      }
       setActiveTrackKey(tk);
       await loadTrackConfig(tk);
     } catch (err) {
@@ -992,6 +1002,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 isSaving={isSaving}
                 operatingMode={operatingMode}
                 tracks={tracks}
+                unassignedSubDeptIds={unassignedSubDeptIds}
                 activeTrackKey={activeTrackKey}
                 newTrack={newTrack}
                 setNewTrack={setNewTrack}

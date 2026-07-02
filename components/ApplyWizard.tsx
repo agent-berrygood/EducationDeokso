@@ -14,6 +14,7 @@ import { suggestDepartment } from '@/lib/age-to-department';
 import { applicationSubmitSchema } from '@/lib/schemas';
 import { subDepartmentShortLabel } from '@/lib/labels';
 import { getPresetSubDepartments } from '@/lib/subDepartments';
+import { useApplyConfigCache } from '@/hooks/useApplyConfigCache';
 
 function formatPhoneNumber(val: string): string {
   const clean = val.replace(/\D/g, '');
@@ -91,12 +92,6 @@ export default function ApplyWizard() {
   const [submitted, setSubmitted] = useState(false);
   const [submittedDepts, setSubmittedDepts] = useState<DepartmentId[]>([]);
   const [error, setError] = useState('');
-  const [configs, setConfigs] = useState<Record<DepartmentId, EventConfig | null>>({
-    kinder: null, kids: null, teens: null,
-  });
-  const [posters, setPosters] = useState<Record<DepartmentId, string | null>>({
-    kinder: null, kids: null, teens: null,
-  });
   const [fees, setFees] = useState<FeesConfig | null>(null);
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
@@ -129,42 +124,26 @@ export default function ApplyWizard() {
     };
   }, [draft, hydrated]);
 
-  // ─── 부서 설정 사전 로드 (3부서 모두) ───
+  // ─── 부서/트랙별 CMS 설정 온디맨드 캐시 ───
+  // 부서 단위(sub 없음) 3개는 항상 미리 채워 anyWaterparkActive 등 부서 레벨 판단에 사용하고,
+  // 자녀별로 선택된 department::subDepartment 조합은 추가로 필요할 때마다 채워진다.
+  const configCacheKeys = useMemo(() => {
+    const base = DEPARTMENTS.map((d) => `${d.id}::`);
+    const childKeys = draft.children
+      .filter((c) => c.department)
+      .map((c) => `${c.department}::${c.subDepartment || ''}`);
+    return Array.from(new Set([...base, ...childKeys]));
+  }, [draft.children]);
+  const configCache = useApplyConfigCache(configCacheKeys);
+
   useEffect(() => {
     (async () => {
       try {
-        const results = await Promise.all(
-          DEPARTMENTS.map(async (d) => {
-            const res = await fetch(`/api/config/${d.id}`);
-            const json = await res.json();
-            return [d.id, json.success ? json.data : null] as const;
-          })
-        );
-        const map: any = {};
-        results.forEach(([k, v]) => (map[k] = v));
-        setConfigs(map);
-
-        // 포스터 별도 캐시 가능 엔드포인트
-        const posterResults = await Promise.all(
-          DEPARTMENTS.map(async (d) => {
-            try {
-              const res = await fetch(`/api/poster/${d.id}`);
-              const json = await res.json();
-              return [d.id, json?.data?.posterUrl || null] as const;
-            } catch {
-              return [d.id, null] as const;
-            }
-          })
-        );
-        const posterMap: any = {};
-        posterResults.forEach(([k, v]) => (posterMap[k] = v));
-        setPosters(posterMap);
-
         const feesRes = await fetch('/api/fees');
         const feesJson = await feesRes.json();
         if (feesJson.success) setFees(feesJson.data);
       } catch (err) {
-        if (process.env.NODE_ENV === 'development') console.error('설정 로드 실패', err);
+        if (process.env.NODE_ENV === 'development') console.error('요금 정보 로드 실패', err);
       }
     })();
   }, []);
@@ -217,10 +196,10 @@ export default function ApplyWizard() {
 
   // 워터풀선데이가 활성화된 부서가 하나라도 있는지 (설정 로드 전에는 기존 동작 유지를 위해 true)
   const anyWaterparkActive = useMemo(() => {
-    const loaded = DEPARTMENTS.map((d) => configs[d.id]).filter(Boolean) as any[];
+    const loaded = DEPARTMENTS.map((d) => configCache[`${d.id}::`]).filter(Boolean) as any[];
     if (loaded.length === 0) return true;
     return loaded.some((c) => c.isWaterparkActive ?? c.is_waterpark_active ?? true);
-  }, [configs]);
+  }, [configCache]);
 
   // ─── 헬퍼: draft 업데이트 ───
   function patch(partial: Partial<DraftState>) {
@@ -372,7 +351,7 @@ export default function ApplyWizard() {
   // 완료 화면
   if (submitted) {
     const stepDepts = submittedDepts.filter(d => {
-      const cfg = configs[d];
+      const cfg = configCache[`${d}::`];
       return cfg && (cfg as any).is_step_recruitment_active;
     });
     return (
@@ -427,8 +406,7 @@ export default function ApplyWizard() {
       {draft.step === 2 && (
         <Step2
           draft={draft}
-          configs={configs}
-          posters={posters}
+          configCache={configCache}
           patchChild={patchChild}
           addChild={addChild}
           removeChild={removeChild}
@@ -603,8 +581,7 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext, sh
 // ─── Step 2: 자녀 정보 + 실시간 부서 매핑 ───
 interface Step2Props {
   draft: DraftState;
-  configs: Record<DepartmentId, EventConfig | null>;
-  posters: Record<DepartmentId, string | null>;
+  configCache: Record<string, EventConfig | null>;
   patchChild: (uid: string, partial: Partial<ChildDraft>) => void;
   addChild: () => void;
   removeChild: (uid: string) => void;
@@ -612,7 +589,7 @@ interface Step2Props {
   onNext: () => void;
 }
 
-function Step2({ draft, configs, posters, patchChild, addChild, removeChild, onPrev, onNext }: Step2Props) {
+function Step2({ draft, configCache, patchChild, addChild, removeChild, onPrev, onNext }: Step2Props) {
   return (
     <div className="space-y-6">
       {draft.children.map((child, idx) => (
@@ -620,8 +597,7 @@ function Step2({ draft, configs, posters, patchChild, addChild, removeChild, onP
           key={child.uid}
           index={idx}
           child={child}
-          configs={configs}
-          posters={posters}
+          configCache={configCache}
           patchChild={patchChild}
           removable={draft.children.length > 1}
           onRemove={() => removeChild(child.uid)}
@@ -659,17 +635,20 @@ function Step2({ draft, configs, posters, patchChild, addChild, removeChild, onP
 interface ChildCardProps {
   index: number;
   child: ChildDraft;
-  configs: Record<DepartmentId, EventConfig | null>;
-  posters: Record<DepartmentId, string | null>;
+  configCache: Record<string, EventConfig | null>;
   patchChild: (uid: string, partial: Partial<ChildDraft>) => void;
   removable: boolean;
   onRemove: () => void;
 }
 
-function ChildCard({ index, child, configs, posters, patchChild, removable, onRemove }: ChildCardProps) {
+function ChildCard({ index, child, configCache, patchChild, removable, onRemove }: ChildCardProps) {
   const suggestion = useMemo(() => suggestDepartment(child.birthDate), [child.birthDate]);
-  const activeConfig = child.department ? configs[child.department] : null;
-  const activePoster = child.department ? posters[child.department] : null;
+  const activeConfig = child.department ? configCache[`${child.department}::${child.subDepartment || ''}`] : null;
+  const activePoster = (activeConfig as any)?.posterUrl || (activeConfig as any)?.poster_url || null;
+  const showUnassignedWarning =
+    !!child.subDepartment &&
+    (activeConfig as any)?.trackKey === 'main' &&
+    (activeConfig as any)?.operatingMode === 'split';
 
   return (
     <section className="bg-white rounded-2xl shadow-sm border overflow-hidden">
@@ -784,6 +763,12 @@ function ChildCard({ index, child, configs, posters, patchChild, removable, onRe
                 <option key={sd.id} value={sd.id}>{sd.label}</option>
               ))}
             </select>
+            {showUnassignedWarning && (
+              <p className="mt-2 text-xs text-amber-600">
+                ⚠️ 선택하신 세부부서는 현재 어떤 트랙에도 배정되어 있지 않아 기본(연합) 설정으로 안내됩니다.
+                정확한 캠프 정보 확인을 위해 담당 교역자에게 문의해주세요.
+              </p>
+            )}
           </Field>
         )}
 

@@ -78,7 +78,12 @@ export default function ScheduleEditorPage() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [config, setConfig] = useState<any>(null);
-  
+
+  // 트랙(연합/분리 운영) 상태 — 설정 패널과 동일한 규칙: 분리 모드에서는 'main' 편집 불가
+  const [operatingMode, setOperatingMode] = useState<'union' | 'split'>('union');
+  const [tracks, setTracks] = useState<{ trackKey: string; label: string; subDepartmentIds: string[] }[]>([]);
+  const [activeTrackKey, setActiveTrackKey] = useState<string>('main');
+
   // 에디터 핵심 상태
   const [campType, setCampType] = useState<'continuous' | 'weekly'>('continuous');
   const [campDuration, setCampDuration] = useState<number>(3);
@@ -94,11 +99,28 @@ export default function ScheduleEditorPage() {
     teens: '나우틴즈',
   };
 
-  const loadData = async () => {
+  // 트랙 목록 + 운영모드 로드. 분리 모드면 'main'을 편집 대상에서 제외하고 첫 non-main 트랙 자동 선택.
+  const loadTracks = async (): Promise<string> => {
+    const listRes = await fetch(`/api/config/${department}?list=1`);
+    const listJson = await listRes.json();
+    const mode: 'union' | 'split' = listJson?.data?.operatingMode === 'split' ? 'split' : 'union';
+    const trackList = listJson?.data?.tracks || [];
+    setOperatingMode(mode);
+    setTracks(trackList);
+    let tk = 'main';
+    if (mode === 'split') {
+      const firstNonMain = trackList.find((t: any) => t.trackKey !== 'main');
+      if (firstNonMain) tk = firstNonMain.trackKey;
+    }
+    setActiveTrackKey(tk);
+    return tk;
+  };
+
+  const loadData = async (trackKey: string) => {
     if (!params?.dept) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/config/${department}`);
+      const res = await fetch(`/api/config/${department}?track=${encodeURIComponent(trackKey)}`);
       if (!res.ok) throw new Error('Failed to fetch config');
       const { data } = await res.json();
       if (data) {
@@ -114,10 +136,18 @@ export default function ScheduleEditorPage() {
     }
   };
 
+  const switchTrack = async (trackKey: string) => {
+    setActiveTrackKey(trackKey);
+    await loadData(trackKey);
+  };
+
   useEffect(() => {
-    if (params?.dept) {
-      loadData();
-    }
+    if (!params?.dept) return;
+    (async () => {
+      const tk = await loadTracks();
+      await loadData(tk);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.dept, department]);
 
   // 프리셋 채우기 함수
@@ -202,6 +232,10 @@ export default function ScheduleEditorPage() {
         customFieldMappings: config?.customFieldMappings,
         subDepartments: config?.subDepartments,
         campStartDate: config?.camp_start_date,
+        // 현재 편집 중인 트랙에 명시적으로 저장 (로드된 config에 암묵적으로 의존하지 않음)
+        trackKey: activeTrackKey,
+        trackLabel: tracks.find((t) => t.trackKey === activeTrackKey)?.label ?? null,
+        subDepartmentIds: tracks.find((t) => t.trackKey === activeTrackKey)?.subDepartmentIds ?? [],
       };
 
       const res = await fetch(`/api/config/${department}`, {
@@ -240,10 +274,33 @@ export default function ScheduleEditorPage() {
   // 일차/주차별 렌더링 범위 생성
   const daysArray = Array.from({ length: campDuration }, (_, i) => i + 1);
 
+  const editableTracks = tracks.filter((t) => t.trackKey !== 'main');
+  const showTrackSwitcher = operatingMode === 'split' && editableTracks.length > 0;
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20">
       {/* 상단 컨트롤 바 */}
-      <header className="sticky top-0 bg-slate-900 border-b border-slate-800 p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 z-40 shadow-xl">
+      <header className="sticky top-0 bg-slate-900 border-b border-slate-800 z-40 shadow-xl">
+        {showTrackSwitcher && (
+          <div className="px-6 pt-4 flex flex-wrap items-center gap-2 border-b border-slate-800 pb-4">
+            <span className="text-xs font-bold text-slate-400 mr-1">편집할 트랙:</span>
+            {editableTracks.map((t) => (
+              <button
+                key={t.trackKey}
+                type="button"
+                onClick={() => switchTrack(t.trackKey)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border-2 transition cursor-pointer ${
+                  activeTrackKey === t.trackKey
+                    ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300'
+                    : 'border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-600'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="p-6 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
         <div className="flex items-center gap-4">
           <Link href={`/admin/login?dept=${department}`} className="text-2xl hover:scale-105 transition">🏠</Link>
           <div>
@@ -305,6 +362,7 @@ export default function ScheduleEditorPage() {
           >
             {isSaving ? '서버 동기화 중...' : '💾 일정 최종 저장'}
           </button>
+        </div>
         </div>
       </header>
 

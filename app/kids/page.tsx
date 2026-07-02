@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useDepartmentTrackConfig } from '@/hooks/useDepartmentTrackConfig';
+import TrackPicker from '@/components/public/TrackPicker';
 
 interface EventConfig {
   title: string;
@@ -111,29 +113,32 @@ export default function KidsPage() {
     return Math.max(0, Math.min(totalSlots - 1, slotIndex)) + 2;
   };
 
+  const { phase, tracks, config: trackConfig, selectTrack } = useDepartmentTrackConfig('kids');
+
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const res = await fetch('/api/config/kids');
-        if (!res.ok) return;
-        const { data } = await res.json();
-        if (data) {
-          setConfig(data);
-          if (data.campSchedule && data.campSchedule.length > 0) {
-            const days = data.campSchedule.map((s: any) => s.day);
-            setActiveDay(Math.min(...days));
-          }
-        }
-      } catch (err) {
-        console.error('나우키즈 설정 로드 실패:', err);
-      } finally {
-        setLoading(false);
+    if (phase !== 'ready') return;
+    if (trackConfig) {
+      setConfig(trackConfig);
+      if (trackConfig.campSchedule && trackConfig.campSchedule.length > 0) {
+        const days = trackConfig.campSchedule.map((s: any) => s.day);
+        setActiveDay(Math.min(...days));
       }
-    };
-    fetchConfig();
-  }, []);
+    }
+    setLoading(false);
+  }, [phase, trackConfig]);
 
   const primaryColor = config.primary_color || DEFAULT_CONFIG.primary_color!;
+
+  if (phase === 'picker') {
+    return (
+      <TrackPicker
+        tracks={tracks}
+        onSelect={selectTrack}
+        primaryColor={DEFAULT_CONFIG.primary_color!}
+        title="나우키즈 — 세부부서를 선택해주세요"
+      />
+    );
+  }
 
   if (loading) {
     return (

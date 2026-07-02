@@ -55,6 +55,24 @@ export function isUnion(operatingMode: OperatingMode | string | null | undefined
   return operatingMode !== 'split';
 }
 
+/**
+ * 프리셋 세부부서 중 어느 non-main 트랙에도 배정되지 않은 것들.
+ * 분리 모드에서 관리자에게 배정 누락을 경고하는 데 사용한다.
+ */
+export function unassignedSubDepartmentIds(
+  allSubDepartmentIds: string[],
+  tracks: EventTrack[] | null | undefined
+): string[] {
+  const covered = new Set<string>();
+  if (Array.isArray(tracks)) {
+    for (const t of tracks) {
+      if (t.trackKey === MAIN_TRACK_KEY || !Array.isArray(t.subDepartmentIds)) continue;
+      for (const id of t.subDepartmentIds) covered.add(id);
+    }
+  }
+  return allSubDepartmentIds.filter((id) => !covered.has(id));
+}
+
 /** 안전 파서 — JSONB가 string으로 올 수도 있으므로 배열로 정규화 */
 export function parseStringArray(val: any): string[] {
   if (Array.isArray(val)) return val.filter((x) => typeof x === 'string');

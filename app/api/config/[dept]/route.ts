@@ -195,7 +195,27 @@ export async function POST(
     const trackKey = (rawTrackKey && String(rawTrackKey).trim()) || MAIN_TRACK_KEY;
     const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
     const validatedTshirtDeadline = tshirtDeadline && tshirtDeadline.trim() !== '' ? tshirtDeadline : null;
-    const subDeptIdsJson = JSON.stringify(Array.isArray(subDepartmentIds) ? subDepartmentIds : []);
+    const incomingSubDeptIds: string[] = Array.isArray(subDepartmentIds) ? subDepartmentIds : [];
+    const subDeptIdsJson = JSON.stringify(incomingSubDeptIds);
+
+    // 세부부서 배타성 검증 — 같은 세부부서가 두 non-main 트랙에 동시에 배정되면
+    // resolveTrackKey()의 첫 매치 우선 규칙이 깨져 신청자가 잘못된 트랙으로 안내될 수 있음
+    if (trackKey !== MAIN_TRACK_KEY && incomingSubDeptIds.length > 0) {
+      const siblingTracks = await listTracks(department);
+      const conflicts = new Set<string>();
+      for (const t of siblingTracks) {
+        if (t.trackKey === MAIN_TRACK_KEY || t.trackKey === trackKey) continue;
+        for (const id of t.subDepartmentIds) {
+          if (incomingSubDeptIds.includes(id)) conflicts.add(id);
+        }
+      }
+      if (conflicts.size > 0) {
+        return Response.json(
+          { success: false, error: `이미 다른 트랙에 배정된 세부부서입니다: ${[...conflicts].join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
 
     // 운영 모드가 오면 대부서 전체 행에 반영 (main 행 기준 일관성)
     if (operatingMode === 'union' || operatingMode === 'split') {
