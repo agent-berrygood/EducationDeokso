@@ -1,5 +1,6 @@
 import { query, queryOne } from '@/lib/db';
 import { applicationSubmitSchema } from '@/lib/schemas';
+import { requireAdmin } from '@/lib/auth';
 import type { DepartmentId } from '@/lib/types';
 import { deriveDayCount, validateAttendedDates } from '@/lib/session-grid';
 
@@ -12,6 +13,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { id } = await params;
     if (!id) {
       return Response.json({ success: false, error: 'ID 필수' }, { status: 400 });

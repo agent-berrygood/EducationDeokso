@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { queryOne, queryMany, query } from '@/lib/db';
 import { applicationSubmitSchema } from '@/lib/schemas';
-import { checkDepartmentAccess, decryptSession } from '@/lib/auth';
+import { checkDepartmentAccess, decryptSession, requireAdmin } from '@/lib/auth';
 import type { DepartmentId } from '@/lib/types';
 import { validateSessionKeys, validateAttendedDates, deriveDayCount } from '@/lib/session-grid';
 import { trackSubDepartments } from '@/lib/track-query';
@@ -36,28 +36,26 @@ export async function GET(request: Request) {
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = (searchParams.get('sortOrder') || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    // 토큰 추출 (있을 경우 권한 기반 필터링에 사용)
+    // 신청 목록은 보호자 연락처 등 개인정보 포함 → 어드민 세션 필수
     const cookieStore = await cookies();
     const token = cookieStore.get('admin_session')?.value
       || request.headers.get('authorization') || '';
     const session = token ? await decryptSession(token.startsWith('Bearer ') ? token.slice(7) : token) : null;
-    const allowedDepartments = session?.allowed_departments ?? null;
+    if (!session?.authenticated) {
+      return Response.json({ success: false, error: '관리자 인증이 필요합니다.' }, { status: 401 });
+    }
+    const allowedDepartments = session.allowed_departments ?? null;
 
     // 부서별 필터링 시 권한 검증
     if (department) {
-      if (token) {
-        const check = await checkDepartmentAccess(token, department as DepartmentId);
-        if (!check.ok) {
-          return Response.json({ success: false, error: check.reason }, { status: 403 });
-        }
+      const check = await checkDepartmentAccess(token, department as DepartmentId);
+      if (!check.ok) {
+        return Response.json({ success: false, error: check.reason }, { status: 403 });
       }
-    } else if (allowedDepartments && allowedDepartments.length > 0) {
-      // department 미지정 + 토큰 있음 → 토큰의 부서들로만 필터링 (다른 부서 데이터 유출 방지)
-    } else if (token) {
-      // 토큰은 있는데 부서 정보가 없는 경우 → 차단
+    } else if (!allowedDepartments || allowedDepartments.length === 0) {
+      // 세션에 부서 정보가 없는 경우 → 차단
       return Response.json({ success: false, error: '권한 정보가 없습니다.' }, { status: 403 });
     }
-    // 토큰이 아예 없는 경우는 그대로 진행 (공개/내부 호출 호환)
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -235,6 +233,9 @@ export async function POST(request: Request) {
  */
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

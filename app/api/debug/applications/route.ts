@@ -1,4 +1,5 @@
 import { queryMany } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * GET /api/debug/applications?department=kids
@@ -7,6 +8,9 @@ import { queryMany } from '@/lib/db';
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
 

@@ -1,4 +1,5 @@
 import { queryOne, query } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * 신규 컬럼(자녀 워터풀 + 계좌 4개)이 운영 DB에 없을 경우를 대비해
@@ -42,6 +43,9 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     await ensureFeesSchema();
     const body = await request.json();
     const {

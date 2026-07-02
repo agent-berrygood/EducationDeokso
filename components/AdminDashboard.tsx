@@ -948,7 +948,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                                 </button>
                                 <button
                                   onClick={() => deleteApplication(row.appId)}
-                                  className="px-3 py-1 bg-red-500 hover:bg-red-650 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer w-full"
+                                  className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white font-bold text-xs rounded transition duration-150 shadow cursor-pointer w-full"
                                 >
                                   🗑️ 삭제
                                 </button>

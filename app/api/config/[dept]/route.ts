@@ -1,4 +1,5 @@
 import { queryOne, queryMany, query } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 import { MAIN_TRACK_KEY, resolveTrackKey, parseStringArray, type EventTrack, type OperatingMode } from '@/lib/tracks';
 
 function safeParse(val: any) {
@@ -174,6 +175,9 @@ export async function POST(
 ) {
   let department: string = '';
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { dept } = await params;
     department = dept;
     await ensureConfigSchema();
@@ -284,6 +288,9 @@ export async function DELETE(
 ) {
   let department: string = '';
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { dept } = await params;
     department = dept;
     await ensureConfigSchema();

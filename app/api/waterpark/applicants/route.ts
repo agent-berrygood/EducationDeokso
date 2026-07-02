@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { queryMany } from '@/lib/db';
-import { checkDepartmentAccess } from '@/lib/auth';
+import { checkDepartmentAccess, requireAdmin } from '@/lib/auth';
 import { trackSubDepartments } from '@/lib/track-query';
 import type { DepartmentId } from '@/lib/types';
 
@@ -25,22 +25,24 @@ function safeParse(val: any): any[] {
  */
 export async function GET(request: Request) {
   try {
+    // 명단에 보호자 연락처 등 개인정보 포함 → 어드민 세션 필수
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
 
-    // 어드민 세션이 있으면 부서 접근 권한 검증 (applications 라우트와 동일 패턴)
+    // 부서 지정 시 부서 접근 권한 추가 검증
     if (department) {
       const cookieStore = await cookies();
       const token = cookieStore.get('admin_session')?.value
         || request.headers.get('authorization') || '';
-      if (token) {
-        const check = await checkDepartmentAccess(
-          token.startsWith('Bearer ') ? token.slice(7) : token,
-          department as DepartmentId
-        );
-        if (!check.ok) {
-          return Response.json({ success: false, error: check.reason }, { status: 403 });
-        }
+      const check = await checkDepartmentAccess(
+        token.startsWith('Bearer ') ? token.slice(7) : token,
+        department as DepartmentId
+      );
+      if (!check.ok) {
+        return Response.json({ success: false, error: check.reason }, { status: 403 });
       }
     }
 

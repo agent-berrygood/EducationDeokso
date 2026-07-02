@@ -1,11 +1,15 @@
 import { queryOne, queryMany, query } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * GET /api/event-attendance
- * 행사 참석 현황 조회
+ * 행사 참석 현황 조회 (관리자 전용)
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const childId = searchParams.get('childId');
     const eventId = searchParams.get('eventId');
@@ -36,6 +40,9 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { childId, eventId, eventTitle, attendanceType, partialDates, notes } = body;
 
@@ -59,6 +66,9 @@ export async function POST(request: Request) {
  */
 export async function PUT(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const body = await request.json();
     const { id, attendanceType, partialDates, notes } = body;
 
@@ -82,6 +92,9 @@ export async function PUT(request: Request) {
  */
 export async function DELETE(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 

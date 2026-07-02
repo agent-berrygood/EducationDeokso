@@ -1,12 +1,16 @@
 import { initializeDatabase } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * GET /api/init
- * 데이터베이스 테이블 초기화
+ * 데이터베이스 테이블 초기화 (관리자 전용)
  * 한 번만 실행하면 됨 (멱등성)
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     console.log('🔄 데이터베이스 초기화 시작...');
     await initializeDatabase();
 

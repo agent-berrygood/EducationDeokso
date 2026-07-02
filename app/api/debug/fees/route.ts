@@ -1,4 +1,5 @@
 import { queryMany, queryOne } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * GET /api/debug/fees
@@ -7,6 +8,9 @@ import { queryMany, queryOne } from '@/lib/db';
  */
 export async function GET() {
   try {
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+
     const fees = await queryOne(`SELECT * FROM fees_config LIMIT 1`);
 
     // 스키마(컬럼 존재 여부)

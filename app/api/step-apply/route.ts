@@ -1,5 +1,6 @@
 import { query, queryOne, queryMany } from '@/lib/db';
 import { staffApplicationSubmitSchema } from '@/lib/schemas';
+import { requireAdmin } from '@/lib/auth';
 import { deriveDayCount, validateSessionKeys } from '@/lib/session-grid';
 
 function safeParse(val: any): any[] {
@@ -98,6 +99,9 @@ export async function POST(request: Request) {
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
 

@@ -1,6 +1,7 @@
 import { queryMany } from '@/lib/db';
 import ExcelJS from 'exceljs';
 import { genderLabel } from '@/lib/labels';
+import { requireAdmin } from '@/lib/auth';
 
 function safeParse(val: any): any[] {
   if (Array.isArray(val)) return val;
@@ -20,6 +21,9 @@ const DEPT_LABELS: Record<string, string> = {
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
 

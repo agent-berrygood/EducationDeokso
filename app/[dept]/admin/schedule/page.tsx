@@ -493,7 +493,7 @@ export default function ScheduleEditorPage() {
               <button
                 type="button"
                 onClick={() => deleteCard(editingCard.id)}
-                className="px-4 py-2 bg-red-650 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition"
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition"
               >
                 🗑️ 이 일정 삭제
               </button>

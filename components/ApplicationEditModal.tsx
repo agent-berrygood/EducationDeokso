@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/Feedback';
+import { getPresetSubDepartments } from '@/lib/subDepartments';
 
 export default function ApplicationEditModal({
   application,
@@ -28,12 +29,19 @@ export default function ApplicationEditModal({
     setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
+  // 함수형 업데이트로 한 이벤트에서 복수 필드 변경 시에도 유실 없이 병합
+  const patchChild = (index: number, patch: Record<string, any>) => {
+    setFormData((prev: any) => {
+      const children: any[] = prev?.children || [];
+      if (index < 0 || index >= children.length) return prev;
+      const newChildren = [...children];
+      newChildren[index] = { ...newChildren[index], ...patch };
+      return { ...prev, children: newChildren };
+    });
+  };
+
   const handleChildChange = (index: number, field: string, value: any) => {
-    const children: any[] = formData.children || [];
-    if (index < 0 || index >= children.length) return;
-    const newChildren = [...children];
-    newChildren[index] = { ...newChildren[index], [field]: value };
-    setFormData((prev: any) => ({ ...prev, children: newChildren }));
+    patchChild(index, { [field]: value });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -193,20 +201,26 @@ export default function ApplicationEditModal({
                     <div className="flex gap-2">
                       <select
                         value={child.department}
-                        onChange={(e) => handleChildChange(idx, 'department', e.target.value)}
+                        onChange={(e) => {
+                          // 부서 변경 시 세부부서는 새 부서 프리셋에 없으므로 함께 초기화
+                          patchChild(idx, { department: e.target.value, sub_department: '' });
+                        }}
                         className="w-1/2 px-3 py-2 border rounded bg-gray-50 dark:bg-slate-800 dark:border-slate-700"
                       >
                         <option value="kinder">나우킨더</option>
                         <option value="kids">나우키즈</option>
                         <option value="teens">나우틴즈</option>
                       </select>
-                      <input
-                        type="text"
-                        placeholder="세부 부서 아이디"
+                      <select
                         value={child.sub_department || ''}
                         onChange={(e) => handleChildChange(idx, 'sub_department', e.target.value)}
                         className="w-1/2 px-3 py-2 border rounded bg-gray-50 dark:bg-slate-800 dark:border-slate-700"
-                      />
+                      >
+                        <option value="">세부 부서 선택</option>
+                        {getPresetSubDepartments(child.department).map((sd) => (
+                          <option key={sd.id} value={sd.id}>{sd.label}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
 

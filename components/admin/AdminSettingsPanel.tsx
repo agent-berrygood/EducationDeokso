@@ -233,7 +233,7 @@ export default function AdminSettingsPanel({
               </div>
               {settingsForm.posterUrl && (
                 <div className="mt-3 p-3 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-between">
-                  <div className="text-xs text-gray-500 truncate mr-4">등록된 포스터: <span className="font-semibold text-indigo-650">{settingsForm.posterUrl}</span></div>
+                  <div className="text-xs text-gray-500 truncate mr-4">등록된 포스터: <span className="font-semibold text-indigo-600">{settingsForm.posterUrl}</span></div>
                   <button
                     type="button"
                     onClick={() => setSettingsForm({ ...settingsForm, posterUrl: '' })}
@@ -496,7 +496,7 @@ export default function AdminSettingsPanel({
               settingsForm.tshirtSizes.map((size) => (
                 <div
                   key={size}
-                  className="flex items-center gap-2 bg-indigo-50 border border-indigo-150 px-3.5 py-1.5 rounded-full text-indigo-700 font-semibold text-sm"
+                  className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 px-3.5 py-1.5 rounded-full text-indigo-700 font-semibold text-sm"
                 >
                   <span>{size}</span>
                   <button

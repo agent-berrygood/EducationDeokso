@@ -8,6 +8,7 @@ import {
   isSessionKey,
 } from '@/lib/session-grid';
 import { genderLabel, subDepartmentLabel, buildSubDeptMap } from '@/lib/labels';
+import { requireAdmin } from '@/lib/auth';
 
 async function ensureSchema() {
   await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS gender VARCHAR(10)`);
@@ -20,6 +21,9 @@ async function ensureSchema() {
  */
 export async function GET(request: Request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     await ensureSchema();
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');

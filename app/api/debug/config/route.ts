@@ -1,4 +1,5 @@
 import { queryMany } from '@/lib/db';
+import { requireAdmin } from '@/lib/auth';
 
 /**
  * GET /api/debug/config
@@ -7,6 +8,9 @@ import { queryMany } from '@/lib/db';
  */
 export async function GET() {
   try {
+    const auth = await requireAdmin();
+    if (!auth.ok) return auth.response;
+
     const rows = await queryMany(`
       SELECT
         department,

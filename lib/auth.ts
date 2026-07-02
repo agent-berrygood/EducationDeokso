@@ -5,6 +5,7 @@
  * - 모든 어드민 API는 checkDepartmentAccess로 통과 가능한 부서 확인
  */
 import { EncryptJWT, jwtDecrypt } from 'jose';
+import { cookies } from 'next/headers';
 import type { DepartmentId } from './types';
 
 const SECRET_KEY = process.env.JWT_SECRET || 'deokso-education-church-summer-camp-2026-secret-key-32bytes-length!';
@@ -72,6 +73,31 @@ export async function authenticateAdmin(
     authenticated: true,
     allowed_departments: allowed,
   });
+}
+
+/**
+ * 어드민 전용 API 가드 — 쿠키(admin_session) 또는 Authorization 헤더에서
+ * 세션을 복호화해 검증한다. 실패 시 바로 반환할 401 Response를 제공.
+ */
+export async function requireAdmin(
+  request?: Request
+): Promise<{ ok: true; session: AdminSession } | { ok: false; response: Response }> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get('admin_session')?.value
+    || request?.headers.get('authorization')
+    || '';
+  const token = raw.startsWith('Bearer ') ? raw.slice(7) : raw;
+  const session = token ? await decryptSession(token) : null;
+  if (!session?.authenticated) {
+    return {
+      ok: false,
+      response: Response.json(
+        { success: false, error: '관리자 인증이 필요합니다.' },
+        { status: 401 }
+      ),
+    };
+  }
+  return { ok: true, session };
 }
 
 /**
