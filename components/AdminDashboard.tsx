@@ -7,6 +7,7 @@ import ApplicationEditModal from '@/components/ApplicationEditModal';
 import WaterparkRoster from '@/components/WaterparkRoster';
 import AdminSettingsPanel from '@/components/admin/AdminSettingsPanel';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import TypedConfirmDialog from '@/components/ui/TypedConfirmDialog';
 import { useToast, useConfirm } from '@/components/ui/Feedback';
 import type { FeesConfig } from '@/lib/types';
 import { genderLabel, departmentFullLabel } from '@/lib/labels';
@@ -43,6 +44,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const [editingApp, setEditingApp] = useState<any>(null);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
 
   // 페이징, 검색 및 정렬 상태 추가
   const [offset, setOffset] = useState(0);
@@ -87,6 +89,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     stepTshirtSizes: [],
     isWaterparkActive: true,
     waterparkInfo: { title: '', date: '', time: '', location: '', note: '' },
+    isCampActive: true,
   });
 
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -147,6 +150,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       stepTshirtSizes: data.stepTshirtSizes || [],
       isWaterparkActive: data.isWaterparkActive ?? true,
       waterparkInfo: { title: '', date: '', time: '', location: '', note: '', ...(data.waterparkInfo || {}) },
+      isCampActive: data.isCampActive ?? true,
     });
   };
 
@@ -247,7 +251,29 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
-
+  // 부서별 명단 초기화 — 해당 부서 자녀만 삭제(다른 부서 형제자매 보존)
+  const resetDepartment = async () => {
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/applications/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ department, confirmationPhrase: department }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Reset failed');
+      showToast(
+        `초기화 완료: 자녀 ${json.data.childrenRemoved}명, 신청서 ${json.data.applicationsRemoved}건 삭제됨.`,
+        'success'
+      );
+      setResetModalOpen(false);
+      loadApplications();
+    } catch (err) {
+      showToast('명단 초기화 도중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const exportExcel = async () => {
     try {
@@ -336,6 +362,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           stepTshirtSizes: settingsForm.stepTshirtSizes,
           isWaterparkActive: settingsForm.isWaterparkActive,
           waterparkInfo: settingsForm.waterparkInfo,
+          isCampActive: settingsForm.isCampActive,
           // 현재 편집 중인 트랙 + 운영 모드
           trackKey: activeTrackKey,
           trackLabel: tracks.find((t) => t.trackKey === activeTrackKey)?.label ?? null,
@@ -375,6 +402,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     stepTshirtSizes: settingsForm.stepTshirtSizes,
     isWaterparkActive: settingsForm.isWaterparkActive,
     waterparkInfo: settingsForm.waterparkInfo,
+    isCampActive: settingsForm.isCampActive,
   });
 
   const postConfig = async (extra: Record<string, any>) => {
@@ -397,6 +425,21 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       await loadConfig();
     } catch {
       showToast('운영 모드 변경에 실패했습니다.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 수련회 운영 여부(부서 단위) 전환 — 즉시 대부서 전체 행에 반영 (운영 모드와 동일 UX)
+  const changeCampActive = async (active: boolean) => {
+    try {
+      setIsSaving(true);
+      setSettingsForm((prev) => ({ ...prev, isCampActive: active }));
+      await postConfig({ trackKey: activeTrackKey, isCampActive: active });
+      await loadConfig();
+      showToast(active ? '이 부서 수련회를 운영합니다.' : '이 부서는 올해 수련회를 진행하지 않습니다.', 'success');
+    } catch {
+      showToast('수련회 운영 여부 변경에 실패했습니다.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -1016,6 +1059,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 setNewCustomField={setNewCustomField}
                 saveSettings={saveSettings}
                 changeOperatingMode={changeOperatingMode}
+                changeCampActive={changeCampActive}
                 switchTrack={switchTrack}
                 addTrack={addTrack}
                 deleteTrack={deleteTrack}
@@ -1027,6 +1071,22 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                 removeCustomField={removeCustomField}
                 handlePosterUpload={handlePosterUpload}
               />
+
+              {/* 위험 구역 — 부서별 명단 초기화 (폼과 분리된 별도 파괴적 작업) */}
+              <div className="mt-8 p-6 rounded-2xl border-2 border-red-300 bg-red-50">
+                <h3 className="text-lg font-bold text-red-700">⚠️ 위험 구역 — 명단 초기화</h3>
+                <p className="text-sm text-red-600 mt-1">
+                  {departmentFullLabel(department) || department} 부서의 <strong>모든 신청 자녀 데이터</strong>를 영구히 삭제합니다.
+                  다른 부서 형제자매의 신청 정보는 유지됩니다. 되돌릴 수 없으니 필요 시 먼저 엑셀로 백업하세요.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setResetModalOpen(true)}
+                  className="mt-4 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg shadow cursor-pointer"
+                >
+                  🗑️ 이 부서 명단 초기화
+                </button>
+              </div>
             </ErrorBoundary>
           )}
 
@@ -1058,6 +1118,17 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           />
         </ErrorBoundary>
       )}
+
+      <TypedConfirmDialog
+        open={resetModalOpen}
+        title="⚠️ 부서 명단 초기화"
+        description={`${departmentFullLabel(department) || department} (${department}) 부서의 모든 신청 자녀 데이터를 영구히 삭제합니다.\n다른 부서 형제자매의 신청 정보는 유지됩니다.\n이 작업은 되돌릴 수 없습니다.`}
+        requiredText={department}
+        confirmLabel="초기화"
+        onCancel={() => setResetModalOpen(false)}
+        onConfirm={resetDepartment}
+        loading={isSaving}
+      />
     </div>
   );
 }

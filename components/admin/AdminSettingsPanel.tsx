@@ -28,6 +28,7 @@ interface AdminSettingsPanelProps {
   setNewCustomField: React.Dispatch<React.SetStateAction<NewCustomFieldDraft>>;
   saveSettings: () => void;
   changeOperatingMode: (mode: 'union' | 'split') => void;
+  changeCampActive: (active: boolean) => void;
   switchTrack: (trackKey: string) => void;
   addTrack: () => void;
   deleteTrack: (trackKey: string) => void;
@@ -60,6 +61,7 @@ export default function AdminSettingsPanel({
   setNewCustomField,
   saveSettings,
   changeOperatingMode,
+  changeCampActive,
   switchTrack,
   addTrack,
   deleteTrack,
@@ -77,6 +79,26 @@ export default function AdminSettingsPanel({
 
         {/* 운영 모드 & 트랙(연합/분리) 관리 */}
         <Accordion title="운영 모드 (연합 / 분리)" icon="🔀" dark={dark} defaultOpen>
+          {/* 부서 단위 "수련회 없음" 토글 — 부서 전체에 즉시 적용 */}
+          <div className="mb-5 p-4 rounded-xl border-2 border-red-200 bg-red-50 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-bold text-red-700">🚫 이 부서는 올해 수련회를 진행하지 않습니다</p>
+              <p className="text-xs text-red-500 mt-1">
+                체크하면 신청서의 부서 선택 목록과 부서 랜딩페이지에서 즉시 숨겨집니다. (부서 전체 적용)
+              </p>
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={!settingsForm.isCampActive}
+                onChange={(e) => changeCampActive(!e.target.checked)}
+                disabled={isSaving}
+                className="w-5 h-5 accent-red-600"
+              />
+              <span className="text-sm font-bold text-red-700">수련회 없음</span>
+            </label>
+          </div>
+
           <p className="text-xs text-gray-400 mb-4">
             이 대부서의 세부부서가 함께 운영(연합)되는지, 별도 트랙으로 분리 운영되는지 설정합니다.
             분리 시 트랙마다 독립된 CMS 설정·일정과 신청/워터풀 명단 분리 조회가 가능합니다.

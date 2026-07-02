@@ -72,6 +72,8 @@ export interface EventConfig {
   sub_department_ids?: string[];
   /** 대부서 운영 모드 ('union' | 'split') */
   operating_mode?: 'union' | 'split';
+  /** 부서 단위 "올해 수련회 운영 여부" (department-wide, 기본 true). false = 수련회 없음 */
+  is_camp_active?: boolean;
 }
 
 export interface WaterparkInfo {

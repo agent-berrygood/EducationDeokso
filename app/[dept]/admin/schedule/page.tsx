@@ -187,6 +187,22 @@ export default function ScheduleEditorPage() {
     }
   };
 
+  // 카드 복제 — 같은 날짜/시간/내용으로 새 카드를 만들고 바로 편집창 오픈
+  const duplicateCard = (source: ScheduleItem) => {
+    const copy: ScheduleItem = {
+      ...source,
+      id: `sched_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      title: `${source.title} (사본)`,
+    };
+    setSchedule((prev) => {
+      const idx = prev.findIndex((item) => item.id === source.id);
+      if (idx === -1) return [...prev, copy];
+      // 원본 바로 뒤에 삽입해 정렬 시 붙어 보이도록
+      return [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
+    });
+    setEditingCard(copy);
+  };
+
   // 카드 수정 반영
   const handleUpdateCard = (updated: ScheduleItem) => {
     setSchedule((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
@@ -412,16 +428,29 @@ export default function ScheduleEditorPage() {
                         style={{ backgroundColor: card.color || '#ffffff' }}
                         className="p-4 rounded-xl border border-slate-200 shadow-sm cursor-grab active:cursor-grabbing hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-md transition duration-200 text-slate-900 group relative"
                       >
-                        {/* 삭제 버튼 */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteCard(card.id);
-                          }}
-                          className="absolute top-2 right-2 w-5 h-5 bg-black/5 rounded-full flex items-center justify-center text-slate-500 hover:bg-red-500 hover:text-white transition duration-150 text-[10px] font-bold"
-                        >
-                          ✕
-                        </button>
+                        {/* 복제 · 삭제 버튼 */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateCard(card);
+                            }}
+                            title="이 카드 복제"
+                            className="w-5 h-5 bg-black/5 rounded-full flex items-center justify-center text-slate-500 hover:bg-indigo-500 hover:text-white transition duration-150 text-[10px] font-bold"
+                          >
+                            ⧉
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteCard(card.id);
+                            }}
+                            title="이 카드 삭제"
+                            className="w-5 h-5 bg-black/5 rounded-full flex items-center justify-center text-slate-500 hover:bg-red-500 hover:text-white transition duration-150 text-[10px] font-bold"
+                          >
+                            ✕
+                          </button>
+                        </div>
                         
                         <div className="text-[11px] font-extrabold text-indigo-600 mb-1 tracking-tight flex items-center gap-1">
                           🕒 {card.time}

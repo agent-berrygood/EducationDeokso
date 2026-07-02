@@ -84,10 +84,21 @@ function makeEmptyChild(): ChildDraft {
   };
 }
 
+/** 저장된 초안이 "이어쓰기"를 물어볼 만큼 실제 내용을 담고 있는지 판별 */
+function draftHasContent(d: any): boolean {
+  if (!d || typeof d !== 'object') return false;
+  if (d.parentName?.trim() || d.parentPhone?.trim() || d.depositorName?.trim()) return true;
+  if (Array.isArray(d.children) && d.children.some((c: any) => c?.name?.trim() || c?.birthDate || c?.department)) return true;
+  if (Array.isArray(d.waterfallParents) && d.waterfallParents.some((p: any) => p?.name?.trim() || p?.phone?.trim())) return true;
+  return false;
+}
+
 export default function ApplyWizard() {
   const router = useRouter();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [hydrated, setHydrated] = useState(false);
+  // 저장된 초안이 감지되면 자동 복원하지 않고 사용자에게 이어쓰기/새로작성을 먼저 묻는다
+  const [pendingDraft, setPendingDraft] = useState<DraftState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedDepts, setSubmittedDepts] = useState<DepartmentId[]>([]);
@@ -96,19 +107,34 @@ export default function ApplyWizard() {
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // ─── 초기 hydration: localStorage 복원 ───
+  // ─── 초기 hydration: 저장된 초안이 있으면 자동 복원 대신 이어쓰기/새로작성 확인 ───
   useEffect(() => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          setDraft({ ...initialDraft, ...parsed });
+        if (draftHasContent(parsed)) {
+          // 사용자가 선택할 때까지 hydrated=false 유지 → 자동저장이 빈 초안으로 덮어쓰지 않음
+          setPendingDraft({ ...initialDraft, ...parsed });
+          return;
         }
       }
     } catch {}
     setHydrated(true);
   }, []);
+
+  const resumeDraft = () => {
+    if (pendingDraft) setDraft(pendingDraft);
+    setPendingDraft(null);
+    setHydrated(true);
+  };
+
+  const startFreshDraft = () => {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    setDraft(initialDraft);
+    setPendingDraft(null);
+    setHydrated(true);
+  };
 
   // ─── 자동 저장 (debounce 500ms) ───
   useEffect(() => {
@@ -344,6 +370,37 @@ export default function ApplyWizard() {
       return;
     }
     patch({ children: draft.children.filter((c) => c.uid !== uid) });
+  }
+
+  // 저장된 초안 감지 → 이어쓰기/새로작성 확인 화면
+  if (pendingDraft) {
+    return (
+      <div className="max-w-lg mx-auto mt-10">
+        <section className="bg-white p-8 rounded-2xl shadow-sm border text-center space-y-5">
+          <div className="text-5xl">📝</div>
+          <h2 className="text-xl font-bold text-slate-900">이전에 작성하던 신청서가 있습니다</h2>
+          <p className="text-slate-600 text-sm">
+            이어서 작성하시겠어요? 새로 작성하시면 이전에 입력하던 내용은 삭제됩니다.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              type="button"
+              onClick={startFreshDraft}
+              className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              새로 작성하기
+            </button>
+            <button
+              type="button"
+              onClick={resumeDraft}
+              className="flex-1 px-6 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-bold rounded-lg shadow-md transition-colors"
+            >
+              이어서 작성하기
+            </button>
+          </div>
+        </section>
+      </div>
+    );
   }
 
   if (!hydrated) return <div className="text-center py-20 text-slate-500">불러오는 중...</div>;
@@ -643,6 +700,11 @@ interface ChildCardProps {
 
 function ChildCard({ index, child, configCache, patchChild, removable, onRemove }: ChildCardProps) {
   const suggestion = useMemo(() => suggestDepartment(child.birthDate), [child.birthDate]);
+  // 올해 수련회를 진행하지 않는 부서는 선택 목록에서 제외 (config 로드 전엔 기본 노출 — anyWaterparkActive와 동일 방침)
+  const activeDepartments = DEPARTMENTS.filter((d) => {
+    const cfg = configCache[`${d.id}::`] as any;
+    return cfg?.isCampActive ?? true;
+  });
   const activeConfig = child.department ? configCache[`${child.department}::${child.subDepartment || ''}`] : null;
   const activePoster = (activeConfig as any)?.posterUrl || (activeConfig as any)?.poster_url || null;
   const showUnassignedWarning =
@@ -729,7 +791,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
             className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
           >
             <option value="">선택</option>
-            {DEPARTMENTS.map((d) => (
+            {activeDepartments.map((d) => (
               <option key={d.id} value={d.id}>{d.label}</option>
             ))}
           </select>

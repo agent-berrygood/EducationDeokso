@@ -30,7 +30,7 @@ const CONFIG_COLUMNS = `
   is_waterpark_active, waterpark_info,
   track_key, track_label, sub_department_ids, operating_mode,
   sub_departments, events, tshirt_sizes, custom_field_mappings,
-  step_tshirt_sizes`;
+  step_tshirt_sizes, is_camp_active`;
 
 /**
  * 마이그레이션(/api/init) 미적용 환경에서도 설정 조회/저장이 깨지지 않도록
@@ -47,6 +47,8 @@ async function ensureConfigSchema() {
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS sub_department_ids JSONB DEFAULT '[]'::jsonb`);
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS operating_mode VARCHAR(20) DEFAULT 'union'`);
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS step_tshirt_sizes JSONB DEFAULT '[]'::jsonb`);
+  // 부서 단위 "올해 미운영" 토글 (department-wide) — 기본 TRUE(운영)
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_camp_active BOOLEAN DEFAULT TRUE`);
   // UNIQUE(department) → UNIQUE(department, track_key) (멱등)
   await query(`ALTER TABLE event_configs DROP CONSTRAINT IF EXISTS event_configs_department_key`);
   await query(`DO $$
@@ -94,6 +96,7 @@ function serializeConfig(config: any) {
     isStepRecruitmentActive: config.is_step_recruitment_active || false,
     tshirtDeadline: config.tshirt_deadline || null,
     isWaterparkActive: config.is_waterpark_active ?? true,
+    isCampActive: config.is_camp_active ?? true,
     waterparkInfo: parseObj(config.waterpark_info),
     trackKey: config.track_key || MAIN_TRACK_KEY,
     trackLabel: config.track_label || null,
@@ -188,7 +191,7 @@ export async function POST(
       campStartDate, campSchedule, campType, campDuration, posterUrl,
       isStepRecruitmentActive, tshirtDeadline,
       isWaterparkActive, waterparkInfo,
-      stepTshirtSizes,
+      stepTshirtSizes, isCampActive,
       trackKey: rawTrackKey, trackLabel, subDepartmentIds, operatingMode,
     } = body;
 
@@ -222,6 +225,11 @@ export async function POST(
       await query(`UPDATE event_configs SET operating_mode = $1 WHERE department = $2`, [operatingMode, department]);
     }
 
+    // 수련회 운영 여부는 부서 단위 값 — 오면 대부서 전체 행에 반영 (operating_mode와 동일 패턴)
+    if (typeof isCampActive === 'boolean') {
+      await query(`UPDATE event_configs SET is_camp_active = $1 WHERE department = $2`, [isCampActive, department]);
+    }
+
     const existing = await queryOne(
       `SELECT id FROM event_configs WHERE department = $1 AND track_key = $2`,
       [department, trackKey]
@@ -245,8 +253,8 @@ export async function POST(
           camp_type, camp_duration, poster_url, is_step_recruitment_active, tshirt_deadline,
           is_waterpark_active, waterpark_info,
           step_tshirt_sizes,
-          track_key, track_label, sub_department_ids, operating_mode
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)`,
+          track_key, track_label, sub_department_ids, operating_mode, is_camp_active
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
         [
           department, title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -257,7 +265,7 @@ export async function POST(
           isStepRecruitmentActive || false, validatedTshirtDeadline,
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
-          trackKey, trackLabel || null, subDeptIdsJson, opMode,
+          trackKey, trackLabel || null, subDeptIdsJson, opMode, isCampActive ?? true,
         ]
       );
     } else {
@@ -273,8 +281,9 @@ export async function POST(
           is_waterpark_active = $18, waterpark_info = $19,
           step_tshirt_sizes = $20,
           track_label = $21, sub_department_ids = $22,
+          is_camp_active = $23,
           updated_at = NOW()
-         WHERE department = $23 AND track_key = $24`,
+         WHERE department = $24 AND track_key = $25`,
         [
           title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -285,7 +294,7 @@ export async function POST(
           isStepRecruitmentActive || false, validatedTshirtDeadline,
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
-          trackLabel || null, subDeptIdsJson,
+          trackLabel || null, subDeptIdsJson, isCampActive ?? true,
           department, trackKey,
         ]
       );

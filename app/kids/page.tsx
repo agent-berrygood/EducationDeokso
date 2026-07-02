@@ -140,6 +140,17 @@ export default function KidsPage() {
     );
   }
 
+  if (phase === 'ready' && trackConfig && trackConfig.isCampActive === false) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center text-center px-6 space-y-4">
+        <span className="text-5xl">🙏</span>
+        <h1 className="text-2xl font-bold text-gray-800">나우키즈는 올해 수련회를 진행하지 않습니다</h1>
+        <p className="text-gray-500 max-w-md">다음 기회에 함께해요. 문의사항은 교회로 연락 부탁드립니다.</p>
+        <Link href="/" className="mt-4 inline-block px-8 py-3 rounded-full bg-slate-800 text-white font-semibold">홈으로</Link>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center space-y-4">

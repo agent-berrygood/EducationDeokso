@@ -51,6 +51,8 @@ export interface SettingsForm {
   stepTshirtSizes: string[];
   isWaterparkActive: boolean;
   waterparkInfo: SettingsWaterparkInfo;
+  /** 부서 단위 "올해 수련회 운영 여부" (기본 true). false = 수련회 없음 */
+  isCampActive: boolean;
 }
 
 export interface TrackInfo {
