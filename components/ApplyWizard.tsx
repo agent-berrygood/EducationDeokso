@@ -164,6 +164,7 @@ export default function ApplyWizard() {
   const [submittedDepts, setSubmittedDepts] = useState<DepartmentId[]>([]);
   const [error, setError] = useState('');
   const [fees, setFees] = useState<FeesConfig | null>(null);
+  const [feesLoading, setFeesLoading] = useState(true);
   // 개인정보 수집·이용 동의 (제출 시마다 새로 확인 — localStorage에 저장하지 않음)
   const [agreedPrivacy, setAgreedPrivacy] = useState(false);
 
@@ -222,7 +223,7 @@ export default function ApplyWizard() {
       .map((c) => `${c.department}::${c.subDepartment || ''}`);
     return Array.from(new Set([...base, ...childKeys]));
   }, [draft.children]);
-  const configCache = useApplyConfigCache(configCacheKeys);
+  const { cache: configCache, loading: configCacheLoading } = useApplyConfigCache(configCacheKeys);
 
   useEffect(() => {
     (async () => {
@@ -232,9 +233,14 @@ export default function ApplyWizard() {
         if (feesJson.success) setFees(feesJson.data);
       } catch (err) {
         if (process.env.NODE_ENV === 'development') console.error('요금 정보 로드 실패', err);
+      } finally {
+        setFeesLoading(false);
       }
     })();
   }, []);
+
+  // ─── 전체 초기 데이터 로딩 완료 여부 (부서 설정 3개 + 요금 정보) ───
+  const initialDataReady = !configCacheLoading && !feesLoading;
 
   // ─── 합계 계산 (부서별 분리 + 워터풀 자녀/학부모 분리) ───
   const breakdown = useMemo(() => {
@@ -454,7 +460,25 @@ export default function ApplyWizard() {
     );
   }
 
-  if (!hydrated) return <div className="text-center py-20 text-slate-500">불러오는 중...</div>;
+  if (!hydrated || !initialDataReady) {
+    return (
+      <div className="max-w-lg mx-auto mt-10">
+        <section className="bg-white p-8 rounded-2xl shadow-sm border text-center space-y-5">
+          <div className="flex justify-center">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+              <div className="absolute inset-0 rounded-full border-4 border-cyan-500 border-t-transparent animate-spin" />
+            </div>
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">신청서를 준비하고 있습니다</h2>
+          <p className="text-sm text-slate-500">
+            부서 설정 및 요금 정보를 불러오는 중입니다.<br />
+            잠시만 기다려 주세요.
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   // 완료 화면
   if (submitted) {
