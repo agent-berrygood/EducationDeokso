@@ -110,9 +110,13 @@ export const adminLoginSchema = z.object({
   password: z.string().min(1),
 });
 
-/** 스텝 신청 — 캠프(부서)별 참석 형태 */
+/** 스텝 신청 — 캠프(부서·트랙)별 참석 형태 */
 export const staffEntrySchema = z.object({
   department: departmentSchema,
+  /** 분리 운영 부서의 트랙 키 (미지정 시 'main') */
+  trackKey: z.string().optional(),
+  /** 표시용 트랙(캠프) 이름 — 관리자 화면 표기 편의를 위해 저장 */
+  trackLabel: z.string().optional(),
   attendanceType: z.enum(['full', 'partial']),
   /** 부분 참석 시 세션 키 배열 (예: ["1-morning", "2-evening"]) */
   attendedSessions: z.array(z.string()).default([]),

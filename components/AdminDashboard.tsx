@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { SurveyFormPlaceholder } from '@/components/SurveyFormPlaceholder';
 import ApplicationEditModal from '@/components/ApplicationEditModal';
 import WaterparkRoster from '@/components/WaterparkRoster';
+import StaffApplicationsRoster from '@/components/StaffApplicationsRoster';
 import AdminSettingsPanel from '@/components/admin/AdminSettingsPanel';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import TypedConfirmDialog from '@/components/ui/TypedConfirmDialog';
@@ -742,6 +743,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           {[
             { id: 'applications', label: `📝 신청 현황 (${processedChildren.length}명)` },
             { id: 'waterpark', label: '💦 워터풀 명단' },
+            { id: 'staff', label: '🙌 스텝 신청' },
             { id: 'settings', label: '🎨 CMS & 스킨 설정' },
             { id: 'surveys', label: '📊 설문조사 관리 (Phase 2)' }
           ].map((tab) => (
@@ -1102,6 +1104,13 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           {activeTab === 'waterpark' && (
             <ErrorBoundary label="워터풀 명단">
               <WaterparkRoster department={department} dark={department === 'teens'} />
+            </ErrorBoundary>
+          )}
+
+          {/* 스텝(봉사자) 신청 명단 */}
+          {activeTab === 'staff' && (
+            <ErrorBoundary label="스텝 신청">
+              <StaffApplicationsRoster department={department} dark={department === 'teens'} />
             </ErrorBoundary>
           )}
 

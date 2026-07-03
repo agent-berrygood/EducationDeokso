@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import SessionGridPicker from '@/components/SessionGridPicker';
@@ -24,6 +24,17 @@ interface DeptConfig {
   stepTshirtSizes?: string[];
 }
 
+/** 스텝 모집 대상 캠프 — 연합 부서는 부서 자체가, 분리 부서는 트랙별로 하나씩 */
+interface Camp {
+  key: string;            // `${department}::${trackKey}`
+  department: DepartmentId;
+  deptLabel: string;
+  emoji: string;
+  trackKey: string;
+  campLabel: string;      // 연합=부서명, 분리=트랙명(성경학교명)
+  cfg: DeptConfig;
+}
+
 interface EntryDraft {
   checked: boolean;
   attendanceType: 'full' | 'partial';
@@ -44,16 +55,12 @@ function StepApplyForm() {
   const searchParams = useSearchParams();
   const preselect = searchParams.get('dept');
 
-  const [configs, setConfigs] = useState<Record<DepartmentId, DeptConfig | null>>({
-    kinder: null, kids: null, teens: null,
-  });
+  const [camps, setCamps] = useState<Camp[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [note, setNote] = useState('');
-  const [entries, setEntries] = useState<Record<DepartmentId, EntryDraft>>({
-    kinder: emptyEntry(), kids: emptyEntry(), teens: emptyEntry(),
-  });
+  const [entries, setEntries] = useState<Record<string, EntryDraft>>({});
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -61,22 +68,47 @@ function StepApplyForm() {
   useEffect(() => {
     (async () => {
       try {
-        const results = await Promise.all(
-          DEPARTMENTS.map(async (d) => {
-            const res = await fetch(`/api/config/${d.id}`);
-            const json = await res.json();
-            return [d.id, json.success ? json.data : null] as const;
-          })
-        );
-        const map: any = {};
-        results.forEach(([k, v]) => (map[k] = v));
-        setConfigs(map);
-        // URL ?dept= 프리셀렉트 (모집 활성화된 부서만)
-        if (preselect && map[preselect]?.isStepRecruitmentActive) {
-          setEntries((prev) => ({
-            ...prev,
-            [preselect]: { ...prev[preselect as DepartmentId], checked: true },
-          }));
+        const collected: Camp[] = [];
+        for (const d of DEPARTMENTS) {
+          // 트랙 목록 + 운영모드 확인
+          const list = (await (await fetch(`/api/config/${d.id}?list=1`)).json())?.data;
+          const mode = list?.operatingMode === 'split' ? 'split' : 'union';
+          const nonMain = (list?.tracks || []).filter((t: any) => t.trackKey !== 'main');
+
+          if (mode === 'split' && nonMain.length > 0) {
+            // 분리 운영: 트랙(성경학교)마다 개별 스텝 모집
+            for (const t of nonMain) {
+              const cfg = (await (await fetch(`/api/config/${d.id}?track=${encodeURIComponent(t.trackKey)}`)).json())?.data;
+              if (cfg?.isStepRecruitmentActive) {
+                collected.push({
+                  key: `${d.id}::${t.trackKey}`,
+                  department: d.id, deptLabel: d.label, emoji: d.emoji,
+                  trackKey: t.trackKey, campLabel: t.label || cfg.title || d.label, cfg,
+                });
+              }
+            }
+          } else {
+            // 연합 운영: 부서 자체가 하나의 캠프 (main)
+            const cfg = (await (await fetch(`/api/config/${d.id}`)).json())?.data;
+            if (cfg?.isStepRecruitmentActive) {
+              collected.push({
+                key: `${d.id}::main`,
+                department: d.id, deptLabel: d.label, emoji: d.emoji,
+                trackKey: 'main', campLabel: d.label, cfg,
+              });
+            }
+          }
+        }
+        setCamps(collected);
+        // URL ?dept= 프리셀렉트 (해당 부서의 모집 활성 캠프 전체 선택)
+        if (preselect) {
+          setEntries((prev) => {
+            const next = { ...prev };
+            collected.filter((c) => c.department === preselect).forEach((c) => {
+              next[c.key] = { ...emptyEntry(), ...next[c.key], checked: true };
+            });
+            return next;
+          });
         }
       } catch (err) {
         console.error('설정 로드 실패', err);
@@ -87,26 +119,25 @@ function StepApplyForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 스텝 모집이 활성화된 부서만 노출
-  const activeDepts = useMemo(
-    () => DEPARTMENTS.filter((d) => configs[d.id]?.isStepRecruitmentActive),
-    [configs]
-  );
+  const activeDepts = camps; // 모집 활성 캠프 목록
 
-  function patchEntry(dept: DepartmentId, partial: Partial<EntryDraft>) {
-    setEntries((prev) => ({ ...prev, [dept]: { ...prev[dept], ...partial } }));
+  function getEntry(key: string): EntryDraft {
+    return entries[key] || emptyEntry();
+  }
+  function patchEntry(key: string, partial: Partial<EntryDraft>) {
+    setEntries((prev) => ({ ...prev, [key]: { ...getEntry(key), ...partial } }));
   }
 
   async function handleSubmit() {
     setError('');
-    const selected = activeDepts.filter((d) => entries[d.id].checked);
+    const selected = camps.filter((c) => getEntry(c.key).checked);
     if (!name.trim()) return setError('이름을 입력하세요');
     if (!phone.trim()) return setError('연락처를 입력하세요');
     if (selected.length === 0) return setError('스텝으로 참여할 캠프를 1개 이상 선택하세요');
-    for (const d of selected) {
-      const e = entries[d.id];
+    for (const c of selected) {
+      const e = getEntry(c.key);
       if (e.attendanceType === 'partial' && e.attendedSessions.length === 0) {
-        return setError(`${d.label}의 부분 참석 세션을 1개 이상 선택하세요`);
+        return setError(`${c.campLabel}의 부분 참석 세션을 1개 이상 선택하세요`);
       }
     }
 
@@ -114,12 +145,17 @@ function StepApplyForm() {
       name: name.trim(),
       phone: phone.trim(),
       note: note.trim() || undefined,
-      entries: selected.map((d) => ({
-        department: d.id,
-        attendanceType: entries[d.id].attendanceType,
-        attendedSessions: entries[d.id].attendanceType === 'partial' ? entries[d.id].attendedSessions : [],
-        tshirtSize: entries[d.id].tshirtSize || undefined,
-      })),
+      entries: selected.map((c) => {
+        const e = getEntry(c.key);
+        return {
+          department: c.department,
+          trackKey: c.trackKey,
+          trackLabel: c.campLabel,
+          attendanceType: e.attendanceType,
+          attendedSessions: e.attendanceType === 'partial' ? e.attendedSessions : [],
+          tshirtSize: e.tshirtSize || undefined,
+        };
+      }),
     };
 
     const check = staffApplicationSubmitSchema.safeParse(payload);
@@ -228,13 +264,13 @@ function StepApplyForm() {
           일정이 다른 캠프는 중복으로 신청할 수 있습니다. 캠프마다 전체 참석 또는 부분 참석을 지정해주세요.
         </p>
         <div className="space-y-4">
-          {activeDepts.map((d) => {
-            const cfg = configs[d.id]!;
-            const entry = entries[d.id];
+          {activeDepts.map((c) => {
+            const cfg = c.cfg;
+            const entry = getEntry(c.key);
             const color = cfg.primary_color || '#06B6D4';
             return (
               <div
-                key={d.id}
+                key={c.key}
                 className={`rounded-xl border-2 transition-colors ${
                   entry.checked ? 'bg-white' : 'border-slate-200 bg-slate-50'
                 }`}
@@ -244,13 +280,15 @@ function StepApplyForm() {
                   <input
                     type="checkbox"
                     checked={entry.checked}
-                    onChange={(e) => patchEntry(d.id, { checked: e.target.checked })}
+                    onChange={(e) => patchEntry(c.key, { checked: e.target.checked })}
                     className="h-5 w-5 accent-cyan-500"
                   />
-                  <span className="text-2xl">{d.emoji}</span>
+                  <span className="text-2xl">{c.emoji}</span>
                   <span className="flex-1">
-                    <span className="block font-bold text-slate-900">{cfg.title || d.label}</span>
-                    <span className="block text-xs text-slate-500">{d.label} · {cfg.event_type}</span>
+                    <span className="block font-bold text-slate-900">{cfg.title || c.campLabel}</span>
+                    <span className="block text-xs text-slate-500">
+                      {c.deptLabel}{c.trackKey !== 'main' ? ` · ${c.campLabel}` : ''} · {cfg.event_type}
+                    </span>
                   </span>
                   <span
                     className="text-xs font-bold px-3 py-1 rounded-full"
@@ -271,7 +309,7 @@ function StepApplyForm() {
                         <button
                           key={opt.v}
                           type="button"
-                          onClick={() => patchEntry(d.id, { attendanceType: opt.v })}
+                          onClick={() => patchEntry(c.key, { attendanceType: opt.v })}
                           className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
                             entry.attendanceType === opt.v
                               ? 'border-cyan-500 bg-cyan-50 text-cyan-700'
@@ -286,7 +324,7 @@ function StepApplyForm() {
                     {entry.attendanceType === 'partial' && (
                       <SessionGridPicker
                         value={entry.attendedSessions}
-                        onChange={(next) => patchEntry(d.id, { attendedSessions: next })}
+                        onChange={(next) => patchEntry(c.key, { attendedSessions: next })}
                         schedule={cfg.campSchedule}
                         campDuration={cfg.campDuration}
                       />
@@ -303,7 +341,7 @@ function StepApplyForm() {
                             <button
                               key={size}
                               type="button"
-                              onClick={() => patchEntry(d.id, { tshirtSize: entry.tshirtSize === size ? '' : size })}
+                              onClick={() => patchEntry(c.key, { tshirtSize: entry.tshirtSize === size ? '' : size })}
                               className={`px-4 py-2 rounded-lg text-sm font-bold border-2 transition-colors ${
                                 entry.tshirtSize === size
                                   ? 'border-indigo-500 bg-indigo-50 text-indigo-700'

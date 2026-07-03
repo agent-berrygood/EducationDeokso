@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import AdminDashboard from '@/components/AdminDashboard';
 import GlobalFeesSettings from '@/components/GlobalFeesSettings';
 import WaterparkRoster from '@/components/WaterparkRoster';
+import StaffApplicationsRoster from '@/components/StaffApplicationsRoster';
 import type { DepartmentId } from '@/lib/types';
 import { departmentLabel } from '@/lib/labels';
 import { getPresetSubDepartments } from '@/lib/subDepartments';
@@ -12,7 +13,7 @@ interface Props {
   allowedDepartments: DepartmentId[];
 }
 
-type TopTab = DepartmentId | 'global' | 'waterpark';
+type TopTab = DepartmentId | 'global' | 'waterpark' | 'staff';
 
 export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
   // 교역자 단일 운영 - 어드민은 항상 글로벌 설정 노출
@@ -32,7 +33,7 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
     [activeTab]
   );
 
-  const isDeptTab = activeTab !== 'global' && activeTab !== 'waterpark';
+  const isDeptTab = activeTab !== 'global' && activeTab !== 'waterpark' && activeTab !== 'staff';
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -73,6 +74,16 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
             }`}
           >
             💦 워터풀 명단
+          </button>
+          <button
+            onClick={() => setActiveTab('staff')}
+            className={`px-6 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
+              activeTab === 'staff'
+                ? 'bg-slate-50 text-slate-900 rounded-t-lg'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            🙌 스텝 신청
           </button>
           {canSeeGlobal && (
             <button
@@ -122,6 +133,11 @@ export default function UnifiedAdminDashboard({ allowedDepartments }: Props) {
           <div className="p-6">
             {/* 부서 미지정 → 전체 부서 통합 명단 */}
             <WaterparkRoster />
+          </div>
+        ) : activeTab === 'staff' ? (
+          <div className="p-6">
+            {/* 부서 미지정 → 전체 스텝 신청 명단 */}
+            <StaffApplicationsRoster />
           </div>
         ) : (
           <div className="p-6">
