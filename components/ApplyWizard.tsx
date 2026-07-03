@@ -611,7 +611,7 @@ function Step1({ draft, patch, onNext }: Step1Props) {
               type="text"
               value={draft.parentName}
               onChange={(e) => patch({ parentName: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
               placeholder="예) 홍길동"
             />
           </Field>
@@ -620,7 +620,7 @@ function Step1({ draft, patch, onNext }: Step1Props) {
               type="tel"
               value={draft.parentPhone}
               onChange={(e) => patch({ parentPhone: formatPhoneNumber(e.target.value) })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
               placeholder="010-0000-0000"
             />
           </Field>
@@ -629,7 +629,7 @@ function Step1({ draft, patch, onNext }: Step1Props) {
               type="text"
               value={draft.depositorName}
               onChange={(e) => patch({ depositorName: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
               placeholder="입금하실 분 이름"
             />
           </Field>
@@ -812,7 +812,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
             type="text"
             value={child.name}
             onChange={(e) => patchChild(child.uid, { name: e.target.value })}
-            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
           />
         </Field>
 
@@ -912,7 +912,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
               <select
                 value={child.tshirtSize}
                 onChange={(e) => patchChild(child.uid, { tshirtSize: e.target.value })}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
               >
                 <option value="">선택</option>
                 {activeConfig.tshirtSizes.map((s) => (
@@ -1087,7 +1087,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                   onChange={(e) => patchChild(child.uid, {
                     customFields: { ...child.customFields, [`custom_${f.columnIndex}`]: e.target.value },
                   })}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
                 />
               )}
               {f.type === 'textarea' && (
@@ -1096,7 +1096,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                   onChange={(e) => patchChild(child.uid, {
                     customFields: { ...child.customFields, [`custom_${f.columnIndex}`]: e.target.value },
                   })}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
                   rows={3}
                 />
               )}
@@ -1106,7 +1106,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                   onChange={(e) => patchChild(child.uid, {
                     customFields: { ...child.customFields, [`custom_${f.columnIndex}`]: e.target.value },
                   })}
-                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                  className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
                 >
                   <option value="">선택</option>
                   {f.options?.map((o) => (
