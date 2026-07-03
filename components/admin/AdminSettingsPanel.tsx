@@ -131,6 +131,7 @@ export default function AdminSettingsPanel({
             )}
           </div>
 
+          <fieldset disabled={settingsForm.isExternalApply} className={settingsForm.isExternalApply ? "opacity-40 pointer-events-none transition-opacity" : "transition-opacity"}>
           <p className="text-xs text-gray-400 mb-4">
             이 대부서의 세부부서가 함께 운영(연합)되는지, 별도 트랙으로 분리 운영되는지 설정합니다.
             분리 시 트랙마다 독립된 CMS 설정·일정과 신청/워터풀 명단 분리 조회가 가능합니다.
@@ -276,6 +277,7 @@ export default function AdminSettingsPanel({
               </div>
             );
           })()}
+        </fieldset>
         </Accordion>
 
         {operatingMode === 'split' && activeTrackKey === 'main' ? (
@@ -284,6 +286,7 @@ export default function AdminSettingsPanel({
           </div>
         ) : (
         <>
+        <fieldset disabled={settingsForm.isExternalApply} className={settingsForm.isExternalApply ? "opacity-40 pointer-events-none transition-opacity" : "transition-opacity"}>
         {/* 기본 정보 */}
         <Accordion title="기본 행사 정보 설정" icon="🎨" dark={dark} defaultOpen>
           <div className="grid grid-cols-1 gap-6">
@@ -429,14 +432,19 @@ export default function AdminSettingsPanel({
               <p className="text-xs text-gray-500 mt-1 ml-7">신청서 작성 완료 페이지에 스텝 지원 버튼이 노출됩니다.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">티셔츠 신청 마감일시</label>
+              <div className="flex items-center gap-2">
+                <label className="block text-sm font-medium mb-1">티셔츠 신청 마감일시</label>
+                {settingsForm.tshirtDeadline && new Date(settingsForm.tshirtDeadline) < new Date() && (
+                  <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-0.5 rounded animate-pulse">마감일 경과됨! (현재 신청서에서 항목이 숨겨진 상태입니다)</span>
+                )}
+              </div>
               <input
                 type="datetime-local"
                 value={formatToLocalDatetime(settingsForm.tshirtDeadline)}
                 onChange={(e) => setSettingsForm({ ...settingsForm, tshirtDeadline: e.target.value })}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
               />
-              <p className="text-xs text-gray-500 mt-1">이 시각 이후로는 신청서에 티셔츠 선택 항목이 노출되지 않습니다.</p>
+              <p className="text-xs text-gray-500 mt-1">이 시각 이후로는 신청서에 티셔츠 선택 항목이 아예 노출되지 않습니다.</p>
             </div>
           </div>
 
@@ -736,6 +744,7 @@ export default function AdminSettingsPanel({
             )}
           </div>
         </Accordion>
+        </fieldset>
 
         <div className="pt-2">
           <button
