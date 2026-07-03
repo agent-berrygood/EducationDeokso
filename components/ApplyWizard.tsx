@@ -93,6 +93,66 @@ function draftHasContent(d: any): boolean {
   return false;
 }
 
+/** 세부부서 id → 소속 대부서 id (프리셋 기반 역매핑) */
+function departmentForSubDepartment(subId: string): DepartmentId | '' {
+  if (!subId) return '';
+  for (const d of DEPARTMENTS) {
+    if (getPresetSubDepartments(d.id).some((sd) => sd.id === subId)) return d.id;
+  }
+  return '';
+}
+
+/** 생년월일 연/월/일 드롭다운 — 부분 선택은 내부 상태로 유지하고, 3개 모두 선택 시에만 YYYY-MM-DD emit */
+function BirthDateSelect({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+  // ChildCard가 child.uid로 key되어 자녀마다 새로 마운트되므로 초기값을 value에서 한 번 읽으면 충분
+  const [ymd, setYmd] = useState(() => {
+    const [vy, vm, vd] = (value || '').split('-');
+    return { y: vy || '', m: vm ? String(Number(vm)) : '', d: vd ? String(Number(vd)) : '' };
+  });
+
+  const currentYear = new Date().getFullYear();
+  const years: number[] = [];
+  for (let yr = currentYear; yr >= currentYear - 25; yr--) years.push(yr);
+
+  const daysInMonth = (ymd.y && ymd.m) ? new Date(Number(ymd.y), Number(ymd.m), 0).getDate() : 31;
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+
+  const update = (next: { y: string; m: string; d: string }) => {
+    // 월/연 변경으로 일수가 줄면 일 보정
+    let nd = next.d;
+    if (next.y && next.m && nd) {
+      const maxD = new Date(Number(next.y), Number(next.m), 0).getDate();
+      if (Number(nd) > maxD) nd = String(maxD);
+    }
+    const fixed = { ...next, d: nd };
+    setYmd(fixed);
+    if (fixed.y && fixed.m && fixed.d) {
+      onChange(`${fixed.y}-${String(Number(fixed.m)).padStart(2, '0')}-${String(Number(fixed.d)).padStart(2, '0')}`);
+    } else {
+      onChange('');
+    }
+  };
+
+  const selCls = 'flex-1 px-3 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none bg-white';
+
+  return (
+    <div className="flex gap-2">
+      <select className={selCls} value={ymd.y} onChange={(e) => update({ ...ymd, y: e.target.value })}>
+        <option value="">연도</option>
+        {years.map((yr) => <option key={yr} value={yr}>{yr}년</option>)}
+      </select>
+      <select className={selCls} value={ymd.m} onChange={(e) => update({ ...ymd, m: e.target.value })}>
+        <option value="">월</option>
+        {Array.from({ length: 12 }, (_, i) => i + 1).map((mo) => <option key={mo} value={mo}>{mo}월</option>)}
+      </select>
+      <select className={selCls} value={ymd.d} onChange={(e) => update({ ...ymd, d: e.target.value })}>
+        <option value="">일</option>
+        {days.map((dd) => <option key={dd} value={dd}>{dd}일</option>)}
+      </select>
+    </div>
+  );
+}
+
 export default function ApplyWizard() {
   const router = useRouter();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
@@ -104,6 +164,8 @@ export default function ApplyWizard() {
   const [submittedDepts, setSubmittedDepts] = useState<DepartmentId[]>([]);
   const [error, setError] = useState('');
   const [fees, setFees] = useState<FeesConfig | null>(null);
+  // 개인정보 수집·이용 동의 (제출 시마다 새로 확인 — localStorage에 저장하지 않음)
+  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
 
   const saveTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -220,13 +282,6 @@ export default function ApplyWizard() {
 
   const grandTotal = breakdown.total;
 
-  // 워터풀선데이가 활성화된 부서가 하나라도 있는지 (설정 로드 전에는 기존 동작 유지를 위해 true)
-  const anyWaterparkActive = useMemo(() => {
-    const loaded = DEPARTMENTS.map((d) => configCache[`${d.id}::`]).filter(Boolean) as any[];
-    if (loaded.length === 0) return true;
-    return loaded.some((c) => c.isWaterparkActive ?? c.is_waterpark_active ?? true);
-  }, [configCache]);
-
   // ─── 헬퍼: draft 업데이트 ───
   function patch(partial: Partial<DraftState>) {
     setDraft((d) => ({ ...d, ...partial }));
@@ -252,14 +307,6 @@ export default function ApplyWizard() {
     if (!draft.parentName.trim()) return setError('부모 이름을 입력하세요');
     if (!draft.parentPhone.trim()) return setError('부모 연락처를 입력하세요');
     if (!draft.depositorName.trim()) return setError('입금자 이름을 입력하세요');
-    // 워터풀선데이가 활성화된 부서가 있을 때만 보호자 등록 필수
-    if (anyWaterparkActive) {
-      if (draft.waterfallParents.length === 0) return setError('워터풀 보호자를 1명 이상 등록하세요');
-      for (const p of draft.waterfallParents) {
-        if (!p.name.trim()) return setError('워터풀 보호자 이름을 모두 입력하세요');
-        if (!p.phone?.trim()) return setError('워터풀 보호자 연락처를 모두 입력하세요');
-      }
-    }
     setStep(2);
   }
 
@@ -270,8 +317,13 @@ export default function ApplyWizard() {
     for (const c of draft.children) {
       if (!c.name.trim()) return setError('자녀 이름을 모두 입력하세요');
       if (!c.birthDate) return setError(`${c.name || '자녀'}의 생년월일을 입력하세요`);
-      if (!c.department) return setError(`${c.name || '자녀'}의 부서를 선택하세요`);
-      if (!c.subDepartment) return setError(`${c.name || '자녀'}의 세부 부서를 선택하세요`);
+      if (!c.subDepartment) return setError(`${c.name || '자녀'}의 부서를 선택하세요`);
+    }
+    // 워터풀선데이 참석 자녀가 있으면 보호자 1명 이상 입력 필수
+    const attending = draft.children.some((c) => c.attendsWaterpark);
+    if (attending) {
+      const valid = draft.waterfallParents.filter((p) => p.name.trim() && p.phone?.trim());
+      if (valid.length === 0) return setError('워터풀선데이 참석 시 동반 보호자를 1명 이상 입력하세요');
     }
     setStep(3);
   }
@@ -279,16 +331,15 @@ export default function ApplyWizard() {
   // ─── 제출 ───
   async function handleSubmit() {
     setError('');
+    if (!agreedPrivacy) return setError('개인정보 수집·이용에 동의해주세요.');
     setSubmitting(true);
     try {
       const payload = {
         parentName: draft.parentName,
         parentPhone: draft.parentPhone,
         depositorName: draft.depositorName,
-        // 전 부서 워터풀 비활성 시 미입력 기본 행이 남아있을 수 있으므로 빈 항목 제외
-        waterfallParents: anyWaterparkActive
-          ? draft.waterfallParents
-          : draft.waterfallParents.filter((p) => p.name.trim()),
+        // 워터풀 참석 자녀가 없거나 미입력 기본 행이 남아있을 수 있으므로 빈 항목은 항상 제외
+        waterfallParents: draft.waterfallParents.filter((p) => p.name.trim()),
         grandTotal,
         children: draft.children.map((c) => {
           const customs: Record<string, string | null> = {};
@@ -452,11 +503,7 @@ export default function ApplyWizard() {
         <Step1
           draft={draft}
           patch={patch}
-          addParent={addWaterfallParent}
-          removeParent={removeWaterfallParent}
-          updateParent={updateWaterfallParent}
           onNext={goToStep2}
-          showWaterfallSection={anyWaterparkActive}
         />
       )}
 
@@ -467,6 +514,9 @@ export default function ApplyWizard() {
           patchChild={patchChild}
           addChild={addChild}
           removeChild={removeChild}
+          addParent={addWaterfallParent}
+          removeParent={removeWaterfallParent}
+          updateParent={updateWaterfallParent}
           onPrev={() => setStep(1)}
           onNext={goToStep3}
         />
@@ -480,6 +530,8 @@ export default function ApplyWizard() {
           onPrev={() => setStep(2)}
           onSubmit={handleSubmit}
           submitting={submitting}
+          agreedPrivacy={agreedPrivacy}
+          setAgreedPrivacy={setAgreedPrivacy}
         />
       )}
     </div>
@@ -516,19 +568,14 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
   );
 }
 
-// ─── Step 1: 보호자 + 워터풀 보호자 ───
+// ─── Step 1: 보호자 정보 ───
 interface Step1Props {
   draft: DraftState;
   patch: (p: Partial<DraftState>) => void;
-  addParent: () => void;
-  removeParent: (idx: number) => void;
-  updateParent: (idx: number, field: keyof WaterfallParent, value: string) => void;
   onNext: () => void;
-  /** 워터풀선데이 활성 부서가 하나라도 있는지 — 없으면 보호자 섹션 숨김 */
-  showWaterfallSection: boolean;
 }
 
-function Step1({ draft, patch, addParent, removeParent, updateParent, onNext, showWaterfallSection }: Step1Props) {
+function Step1({ draft, patch, onNext }: Step1Props) {
   return (
     <div className="space-y-6">
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
@@ -565,63 +612,6 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext, sh
         </div>
       </section>
 
-      {showWaterfallSection && (
-      <section className="bg-white p-6 rounded-2xl shadow-sm border">
-        <div className="flex items-start justify-between mb-1">
-          <h2 className="text-xl font-bold text-slate-900">워터풀 선데이 보호자</h2>
-        </div>
-        <p className="text-sm text-slate-500 mb-6">
-          폭포수 주일에 자녀와 함께 참여하실 보호자(조부모, 부모 등)를 모두 등록해 주세요. 최소 1명 이상.
-        </p>
-
-        <div className="space-y-3">
-          {draft.waterfallParents.map((p, idx) => (
-            <div key={idx} className="grid grid-cols-12 gap-2 items-start">
-              <input
-                type="text"
-                value={p.name}
-                onChange={(e) => updateParent(idx, 'name', e.target.value)}
-                placeholder="이름"
-                className="col-span-5 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
-              />
-              <select
-                value={p.relation}
-                onChange={(e) => updateParent(idx, 'relation', e.target.value)}
-                className="col-span-3 px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
-              >
-                {RELATIONS.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <input
-                type="tel"
-                value={p.phone || ''}
-                onChange={(e) => updateParent(idx, 'phone', formatPhoneNumber(e.target.value))}
-                placeholder="연락처 (필수)"
-                className="col-span-3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => removeParent(idx)}
-                className="col-span-1 h-10 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 font-bold"
-                aria-label="보호자 삭제"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={addParent}
-          className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 hover:border-cyan-400 hover:text-cyan-600 rounded-lg font-semibold transition-colors"
-        >
-          + 보호자 추가
-        </button>
-      </section>
-      )}
-
       <div className="flex justify-end gap-3">
         <button
           type="button"
@@ -635,18 +625,22 @@ function Step1({ draft, patch, addParent, removeParent, updateParent, onNext, sh
   );
 }
 
-// ─── Step 2: 자녀 정보 + 실시간 부서 매핑 ───
+// ─── Step 2: 자녀 정보 + (참석 시) 워터풀 보호자 ───
 interface Step2Props {
   draft: DraftState;
   configCache: Record<string, EventConfig | null>;
   patchChild: (uid: string, partial: Partial<ChildDraft>) => void;
   addChild: () => void;
   removeChild: (uid: string) => void;
+  addParent: () => void;
+  removeParent: (idx: number) => void;
+  updateParent: (idx: number, field: keyof WaterfallParent, value: string) => void;
   onPrev: () => void;
   onNext: () => void;
 }
 
-function Step2({ draft, configCache, patchChild, addChild, removeChild, onPrev, onNext }: Step2Props) {
+function Step2({ draft, configCache, patchChild, addChild, removeChild, addParent, removeParent, updateParent, onPrev, onNext }: Step2Props) {
+  const hasWaterparkAttendee = draft.children.some((c) => c.attendsWaterpark);
   return (
     <div className="space-y-6">
       {draft.children.map((child, idx) => (
@@ -668,6 +662,62 @@ function Step2({ draft, configCache, patchChild, addChild, removeChild, onPrev, 
       >
         + 자녀 추가
       </button>
+
+      {/* 워터풀선데이 참석 자녀가 있을 때만 동반 보호자 입력 */}
+      {hasWaterparkAttendee && (
+        <section className="bg-white p-6 rounded-2xl shadow-sm border border-cyan-200">
+          <h2 className="text-xl font-bold text-slate-900">💦 워터풀선데이 동반 보호자</h2>
+          <p className="text-sm text-slate-500 mt-1 mb-6">
+            워터풀선데이에 자녀와 함께 참여하실 보호자(조부모, 부모 등)를 모두 등록해 주세요. 최소 1명 이상.
+          </p>
+
+          <div className="space-y-3">
+            {draft.waterfallParents.map((p, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+                <input
+                  type="text"
+                  value={p.name}
+                  onChange={(e) => updateParent(idx, 'name', e.target.value)}
+                  placeholder="이름"
+                  className="col-span-5 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                />
+                <select
+                  value={p.relation}
+                  onChange={(e) => updateParent(idx, 'relation', e.target.value)}
+                  className="col-span-3 px-2 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                >
+                  {RELATIONS.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                <input
+                  type="tel"
+                  value={p.phone || ''}
+                  onChange={(e) => updateParent(idx, 'phone', formatPhoneNumber(e.target.value))}
+                  placeholder="연락처 (필수)"
+                  className="col-span-3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeParent(idx)}
+                  className="col-span-1 h-10 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 font-bold"
+                  aria-label="보호자 삭제"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={addParent}
+            className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 hover:border-cyan-400 hover:text-cyan-600 rounded-lg font-semibold transition-colors"
+          >
+            + 보호자 추가
+          </button>
+        </section>
+      )}
 
       <div className="flex justify-between gap-3">
         <button
@@ -740,11 +790,9 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
         </Field>
 
         <Field label="생년월일">
-          <input
-            type="date"
+          <BirthDateSelect
             value={child.birthDate}
-            onChange={(e) => patchChild(child.uid, { birthDate: e.target.value })}
-            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+            onChange={(iso) => patchChild(child.uid, { birthDate: iso })}
           />
         </Field>
 
@@ -779,20 +827,29 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
           </div>
         </Field>
 
-        <Field label="부서">
+        <Field label="부서 선택">
           <select
-            value={child.department}
-            onChange={(e) => patchChild(child.uid, {
-              department: e.target.value as DepartmentId,
-              subDepartment: '',
-              attendedSessions: [], // 부서 변경 시 시간표가 달라지므로 세션 리셋
-              attendsWaterpark: false, // 부서별 워터풀 활성화/일정이 다르므로 리셋
-            })}
-            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
+            value={child.subDepartment}
+            onChange={(e) => {
+              const newSub = e.target.value;
+              const newDept = departmentForSubDepartment(newSub);
+              const deptChanged = newDept !== child.department;
+              patchChild(child.uid, {
+                subDepartment: newSub,
+                department: newDept,
+                // 부서(대분류)가 바뀌면 시간표/워터풀 설정이 달라지므로 리셋
+                ...(deptChanged ? { attendedSessions: [], attendsWaterpark: false } : {}),
+              });
+            }}
+            className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none bg-white"
           >
             <option value="">선택</option>
             {activeDepartments.map((d) => (
-              <option key={d.id} value={d.id}>{d.label}</option>
+              <optgroup key={d.id} label={d.label}>
+                {getPresetSubDepartments(d.id).map((sd) => (
+                  <option key={sd.id} value={sd.id}>{sd.label}</option>
+                ))}
+              </optgroup>
             ))}
           </select>
           {suggestion && !child.department && (
@@ -805,33 +862,18 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
               ⓘ 만 {suggestion.age}세 자동 추천: {DEPARTMENTS.find(d => d.id === suggestion.recommended)?.label}
             </p>
           )}
+          {showUnassignedWarning && (
+            <p className="mt-2 text-xs text-amber-600">
+              ⚠️ 선택하신 세부부서는 현재 어떤 트랙에도 배정되어 있지 않아 기본(연합) 설정으로 안내됩니다.
+              정확한 캠프 정보 확인을 위해 담당 교역자에게 문의해주세요.
+            </p>
+          )}
         </Field>
 
         {activePoster && (
           <div className="md:col-span-2 mt-2">
             <img src={activePoster} alt="수련회 포스터" className="w-full h-auto max-h-[600px] object-contain rounded-xl shadow-sm border border-slate-200" />
           </div>
-        )}
-
-        {child.department && (
-          <Field label="세부 부서">
-            <select
-              value={child.subDepartment}
-              onChange={(e) => patchChild(child.uid, { subDepartment: e.target.value })}
-              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none"
-            >
-              <option value="">선택</option>
-              {getPresetSubDepartments(child.department).map((sd) => (
-                <option key={sd.id} value={sd.id}>{sd.label}</option>
-              ))}
-            </select>
-            {showUnassignedWarning && (
-              <p className="mt-2 text-xs text-amber-600">
-                ⚠️ 선택하신 세부부서는 현재 어떤 트랙에도 배정되어 있지 않아 기본(연합) 설정으로 안내됩니다.
-                정확한 캠프 정보 확인을 위해 담당 교역자에게 문의해주세요.
-              </p>
-            )}
-          </Field>
         )}
 
         {activeConfig && activeConfig.tshirtSizes?.length > 0 && (() => {
@@ -1246,7 +1288,7 @@ function deptAccount(fees: FeesConfig | null, d: DepartmentId): string | null {
 }
 
 function Step3({
-  draft, breakdown, fees, onPrev, onSubmit, submitting,
+  draft, breakdown, fees, onPrev, onSubmit, submitting, agreedPrivacy, setAgreedPrivacy,
 }: {
   draft: DraftState;
   breakdown: Breakdown;
@@ -1254,6 +1296,8 @@ function Step3({
   onPrev: () => void;
   onSubmit: () => void;
   submitting: boolean;
+  agreedPrivacy: boolean;
+  setAgreedPrivacy: (v: boolean) => void;
 }) {
   const usedDepartments = useMemo<DepartmentId[]>(() => {
     const order: DepartmentId[] = ['kinder', 'kids', 'teens'];
@@ -1279,12 +1323,14 @@ function Step3({
             <dt className="text-slate-500">입금자</dt>
             <dd className="font-semibold">{draft.depositorName}</dd>
           </div>
-          <div className="flex justify-between border-b pb-2">
-            <dt className="text-slate-500">워터풀 보호자</dt>
-            <dd className="font-semibold text-right">
-              {draft.waterfallParents.map((p) => `${p.name}(${p.relation})`).join(', ')}
-            </dd>
-          </div>
+          {draft.waterfallParents.some((p) => p.name.trim()) && (
+            <div className="flex justify-between border-b pb-2">
+              <dt className="text-slate-500">워터풀 보호자</dt>
+              <dd className="font-semibold text-right">
+                {draft.waterfallParents.filter((p) => p.name.trim()).map((p) => `${p.name}(${p.relation})`).join(', ')}
+              </dd>
+            </div>
+          )}
           <div className="flex justify-between border-b pb-2">
             <dt className="text-slate-500">자녀</dt>
             <dd className="font-semibold text-right">
@@ -1390,6 +1436,27 @@ function Step3({
         </div>
       </section>
 
+      {/* 개인정보 수집·이용 동의 */}
+      <section className="bg-white p-6 rounded-2xl shadow-sm border">
+        <h3 className="text-base font-bold text-slate-900 mb-2">개인정보 수집·이용 동의</h3>
+        <div className="text-xs text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 space-y-1">
+          <p>· 수집 항목: 보호자·자녀 성명, 연락처, 생년월일, 알러지 등 건강 특이사항, 입금자명</p>
+          <p>· 수집 목적: 여름성경학교/수련회 신청 접수 및 운영, 안전 관리, 회비 정산</p>
+          <p>· 보유·이용 기간: <strong className="text-slate-700">여름성경학교 종료 후 즉시 파기</strong>합니다.</p>
+        </div>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={agreedPrivacy}
+            onChange={(e) => setAgreedPrivacy(e.target.checked)}
+            className="w-5 h-5 accent-emerald-500 mt-0.5"
+          />
+          <span className="text-sm font-semibold text-slate-800">
+            위 개인정보 수집·이용에 동의합니다. <span className="text-red-500">(필수)</span>
+          </span>
+        </label>
+      </section>
+
       <div className="flex justify-between gap-3">
         <button
           type="button"
@@ -1402,7 +1469,7 @@ function Step3({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={submitting}
+          disabled={submitting || !agreedPrivacy}
           className="px-8 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-lg shadow-md transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
           {submitting ? '제출 중...' : '✅ 회비 및 계좌 확인 완료'}
