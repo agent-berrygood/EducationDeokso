@@ -996,11 +996,13 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
       {activeConfig && activeConfig.camp_start_date && (() => {
         const startDate = new Date(activeConfig.camp_start_date);
         const duration = activeConfig.camp_duration || 3;
+        const campType = activeConfig.camp_type || 'continuous';
+        const dayStep = campType === 'weekly' ? 7 : 1;
         const days: { date: string; label: string }[] = [];
         const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
         for (let i = 0; i < duration; i++) {
           const d = new Date(startDate);
-          d.setDate(d.getDate() + i);
+          d.setDate(d.getDate() + i * dayStep);
           const iso = d.toISOString().slice(0, 10);
           days.push({ date: iso, label: `${d.getMonth() + 1}/${d.getDate()}(${dayNames[d.getDay()]})` });
         }

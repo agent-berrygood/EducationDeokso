@@ -57,7 +57,7 @@ export interface EventConfig {
   customFieldMappings: CustomField[];
   camp_start_date?: string;
   camp_schedule?: EventScheduleSlot[];
-  camp_type?: 'continuous' | 'partial';
+  camp_type?: 'continuous' | 'weekly' | 'partial';
   camp_duration?: number;
   poster_url?: string;
   is_step_recruitment_active?: boolean;
