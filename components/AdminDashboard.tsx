@@ -846,8 +846,16 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                     className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white text-gray-900 shadow-sm transition"
                   />
                 </div>
-                <div className="text-sm text-gray-400">
-                  검색 결과: <strong className="text-indigo-600 font-bold">{processedChildren.length}</strong>명
+                <div className="flex items-center gap-4">
+                  <div className="text-sm text-gray-400">
+                    검색 결과: <strong className="text-indigo-600 font-bold">{processedChildren.length}</strong>명
+                  </div>
+                  <button
+                    onClick={() => setResetModalOpen(true)}
+                    className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-bold rounded-lg transition shadow-sm"
+                  >
+                    🗑️ 명단 초기화
+                  </button>
                 </div>
               </div>
 
