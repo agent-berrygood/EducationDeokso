@@ -586,7 +586,7 @@ export default function AdminSettingsPanel({
           </div>
           <div className="flex flex-wrap gap-2">
             {settingsForm.tshirtSizes.length === 0 ? (
-              <p className="text-sm text-gray-400">등록된 커스텀 사이즈가 없습니다. (기본 사이즈가 드롭다운에 노출됩니다)</p>
+              <p className="text-sm font-semibold text-red-500">등록된 사이즈가 없습니다. (사이즈를 추가하지 않으면 신청서에서 티셔츠 조사 항목이 아예 나타나지 않습니다!)</p>
             ) : (
               settingsForm.tshirtSizes.map((size) => (
                 <div
