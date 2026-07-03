@@ -470,10 +470,9 @@ export default function ApplyWizard() {
               <div className="absolute inset-0 rounded-full border-4 border-cyan-500 border-t-transparent animate-spin" />
             </div>
           </div>
-          <h2 className="text-lg font-bold text-black">신청서를 준비하고 있습니다</h2>
-          <p className="text-sm text-black">
-            부서 설정 및 요금 정보를 불러오는 중입니다.<br />
-            잠시만 기다려 주세요.
+          <h2 className="text-lg font-bold text-black">신청서를 준비하고 있습니다.</h2>
+          <p className="text-sm text-black mt-2">
+            잠시만 기다려주세요.
           </p>
         </section>
       </div>
