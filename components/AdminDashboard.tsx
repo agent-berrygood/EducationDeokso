@@ -847,9 +847,15 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                   />
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="text-sm text-gray-400">
+                  <div className="text-sm text-gray-400 hidden sm:block">
                     검색 결과: <strong className="text-indigo-600 font-bold">{processedChildren.length}</strong>명
                   </div>
+                  <button
+                    onClick={() => loadApplications()}
+                    className="px-4 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-sm font-bold rounded-lg transition shadow-sm whitespace-nowrap cursor-pointer"
+                  >
+                    🔄 DB 새로고침
+                  </button>
                   <button
                     onClick={() => setResetModalOpen(true)}
                     className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm font-bold rounded-lg transition shadow-sm"
