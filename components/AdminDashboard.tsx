@@ -90,6 +90,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     isWaterparkActive: true,
     waterparkInfo: { title: '', date: '', time: '', location: '', note: '' },
     isCampActive: true,
+    isExternalApply: false,
+    externalApplyUrl: '',
   });
 
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -151,6 +153,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       isWaterparkActive: data.isWaterparkActive ?? true,
       waterparkInfo: { title: '', date: '', time: '', location: '', note: '', ...(data.waterparkInfo || {}) },
       isCampActive: data.isCampActive ?? true,
+      isExternalApply: data.isExternalApply ?? false,
+      externalApplyUrl: data.externalApplyUrl || '',
     });
   };
 
@@ -363,6 +367,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           isWaterparkActive: settingsForm.isWaterparkActive,
           waterparkInfo: settingsForm.waterparkInfo,
           isCampActive: settingsForm.isCampActive,
+          isExternalApply: settingsForm.isExternalApply,
+          externalApplyUrl: settingsForm.externalApplyUrl,
           // 현재 편집 중인 트랙 + 운영 모드
           trackKey: activeTrackKey,
           trackLabel: tracks.find((t) => t.trackKey === activeTrackKey)?.label ?? null,
@@ -403,6 +409,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     isWaterparkActive: settingsForm.isWaterparkActive,
     waterparkInfo: settingsForm.waterparkInfo,
     isCampActive: settingsForm.isCampActive,
+    isExternalApply: settingsForm.isExternalApply,
+    externalApplyUrl: settingsForm.externalApplyUrl,
   });
 
   const postConfig = async (extra: Record<string, any>) => {

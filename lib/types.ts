@@ -74,6 +74,10 @@ export interface EventConfig {
   operating_mode?: 'union' | 'split';
   /** 부서 단위 "올해 수련회 운영 여부" (department-wide, 기본 true). false = 수련회 없음 */
   is_camp_active?: boolean;
+  /** 부서 단위 외부(구글폼 등) 신청 사용 여부 (department-wide) */
+  is_external_apply?: boolean;
+  /** 외부 신청 링크 URL (is_external_apply=true일 때 메인페이지에 노출) */
+  external_apply_url?: string | null;
 }
 
 export interface WaterparkInfo {

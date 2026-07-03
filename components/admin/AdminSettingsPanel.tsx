@@ -99,6 +99,38 @@ export default function AdminSettingsPanel({
             </label>
           </div>
 
+          {/* 부서 단위 외부(구글폼 등) 신청 링크 — 활성 시 메인페이지에 이 부서 전용 외부 신청 버튼 노출 */}
+          <div className="mb-5 p-4 rounded-xl border-2 border-amber-200 bg-amber-50">
+            <label className="flex items-start justify-between gap-4 cursor-pointer">
+              <div>
+                <p className="font-bold text-amber-700">🔗 외부 링크로 신청받기 (구글폼 등)</p>
+                <p className="text-xs text-amber-600 mt-1">
+                  체크하면 이 부서는 내부 신청서 대신 외부 링크로 신청받습니다. 신청서 부서 선택 목록에서 숨겨지고,
+                  메인페이지에 이 부서 전용 외부 신청 버튼이 표시됩니다. (부서 전체 적용 · 저장 버튼을 눌러야 반영)
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={settingsForm.isExternalApply}
+                onChange={(e) => setSettingsForm((prev) => ({ ...prev, isExternalApply: e.target.checked }))}
+                disabled={isSaving}
+                className="w-5 h-5 accent-amber-600 shrink-0 mt-0.5"
+              />
+            </label>
+            {settingsForm.isExternalApply && (
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-amber-700 mb-1">외부 신청 링크 URL</label>
+                <input
+                  type="url"
+                  value={settingsForm.externalApplyUrl}
+                  onChange={(e) => setSettingsForm((prev) => ({ ...prev, externalApplyUrl: e.target.value }))}
+                  placeholder="https://forms.gle/..."
+                  className="w-full px-3 py-2 border border-amber-300 rounded-lg bg-white text-gray-900 text-sm focus:ring-2 focus:ring-amber-400 focus:outline-none"
+                />
+              </div>
+            )}
+          </div>
+
           <p className="text-xs text-gray-400 mb-4">
             이 대부서의 세부부서가 함께 운영(연합)되는지, 별도 트랙으로 분리 운영되는지 설정합니다.
             분리 시 트랙마다 독립된 CMS 설정·일정과 신청/워터풀 명단 분리 조회가 가능합니다.

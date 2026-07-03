@@ -750,10 +750,13 @@ interface ChildCardProps {
 
 function ChildCard({ index, child, configCache, patchChild, removable, onRemove }: ChildCardProps) {
   const suggestion = useMemo(() => suggestDepartment(child.birthDate), [child.birthDate]);
-  // 올해 수련회를 진행하지 않는 부서는 선택 목록에서 제외 (config 로드 전엔 기본 노출 — anyWaterparkActive와 동일 방침)
+  // 올해 미운영(수련회 없음)이거나 외부 링크로 신청받는 부서는 내부 신청 목록에서 제외
+  // (config 로드 전엔 기본 노출 — 데이터 도착 전 깜빡임 방지)
   const activeDepartments = DEPARTMENTS.filter((d) => {
     const cfg = configCache[`${d.id}::`] as any;
-    return cfg?.isCampActive ?? true;
+    if (cfg?.isCampActive === false) return false;
+    if (cfg?.isExternalApply === true) return false;
+    return true;
   });
   const activeConfig = child.department ? configCache[`${child.department}::${child.subDepartment || ''}`] : null;
   const activePoster = (activeConfig as any)?.posterUrl || (activeConfig as any)?.poster_url || null;

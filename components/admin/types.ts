@@ -53,6 +53,10 @@ export interface SettingsForm {
   waterparkInfo: SettingsWaterparkInfo;
   /** 부서 단위 "올해 수련회 운영 여부" (기본 true). false = 수련회 없음 */
   isCampActive: boolean;
+  /** 부서 단위 외부(구글폼 등) 신청 사용 여부 */
+  isExternalApply: boolean;
+  /** 외부 신청 링크 URL */
+  externalApplyUrl: string;
 }
 
 export interface TrackInfo {

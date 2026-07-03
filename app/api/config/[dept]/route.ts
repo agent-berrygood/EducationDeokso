@@ -30,7 +30,8 @@ const CONFIG_COLUMNS = `
   is_waterpark_active, waterpark_info,
   track_key, track_label, sub_department_ids, operating_mode,
   sub_departments, events, tshirt_sizes, custom_field_mappings,
-  step_tshirt_sizes, is_camp_active`;
+  step_tshirt_sizes, is_camp_active,
+  is_external_apply, external_apply_url`;
 
 /**
  * 마이그레이션(/api/init) 미적용 환경에서도 설정 조회/저장이 깨지지 않도록
@@ -49,6 +50,9 @@ async function ensureConfigSchema() {
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS step_tshirt_sizes JSONB DEFAULT '[]'::jsonb`);
   // 부서 단위 "올해 미운영" 토글 (department-wide) — 기본 TRUE(운영)
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_camp_active BOOLEAN DEFAULT TRUE`);
+  // 부서 단위 외부(구글폼 등) 신청 링크 — 활성 시 내부 신청 대신 외부 링크로 안내
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_external_apply BOOLEAN DEFAULT FALSE`);
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS external_apply_url TEXT`);
   // UNIQUE(department) → UNIQUE(department, track_key) (멱등)
   await query(`ALTER TABLE event_configs DROP CONSTRAINT IF EXISTS event_configs_department_key`);
   await query(`DO $$
@@ -97,6 +101,8 @@ function serializeConfig(config: any) {
     tshirtDeadline: config.tshirt_deadline || null,
     isWaterparkActive: config.is_waterpark_active ?? true,
     isCampActive: config.is_camp_active ?? true,
+    isExternalApply: config.is_external_apply ?? false,
+    externalApplyUrl: config.external_apply_url || '',
     waterparkInfo: parseObj(config.waterpark_info),
     trackKey: config.track_key || MAIN_TRACK_KEY,
     trackLabel: config.track_label || null,
@@ -192,6 +198,7 @@ export async function POST(
       isStepRecruitmentActive, tshirtDeadline,
       isWaterparkActive, waterparkInfo,
       stepTshirtSizes, isCampActive,
+      isExternalApply, externalApplyUrl,
       trackKey: rawTrackKey, trackLabel, subDepartmentIds, operatingMode,
     } = body;
 
@@ -230,6 +237,16 @@ export async function POST(
       await query(`UPDATE event_configs SET is_camp_active = $1 WHERE department = $2`, [isCampActive, department]);
     }
 
+    // 외부 신청 설정도 부서 단위 값 — 플래그와 URL을 대부서 전체 행에 함께 반영
+    const validatedExternalUrl = typeof externalApplyUrl === 'string' && externalApplyUrl.trim() !== ''
+      ? externalApplyUrl.trim() : null;
+    if (typeof isExternalApply === 'boolean') {
+      await query(
+        `UPDATE event_configs SET is_external_apply = $1, external_apply_url = $2 WHERE department = $3`,
+        [isExternalApply, validatedExternalUrl, department]
+      );
+    }
+
     const existing = await queryOne(
       `SELECT id FROM event_configs WHERE department = $1 AND track_key = $2`,
       [department, trackKey]
@@ -253,8 +270,9 @@ export async function POST(
           camp_type, camp_duration, poster_url, is_step_recruitment_active, tshirt_deadline,
           is_waterpark_active, waterpark_info,
           step_tshirt_sizes,
-          track_key, track_label, sub_department_ids, operating_mode, is_camp_active
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
+          track_key, track_label, sub_department_ids, operating_mode, is_camp_active,
+          is_external_apply, external_apply_url
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
         [
           department, title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -266,6 +284,7 @@ export async function POST(
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
           trackKey, trackLabel || null, subDeptIdsJson, opMode, isCampActive ?? true,
+          isExternalApply ?? false, validatedExternalUrl,
         ]
       );
     } else {
@@ -282,8 +301,9 @@ export async function POST(
           step_tshirt_sizes = $20,
           track_label = $21, sub_department_ids = $22,
           is_camp_active = $23,
+          is_external_apply = $24, external_apply_url = $25,
           updated_at = NOW()
-         WHERE department = $24 AND track_key = $25`,
+         WHERE department = $26 AND track_key = $27`,
         [
           title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -295,6 +315,7 @@ export async function POST(
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
           trackLabel || null, subDeptIdsJson, isCampActive ?? true,
+          isExternalApply ?? false, validatedExternalUrl,
           department, trackKey,
         ]
       );

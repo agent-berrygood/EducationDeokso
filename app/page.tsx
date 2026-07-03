@@ -1,9 +1,61 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 
+const DEPARTMENTS: { id: string; label: string }[] = [
+  { id: 'kinder', label: '나우킨더' },
+  { id: 'kids', label: '나우키즈' },
+  { id: 'teens', label: '나우틴즈' },
+];
+
+interface ExternalLink {
+  id: string;
+  label: string;
+  url: string;
+}
+
 export default function HomePage() {
+  const [externalLinks, setExternalLinks] = useState<ExternalLink[]>([]);
+  // 내부 신청 가능한 부서가 하나라도 있는지 (전부 외부 신청/미운영이면 내부 신청 버튼 숨김)
+  const [hasInternalApply, setHasInternalApply] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const results = await Promise.all(
+          DEPARTMENTS.map(async (d) => {
+            try {
+              const res = await fetch(`/api/config/${d.id}`);
+              const json = await res.json();
+              return { dept: d, data: json.success ? json.data : null };
+            } catch {
+              return { dept: d, data: null };
+            }
+          })
+        );
+        const links: ExternalLink[] = [];
+        let anyInternal = false;
+        for (const { dept, data } of results) {
+          const campActive = data?.isCampActive ?? true;
+          const external = data?.isExternalApply ?? false;
+          const url = data?.externalApplyUrl || '';
+          if (!campActive) continue; // 미운영 부서는 어느 쪽에도 노출하지 않음
+          if (external && url) {
+            links.push({ id: dept.id, label: dept.label, url });
+          } else {
+            anyInternal = true; // 내부 신청 가능한 부서 존재
+          }
+        }
+        setExternalLinks(links);
+        setHasInternalApply(anyInternal);
+      } catch {
+        // 실패 시 기본 동작 유지 (내부 신청 버튼 노출)
+        setHasInternalApply(true);
+      }
+    })();
+  }, []);
+
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans flex flex-col justify-between">
       <main className="container mx-auto px-6 py-12 flex-1 flex flex-col justify-center items-center">
@@ -19,12 +71,29 @@ export default function HomePage() {
             여름성경학교와 여름수련회를 시작합니다.
           </p>
 
-          <Link
-            href="/apply"
-            className="inline-block px-12 py-5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-xl md:text-2xl rounded-full shadow-2xl shadow-cyan-500/40 transform hover:scale-105 transition-all duration-300 ease-in-out cursor-pointer"
-          >
-            2026 지금세대교육부 여름 캠프 신청하기 →
-          </Link>
+          <div className="flex flex-col items-center gap-4">
+            {hasInternalApply && (
+              <Link
+                href="/apply"
+                className="inline-block px-12 py-5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-xl md:text-2xl rounded-full shadow-2xl shadow-cyan-500/40 transform hover:scale-105 transition-all duration-300 ease-in-out cursor-pointer"
+              >
+                2026 지금세대교육부 여름 캠프 신청하기 →
+              </Link>
+            )}
+
+            {/* 외부(구글폼 등) 신청 부서 전용 링크 */}
+            {externalLinks.map((l) => (
+              <a
+                key={l.id}
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block px-10 py-4 border-2 border-cyan-400 text-cyan-300 hover:bg-cyan-400 hover:text-slate-900 font-bold text-lg md:text-xl rounded-full transition-all duration-300 cursor-pointer"
+              >
+                {l.label} 신청하기 (외부 링크) →
+              </a>
+            ))}
+          </div>
         </header>
       </main>
 
