@@ -435,15 +435,15 @@ export default function ApplyWizard() {
       <div className="max-w-lg mx-auto mt-10">
         <section className="bg-white p-8 rounded-2xl shadow-sm border text-center space-y-5">
           <div className="text-5xl">📝</div>
-          <h2 className="text-xl font-bold text-slate-900">이전에 작성하던 신청서가 있습니다</h2>
-          <p className="text-slate-600 text-sm">
+          <h2 className="text-xl font-bold text-black">이전에 작성하던 신청서가 있습니다</h2>
+          <p className="text-black text-sm">
             이어서 작성하시겠어요? 새로 작성하시면 이전에 입력하던 내용은 삭제됩니다.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <button
               type="button"
               onClick={startFreshDraft}
-              className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 font-bold rounded-lg hover:bg-slate-50 transition-colors"
+              className="flex-1 px-6 py-3 border border-slate-300 text-black font-bold rounded-lg hover:bg-slate-50 transition-colors"
             >
               새로 작성하기
             </button>
@@ -470,8 +470,8 @@ export default function ApplyWizard() {
               <div className="absolute inset-0 rounded-full border-4 border-cyan-500 border-t-transparent animate-spin" />
             </div>
           </div>
-          <h2 className="text-lg font-bold text-slate-900">신청서를 준비하고 있습니다</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-lg font-bold text-black">신청서를 준비하고 있습니다</h2>
+          <p className="text-sm text-black">
             부서 설정 및 요금 정보를 불러오는 중입니다.<br />
             잠시만 기다려 주세요.
           </p>
@@ -490,8 +490,8 @@ export default function ApplyWizard() {
       <div className="max-w-3xl mx-auto">
         <section className="bg-white p-8 rounded-2xl shadow-sm border text-center">
           <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">신청이 완료되었습니다</h2>
-          <p className="text-slate-600 mb-6">감사합니다. 신청 내용이 정상적으로 접수되었습니다.</p>
+          <h2 className="text-2xl font-bold text-black mb-2">신청이 완료되었습니다</h2>
+          <p className="text-black mb-6">감사합니다. 신청 내용이 정상적으로 접수되었습니다.</p>
           {stepDepts.length > 0 && (
             <div className="mb-6">
               <a
@@ -504,7 +504,7 @@ export default function ApplyWizard() {
           )}
           <a
             href="/"
-            className="text-sm text-slate-500 hover:text-cyan-600 underline transition-colors"
+            className="text-sm text-black hover:text-cyan-600 underline transition-colors"
           >
             메인 페이지로 돌아가기
           </a>
@@ -575,11 +575,11 @@ function StepIndicator({ current }: { current: 1 | 2 | 3 }) {
         <React.Fragment key={s.n}>
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-              current >= s.n ? 'bg-cyan-500 text-white' : 'bg-slate-200 text-slate-500'
+              current >= s.n ? 'bg-cyan-500 text-white' : 'bg-slate-200 text-black'
             }`}>
               {s.n}
             </div>
-            <span className={`hidden md:inline font-semibold ${current >= s.n ? 'text-slate-900' : 'text-slate-400'}`}>
+            <span className={`hidden md:inline font-semibold ${current >= s.n ? 'text-black' : 'text-slate-400'}`}>
               {s.label}
             </span>
           </div>
@@ -603,8 +603,8 @@ function Step1({ draft, patch, onNext }: Step1Props) {
   return (
     <div className="space-y-6">
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
-        <h2 className="text-xl font-bold mb-1 text-slate-900">보호자 정보</h2>
-        <p className="text-sm text-slate-500 mb-6">신청자(부모) 정보를 입력해 주세요.</p>
+        <h2 className="text-xl font-bold mb-1 text-black">보호자 정보</h2>
+        <p className="text-sm text-black mb-6">신청자(부모) 정보를 입력해 주세요.</p>
         <div className="space-y-4">
           <Field label="부모 이름">
             <input
@@ -682,7 +682,7 @@ function Step2({ draft, configCache, patchChild, addChild, removeChild, addParen
       <button
         type="button"
         onClick={addChild}
-        className="w-full py-4 border-2 border-dashed border-slate-300 text-slate-600 hover:border-cyan-400 hover:text-cyan-600 rounded-2xl font-semibold transition-colors"
+        className="w-full py-4 border-2 border-dashed border-slate-300 text-black hover:border-cyan-400 hover:text-cyan-600 rounded-2xl font-semibold transition-colors"
       >
         + 자녀 추가
       </button>
@@ -690,8 +690,8 @@ function Step2({ draft, configCache, patchChild, addChild, removeChild, addParen
       {/* 워터풀선데이 참석 자녀가 있을 때만 동반 보호자 입력 */}
       {hasWaterparkAttendee && (
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-cyan-200">
-          <h2 className="text-xl font-bold text-slate-900">💦 워터풀선데이 동반 보호자</h2>
-          <p className="text-sm text-slate-500 mt-1 mb-6">
+          <h2 className="text-xl font-bold text-black">💦 워터풀선데이 동반 보호자</h2>
+          <p className="text-sm text-black mt-1 mb-6">
             워터풀선데이에 자녀와 함께 참여하실 보호자(조부모, 부모 등)를 모두 등록해 주세요. 최소 1명 이상.
           </p>
 
@@ -724,7 +724,7 @@ function Step2({ draft, configCache, patchChild, addChild, removeChild, addParen
                 <button
                   type="button"
                   onClick={() => removeParent(idx)}
-                  className="col-span-1 h-10 rounded-lg bg-slate-100 hover:bg-red-100 text-slate-600 hover:text-red-600 font-bold"
+                  className="col-span-1 h-10 rounded-lg bg-slate-100 hover:bg-red-100 text-black hover:text-red-600 font-bold"
                   aria-label="보호자 삭제"
                 >
                   ✕
@@ -736,7 +736,7 @@ function Step2({ draft, configCache, patchChild, addChild, removeChild, addParen
           <button
             type="button"
             onClick={addParent}
-            className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-slate-600 hover:border-cyan-400 hover:text-cyan-600 rounded-lg font-semibold transition-colors"
+            className="mt-4 w-full py-3 border-2 border-dashed border-slate-300 text-black hover:border-cyan-400 hover:text-cyan-600 rounded-lg font-semibold transition-colors"
           >
             + 보호자 추가
           </button>
@@ -747,7 +747,7 @@ function Step2({ draft, configCache, patchChild, addChild, removeChild, addParen
         <button
           type="button"
           onClick={onPrev}
-          className="px-8 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition-colors"
+          className="px-8 py-3 bg-slate-200 hover:bg-slate-300 text-black font-bold rounded-lg transition-colors"
         >
           ← 이전
         </button>
@@ -793,7 +793,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
     <section className="bg-white rounded-2xl shadow-sm border overflow-hidden">
       <div className="p-6 border-b">
         <div className="flex items-center justify-between mb-1">
-          <h3 className="text-lg font-bold text-slate-900">자녀 {index + 1}</h3>
+          <h3 className="text-lg font-bold text-black">자녀 {index + 1}</h3>
           {removable && (
             <button
               type="button"
@@ -826,7 +826,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
         <Field label="성별">
           <div className="flex gap-2">
             <label className={`flex-1 text-center py-3 rounded-lg border cursor-pointer transition-colors ${
-              child.gender === 'male' ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-white text-slate-700 border-slate-300'
+              child.gender === 'male' ? 'bg-cyan-500 text-white border-cyan-500' : 'bg-white text-black border-slate-300'
             }`}>
               <input
                 type="radio"
@@ -839,7 +839,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
               남
             </label>
             <label className={`flex-1 text-center py-3 rounded-lg border cursor-pointer transition-colors ${
-              child.gender === 'female' ? 'bg-pink-500 text-white border-pink-500' : 'bg-white text-slate-700 border-slate-300'
+              child.gender === 'female' ? 'bg-pink-500 text-white border-pink-500' : 'bg-white text-black border-slate-300'
             }`}>
               <input
                 type="radio"
@@ -885,7 +885,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
             </p>
           )}
           {suggestion && child.department && child.department !== suggestion.recommended && (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-black">
               ⓘ 만 {suggestion.age}세 자동 추천: {DEPARTMENTS.find(d => d.id === suggestion.recommended)?.label}
             </p>
           )}
@@ -933,7 +933,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
               const checked = arr.includes(allergy);
               return (
                 <label key={allergy} className={`px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
-                  checked ? 'bg-cyan-100 border-cyan-400 text-cyan-700' : 'bg-white border-slate-300 text-slate-600'
+                  checked ? 'bg-cyan-100 border-cyan-400 text-cyan-700' : 'bg-white border-slate-300 text-black'
                 }`}>
                   <input
                     type="checkbox"
@@ -975,15 +975,15 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                 onChange={(e) => patchChild(child.uid, { attendsWaterpark: e.target.checked })}
                 className="w-4 h-4 accent-cyan-500 mt-0.5"
               />
-              <span className="text-sm text-slate-700">
+              <span className="text-sm text-black">
                 {info.title?.trim() || '워터풀선데이'} 참석
                 {infoLine && (
                   <span className="block text-xs font-semibold text-cyan-700 mt-0.5">📅 {infoLine}</span>
                 )}
                 {info.note?.trim() && (
-                  <span className="block text-xs text-slate-500 mt-0.5">{info.note}</span>
+                  <span className="block text-xs text-black mt-0.5">{info.note}</span>
                 )}
-                <span className="block text-xs text-slate-500 mt-0.5">
+                <span className="block text-xs text-black mt-0.5">
                   자녀 입장료 + 등록된 워터풀 보호자 인원 × 학부모 입장료가 합계에 추가됩니다.
                 </span>
               </span>
@@ -1016,7 +1016,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                 type="button"
                 onClick={() => patchChild(child.uid, { attendedSessions: allSelected ? [] : days.map(d => d.date) })}
                 className={`text-xs px-3 py-1 rounded-full font-semibold transition-colors ${
-                  allSelected ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-600 hover:bg-cyan-50'
+                  allSelected ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-black hover:bg-cyan-50'
                 }`}
               >
                 {allSelected ? '✓ 전체 선택됨' : '전체 선택'}
@@ -1027,7 +1027,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                 const checked = selected.includes(d.date);
                 return (
                   <label key={d.date} className={`px-4 py-2.5 rounded-lg border cursor-pointer text-sm font-semibold transition-all ${
-                    checked ? 'bg-cyan-500 text-white border-cyan-500 shadow-sm' : 'bg-white text-slate-600 border-slate-300 hover:border-cyan-300'
+                    checked ? 'bg-cyan-500 text-white border-cyan-500 shadow-sm' : 'bg-white text-black border-slate-300 hover:border-cyan-300'
                   }`}>
                     <input
                       type="checkbox"
@@ -1061,10 +1061,10 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                   {((activeConfig as any).campSchedule || (activeConfig as any).camp_schedule).map((item: any, i: number) => (
                     <div key={i} className="flex gap-3 text-sm p-3 bg-slate-50 border border-slate-100 rounded-lg">
                       <div className="font-bold text-cyan-600 min-w-[50px]">{item.day}일차</div>
-                      <div className="font-semibold text-slate-500 w-16">{item.time}</div>
+                      <div className="font-semibold text-black w-16">{item.time}</div>
                       <div className="flex-1">
                         <div className="font-bold text-slate-800">{item.title}</div>
-                        {item.description && <div className="text-xs text-slate-500 mt-0.5">{item.description}</div>}
+                        {item.description && <div className="text-xs text-black mt-0.5">{item.description}</div>}
                       </div>
                     </div>
                   ))}
@@ -1137,14 +1137,14 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
               <p className="text-xs font-bold opacity-70" style={{ color: activeConfig.primary_color }}>
                 {activeConfig.event_type}
               </p>
-              <h4 className="text-lg md:text-xl font-bold mt-1 text-slate-900 leading-tight">
+              <h4 className="text-lg md:text-xl font-bold mt-1 text-black leading-tight">
                 {activeConfig.title}
               </h4>
               {activeConfig.subtitle && (
-                <div className="text-sm text-slate-700 mt-2 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.subtitle }} />
+                <div className="text-sm text-black mt-2 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.subtitle }} />
               )}
               {activeConfig.scripture && (
-                <div className="text-xs italic text-slate-600 mt-2 border-l-2 pl-2 border-slate-350 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.scripture }} />
+                <div className="text-xs italic text-black mt-2 border-l-2 pl-2 border-slate-350 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.scripture }} />
               )}
             </div>
           </div>
@@ -1192,7 +1192,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                   >
                     {/* 시간표 헤더 */}
                     <div 
-                      className="border-b border-gray-200 bg-gray-50 flex items-center justify-center font-bold text-slate-500 text-[10px] select-none"
+                      className="border-b border-gray-200 bg-gray-50 flex items-center justify-center font-bold text-black text-[10px] select-none"
                       style={{ gridRow: '1 / 2', gridColumn: '1 / 2' }}
                     >
                       시간대
@@ -1200,7 +1200,7 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
                     {uniqueDays.map((dayNum: any, dayIdx: number) => (
                       <div 
                         key={dayNum}
-                        className="border-b border-r last:border-r-0 border-gray-200 bg-gray-50 flex items-center justify-center font-bold text-slate-700 text-xs select-none"
+                        className="border-b border-r last:border-r-0 border-gray-200 bg-gray-50 flex items-center justify-center font-bold text-black text-xs select-none"
                         style={{ 
                           gridRow: '1 / 2', 
                           gridColumn: `${dayIdx + 2} / ${dayIdx + 3}`,
@@ -1342,26 +1342,26 @@ function Step3({
   return (
     <div className="space-y-6">
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
-        <h2 className="text-xl font-bold mb-4 text-slate-900">신청 내용 확인</h2>
+        <h2 className="text-xl font-bold mb-4 text-black">신청 내용 확인</h2>
         <dl className="space-y-2 text-sm">
           <div className="flex justify-between border-b pb-2">
-            <dt className="text-slate-500">부모</dt>
+            <dt className="text-black">부모</dt>
             <dd className="font-semibold">{draft.parentName} ({draft.parentPhone})</dd>
           </div>
           <div className="flex justify-between border-b pb-2">
-            <dt className="text-slate-500">입금자</dt>
+            <dt className="text-black">입금자</dt>
             <dd className="font-semibold">{draft.depositorName}</dd>
           </div>
           {draft.waterfallParents.some((p) => p.name.trim()) && (
             <div className="flex justify-between border-b pb-2">
-              <dt className="text-slate-500">워터풀 보호자</dt>
+              <dt className="text-black">워터풀 보호자</dt>
               <dd className="font-semibold text-right">
                 {draft.waterfallParents.filter((p) => p.name.trim()).map((p) => `${p.name}(${p.relation})`).join(', ')}
               </dd>
             </div>
           )}
           <div className="flex justify-between border-b pb-2">
-            <dt className="text-slate-500">자녀</dt>
+            <dt className="text-black">자녀</dt>
             <dd className="font-semibold text-right">
               {draft.children.map((c) => `${c.name}(${c.department})`).join(', ')}
             </dd>
@@ -1371,11 +1371,11 @@ function Step3({
 
       {/* 금액 내역 */}
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
-        <h3 className="text-lg font-bold text-slate-900 mb-4">금액 내역</h3>
+        <h3 className="text-lg font-bold text-black mb-4">금액 내역</h3>
         <dl className="space-y-2 text-sm">
           {usedDepartments.map((d) => (
             <div key={d} className="flex justify-between">
-              <dt className="text-slate-600">
+              <dt className="text-black">
                 {DEPT_META[d].label} 회비
                 <span className="text-slate-400 ml-1">
                   ({deptCount(breakdown, d)}명 × {deptUnit(fees, d).toLocaleString()}원)
@@ -1388,7 +1388,7 @@ function Step3({
           {breakdown.attendingChildren > 0 && (
             <>
               <div className="flex justify-between">
-                <dt className="text-slate-600">
+                <dt className="text-black">
                   워터풀 자녀
                   <span className="text-slate-400 ml-1">
                     ({breakdown.attendingChildren}명 × {Number(fees?.child_waterpark || 0).toLocaleString()}원)
@@ -1397,7 +1397,7 @@ function Step3({
                 <dd className="font-semibold">{breakdown.childWaterparkTotal.toLocaleString()}원</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-slate-600">
+                <dt className="text-black">
                   워터풀 학부모
                   <span className="text-slate-400 ml-1">
                     ({draft.waterfallParents.length}명 × {Number(fees?.parent_waterpark || 0).toLocaleString()}원)
@@ -1409,7 +1409,7 @@ function Step3({
           )}
         </dl>
         <div className="mt-4 pt-4 border-t flex justify-between items-center">
-          <span className="text-lg font-semibold text-slate-700">합계</span>
+          <span className="text-lg font-semibold text-black">합계</span>
           <span className="text-3xl font-extrabold text-cyan-600">
             {breakdown.total.toLocaleString()}원
           </span>
@@ -1418,15 +1418,15 @@ function Step3({
 
       {/* 입금 계좌 안내 (읽기 전용) */}
       <section className="bg-slate-50 p-6 rounded-2xl border-2 border-cyan-200">
-        <h3 className="text-lg font-bold text-slate-900 mb-1">💰 입금 계좌 안내</h3>
-        <p className="text-xs text-slate-500 mb-2">
-          항목별로 계좌가 다르니 <strong className="text-slate-700">각각의 금액을 정확히 분리하여 입금</strong>해 주세요.
+        <h3 className="text-lg font-bold text-black mb-1">💰 입금 계좌 안내</h3>
+        <p className="text-xs text-black mb-2">
+          항목별로 계좌가 다르니 <strong className="text-black">각각의 금액을 정확히 분리하여 입금</strong>해 주세요.
         </p>
-        <div className="text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4 space-y-1">
+        <div className="text-xs text-black bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-4 space-y-1">
           <p className="font-bold text-amber-800">📌 입금자명 입력 안내</p>
           <p>
             · 수련회(성경학교) 회비: <strong className="text-slate-800">&quot;세부부서 약칭 + 자녀 이름&quot;</strong>으로 입금해 주세요.
-            <span className="block text-xs text-slate-500 mt-0.5 ml-2">
+            <span className="block text-xs text-black mt-0.5 ml-2">
               약칭: 통미(통합미취학부) / 영유(영유아부) / 유치(유치부) / 통아(통합아동부) / 유년(유년부) / 소년(소년부) / 중등(중등부) / 고등(고등부)
             </span>
           </p>
@@ -1467,11 +1467,11 @@ function Step3({
 
       {/* 개인정보 수집·이용 동의 */}
       <section className="bg-white p-6 rounded-2xl shadow-sm border">
-        <h3 className="text-base font-bold text-slate-900 mb-2">개인정보 수집·이용 동의</h3>
-        <div className="text-xs text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 space-y-1">
+        <h3 className="text-base font-bold text-black mb-2">개인정보 수집·이용 동의</h3>
+        <div className="text-xs text-black leading-relaxed bg-slate-50 border border-slate-200 rounded-lg p-3 mb-3 space-y-1">
           <p>· 수집 항목: 보호자·자녀 성명, 연락처, 생년월일, 알러지 등 건강 특이사항, 입금자명</p>
           <p>· 수집 목적: 여름성경학교/수련회 신청 접수 및 운영, 안전 관리, 회비 정산</p>
-          <p>· 보유·이용 기간: <strong className="text-slate-700">여름성경학교 종료 후 즉시 파기</strong>합니다.</p>
+          <p>· 보유·이용 기간: <strong className="text-black">여름성경학교 종료 후 즉시 파기</strong>합니다.</p>
         </div>
         <label className="flex items-start gap-2 cursor-pointer">
           <input
@@ -1490,7 +1490,7 @@ function Step3({
         <button
           type="button"
           onClick={onPrev}
-          className="px-8 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-lg transition-colors"
+          className="px-8 py-3 bg-slate-200 hover:bg-slate-300 text-black font-bold rounded-lg transition-colors"
           disabled={submitting}
         >
           ← 이전
@@ -1523,8 +1523,8 @@ function AccountInfoCard({
     <div className="rounded-lg p-4 border-2 border-slate-200 bg-white">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex-1">
-          <p className="text-xs text-slate-500">{title}</p>
-          <p className="font-semibold text-slate-900 mt-1">
+          <p className="text-xs text-black">{title}</p>
+          <p className="font-semibold text-black mt-1">
             {account || <span className="text-slate-400 italic">관리자에게 문의해 주세요.</span>}
           </p>
           {depositorNote && (
@@ -1546,7 +1546,7 @@ function AccountInfoCard({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block text-sm font-semibold text-slate-700 mb-1.5">{label}</span>
+      <span className="block text-sm font-semibold text-black mb-1.5">{label}</span>
       {children}
     </label>
   );
