@@ -41,8 +41,8 @@ export default function HomePage() {
           const external = data?.isExternalApply ?? false;
           const url = data?.externalApplyUrl || '';
           if (!campActive) continue; // 미운영 부서는 어느 쪽에도 노출하지 않음
-          if (external && url) {
-            links.push({ id: dept.id, label: dept.label, url });
+          if (external) {
+            links.push({ id: dept.id, label: dept.label, url: url || '#' });
           } else {
             anyInternal = true; // 내부 신청 가능한 부서 존재
           }

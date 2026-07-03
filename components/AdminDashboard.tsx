@@ -329,6 +329,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
 
   // 저장 전 필수 입력값 검증
   const validateSettings = (): string | null => {
+    // 외부 링크로 신청받는 경우, 내부 폼 렌더링에 필요한 다른 설정값 검증을 생략합니다.
+    if (settingsForm.isExternalApply) return null;
+
     if (!settingsForm.title.trim()) return '공식 행사 명칭을 입력해주세요.';
     if (!/^#[0-9A-Fa-f]{6}$/.test(settingsForm.primaryColor)) return '메인 테마 컬러 값이 올바르지 않습니다.';
     if (!/^#[0-9A-Fa-f]{6}$/.test(settingsForm.bgColor)) return '배경 톤 컬러 값이 올바르지 않습니다.';
