@@ -57,6 +57,8 @@ export interface SettingsForm {
   isExternalApply: boolean;
   /** 외부 신청 링크 URL */
   externalApplyUrl: string;
+  /** 해당 트랙의 표시 이름 (편집용) */
+  trackLabel: string;
 }
 
 export interface TrackInfo {

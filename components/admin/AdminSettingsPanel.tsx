@@ -200,9 +200,17 @@ export default function AdminSettingsPanel({
                     </div>
                   )}
                   {activeTrackKey !== 'main' && editableTracks.some((t) => t.trackKey === activeTrackKey) && (
-                    <p className="text-xs text-indigo-600 mt-2 font-semibold">
-                      ✎ 현재 「{editableTracks.find((t) => t.trackKey === activeTrackKey)?.label}」 트랙을 편집 중입니다.
-                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                      <span className="text-sm font-bold text-indigo-700">✎ 트랙 이름:</span>
+                      <input
+                        type="text"
+                        value={settingsForm.trackLabel || editableTracks.find((t) => t.trackKey === activeTrackKey)?.label || ''}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, trackLabel: e.target.value })}
+                        className="flex-1 min-w-[200px] max-w-sm px-3 py-1.5 border border-indigo-200 rounded bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 font-semibold text-gray-900"
+                        placeholder="수정할 트랙 이름을 입력하세요 (예: 통미영유)"
+                      />
+                      <span className="text-xs text-indigo-500 w-full md:w-auto mt-1 md:mt-0">이름을 변경한 뒤 화면 맨 아래의 <strong>[설정 저장]</strong> 버튼을 눌러주세요.</span>
+                    </div>
                   )}
                 </div>
 

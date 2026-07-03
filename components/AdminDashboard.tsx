@@ -93,6 +93,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     isCampActive: true,
     isExternalApply: false,
     externalApplyUrl: '',
+    trackLabel: '',
   });
 
   const [newTshirtSize, setNewTshirtSize] = useState('');
@@ -156,6 +157,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
       isCampActive: data.isCampActive ?? true,
       isExternalApply: data.isExternalApply ?? false,
       externalApplyUrl: data.externalApplyUrl || '',
+      trackLabel: data.trackLabel || '',
     });
   };
 
@@ -372,7 +374,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           externalApplyUrl: settingsForm.externalApplyUrl,
           // 현재 편집 중인 트랙 + 운영 모드
           trackKey: activeTrackKey,
-          trackLabel: tracks.find((t) => t.trackKey === activeTrackKey)?.label ?? null,
+          trackLabel: settingsForm.trackLabel || (tracks.find((t) => t.trackKey === activeTrackKey)?.label ?? null),
           subDepartmentIds: tracks.find((t) => t.trackKey === activeTrackKey)?.subDepartmentIds ?? [],
           operatingMode,
         }),
