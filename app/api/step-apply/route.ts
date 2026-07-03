@@ -10,12 +10,39 @@ function safeParse(val: any): any[] {
 }
 
 /**
+ * 마이그레이션(/api/init) 미적용 환경에서도 스텝 신청이 깨지지 않도록
+ * 스텝 관련 테이블/컬럼을 멱등하게 보장. (config/applications 라우트와 동일 패턴)
+ */
+async function ensureStaffSchema() {
+  await query(`CREATE TABLE IF NOT EXISTS staff_applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20) NOT NULL,
+    note TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  )`);
+  await query(`CREATE TABLE IF NOT EXISTS staff_application_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    staff_application_id UUID NOT NULL REFERENCES staff_applications(id) ON DELETE CASCADE,
+    department VARCHAR(50) NOT NULL,
+    attendance_type VARCHAR(20) NOT NULL DEFAULT 'full',
+    attended_sessions JSONB DEFAULT '[]'::jsonb,
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (staff_application_id, department)
+  )`);
+  // 스텝 티셔츠 사이즈 컬럼 — 나중에 추가된 마이그레이션(v12)이 미적용된 DB 대응
+  await query(`ALTER TABLE staff_application_entries ADD COLUMN IF NOT EXISTS tshirt_size VARCHAR(20)`);
+}
+
+/**
  * POST /api/step-apply
  * 스텝 신청 제출 — 모집 활성화된 부서(캠프)에 한해 복수 신청 가능,
  * 캠프별로 전체 참석(full) 또는 부분 참석(partial + 세션 키) 지정.
  */
 export async function POST(request: Request) {
   try {
+    await ensureStaffSchema();
     const body = await request.json();
     const parsed = staffApplicationSubmitSchema.safeParse(body);
     if (!parsed.success) {
@@ -102,6 +129,7 @@ export async function GET(request: Request) {
     const auth = await requireAdmin(request);
     if (!auth.ok) return auth.response;
 
+    await ensureStaffSchema();
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
 
