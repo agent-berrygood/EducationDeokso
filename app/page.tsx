@@ -73,12 +73,20 @@ export default function HomePage() {
 
           <div className="flex flex-col items-center gap-4">
             {hasInternalApply && (
-              <Link
-                href="/apply"
-                className="inline-block px-12 py-5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-xl md:text-2xl rounded-full shadow-2xl shadow-cyan-500/40 transform hover:scale-105 transition-all duration-300 ease-in-out cursor-pointer"
-              >
-                2026 지금세대교육부 여름 캠프 신청하기 →
-              </Link>
+              <>
+                <Link
+                  href="/apply"
+                  className="inline-block px-12 py-5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-bold text-xl md:text-2xl rounded-full shadow-2xl shadow-cyan-500/40 transform hover:scale-105 transition-all duration-300 ease-in-out cursor-pointer"
+                >
+                  2026 지금세대교육부 여름 캠프 신청하기 →
+                </Link>
+                <Link
+                  href="/step-apply"
+                  className="inline-block px-8 py-3 bg-slate-800/50 hover:bg-slate-700/80 border border-slate-700 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 font-bold text-base md:text-lg rounded-full transition-all duration-300 cursor-pointer"
+                >
+                  🙋‍♂️ 스텝(봉사자) 신청하기 →
+                </Link>
+              </>
             )}
 
             {/* 외부(구글폼 등) 신청 부서 전용 링크 */}
