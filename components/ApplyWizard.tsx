@@ -869,6 +869,31 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
         </div>
       </div>
 
+      {/* 캠프 기본정보 (행사주제·주제·성구) — 카드 최상단 노출. 포스터는 아래 크게 노출되므로 제외 */}
+      {activeConfig && (activeConfig.title || activeConfig.subtitle || activeConfig.scripture) && (
+        <div
+          className="px-6 py-5 border-b"
+          style={{ backgroundColor: activeConfig.bg_color || '#f8fafc' }}
+        >
+          {activeConfig.event_type && (
+            <p className="text-xs font-bold opacity-70" style={{ color: activeConfig.primary_color }}>
+              {activeConfig.event_type}
+            </p>
+          )}
+          {activeConfig.title && (
+            <h4 className="text-lg md:text-xl font-bold mt-1 text-black leading-tight">
+              {activeConfig.title}
+            </h4>
+          )}
+          {activeConfig.subtitle && (
+            <div className="text-sm text-black mt-2 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.subtitle }} />
+          )}
+          {activeConfig.scripture && (
+            <div className="text-xs italic text-black mt-2 border-l-2 pl-2 border-slate-350 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.scripture }} />
+          )}
+        </div>
+      )}
+
       <div className="p-6 grid md:grid-cols-2 gap-4">
         <Field label="이름">
           <input
@@ -1182,36 +1207,12 @@ function ChildCard({ index, child, configCache, patchChild, removable, onRemove 
         </div>
       )}
 
-      {/* 부서 콘텐츠 미리보기 (실시간 매핑) */}
-      {activeConfig && (
+      {/* 수련회 세부 일정표 미리보기 (기본정보는 카드 상단으로 이동) */}
+      {activeConfig && activeConfig.camp_schedule && activeConfig.camp_schedule.length > 0 && (
         <div
           className="px-6 py-6 border-t"
           style={{ backgroundColor: activeConfig.bg_color || '#f8fafc' }}
         >
-          <div className="flex gap-4 items-start">
-            <div className="w-24 md:w-32 aspect-[3/4] bg-white/60 rounded-lg overflow-hidden flex-shrink-0 shadow-sm">
-              {activePoster ? (
-                <img src={activePoster} alt={`${activeConfig.title} 포스터`} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full animate-pulse bg-slate-200" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold opacity-70" style={{ color: activeConfig.primary_color }}>
-                {activeConfig.event_type}
-              </p>
-              <h4 className="text-lg md:text-xl font-bold mt-1 text-black leading-tight">
-                {activeConfig.title}
-              </h4>
-              {activeConfig.subtitle && (
-                <div className="text-sm text-black mt-2 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.subtitle }} />
-              )}
-              {activeConfig.scripture && (
-                <div className="text-xs italic text-black mt-2 border-l-2 pl-2 border-slate-350 prose max-w-none" dangerouslySetInnerHTML={{ __html: activeConfig.scripture }} />
-              )}
-            </div>
-          </div>
-
           {/* 수련회 세부 일정표 및 시간표 실시간 노출 추가 */}
           {activeConfig.camp_schedule && activeConfig.camp_schedule.length > 0 && (() => {
             const uniqueDays = Array.from(new Set(activeConfig.camp_schedule.map((s: any) => s.day))).sort((a: any, b: any) => a - b);
