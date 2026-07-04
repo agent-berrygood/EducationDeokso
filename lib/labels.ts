@@ -26,7 +26,7 @@ export function departmentLabel(value: any): string {
 // ── 대부서 (전체 표기, 어드민 헤더용) ───────────────────────
 const DEPT_FULL_LABELS: Record<string, string> = {
   kinder: '나우킨더 (미취학)',
-  kids: '나우키즈 (초등부)',
+  kids: '나우키즈 (취학부서)',
   teens: '나우틴즈 (중고등부)',
 };
 export function departmentFullLabel(value: any): string {

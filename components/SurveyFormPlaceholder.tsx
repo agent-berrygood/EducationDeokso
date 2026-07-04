@@ -7,7 +7,7 @@ interface SurveyFormPlaceholderProps {
 export const SurveyFormPlaceholder: React.FC<SurveyFormPlaceholderProps> = ({ department }) => {
   const deptNames = {
     kinder: '나우킨더 (미취학)',
-    kids: '나우키즈 (초등부)',
+    kids: '나우키즈 (취학부서)',
     teens: '나우틴즈 (중고등부)',
   };
 

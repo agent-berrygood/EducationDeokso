@@ -9,7 +9,7 @@ import type { DepartmentId } from '@/lib/types';
 
 const DEPARTMENTS: { id: DepartmentId; label: string; emoji: string }[] = [
   { id: 'kinder', label: '나우킨더 (미취학)', emoji: '🧸' },
-  { id: 'kids', label: '나우키즈 (초등부)', emoji: '👦' },
+  { id: 'kids', label: '나우키즈 (취학부서)', emoji: '👦' },
   { id: 'teens', label: '나우틴즈 (중고등부)', emoji: '🔥' },
 ];
 
