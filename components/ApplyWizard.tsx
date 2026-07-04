@@ -219,17 +219,22 @@ export default function ApplyWizard() {
     };
   }, [draft, hydrated]);
 
-  // ─── 부서/트랙별 CMS 설정 온디맨드 캐시 ───
-  // 부서 단위(sub 없음) 3개는 항상 미리 채워 anyWaterparkActive 등 부서 레벨 판단에 사용하고,
-  // 자녀별로 선택된 department::subDepartment 조합은 추가로 필요할 때마다 채워진다.
+  // ─── 부서/트랙별 CMS 설정 프리로드 캐시 ───
+  // 부서 단위(sub 없음) 3개 + 모든 프리셋 세부부서 조합을 처음부터 미리 로드해 둔다.
+  // 이렇게 하면 사용자가 부서/성경학교를 선택하는 즉시 캐시에서 바로 렌더되어 지연이 없다.
+  // (프리셋은 고정 목록이라 조합 수가 적어 초기 병렬 요청 비용도 작다.)
   const configCacheKeys = useMemo(() => {
-    const base = DEPARTMENTS.map((d) => `${d.id}::`);
+    const base: string[] = [];
+    DEPARTMENTS.forEach((d) => {
+      base.push(`${d.id}::`);
+      getPresetSubDepartments(d.id).forEach((sd) => base.push(`${d.id}::${sd.id}`));
+    });
     const childKeys = draft.children
       .filter((c) => c.department)
       .map((c) => `${c.department}::${c.subDepartment || ''}`);
     return Array.from(new Set([...base, ...childKeys]));
   }, [draft.children]);
-  const { cache: configCache, loading: configCacheLoading } = useApplyConfigCache(configCacheKeys);
+  const { cache: configCache } = useApplyConfigCache(configCacheKeys);
 
   useEffect(() => {
     (async () => {
@@ -245,8 +250,12 @@ export default function ApplyWizard() {
     })();
   }, []);
 
-  // ─── 전체 초기 데이터 로딩 완료 여부 (부서 설정 3개 + 요금 정보) ───
-  const initialDataReady = !configCacheLoading && !feesLoading;
+  // ─── 전체 초기 데이터 로딩 완료 여부 ───
+  // 초기 진입 화면은 부서 단위 설정 3개 + 요금 정보만 있으면 바로 인터랙션 가능하게 연다.
+  // 세부부서(성경학교) 설정들은 백그라운드에서 계속 프리로드되며, 선택 시점엔 이미 캐시에 있어
+  // 즉시 렌더된다. (초기 게이트를 11개 전체에 걸면 첫 진입만 느려지므로 코어 3개로 한정)
+  const coreConfigReady = DEPARTMENTS.every((d) => `${d.id}::` in configCache);
+  const initialDataReady = coreConfigReady && !feesLoading;
 
   // ─── 합계 계산 (부서별 분리 + 워터풀 자녀/학부모 분리) ───
   const breakdown = useMemo(() => {
