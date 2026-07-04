@@ -67,7 +67,8 @@ export default function WaterparkRoster({ department, dark = false }: WaterparkR
 
   const removeFamily = async (family: any) => {
     if (!(await confirmDialog(`${family.parentName} 가족을 워터풀 명단에서 제외하시겠습니까?\n성경학교/수련회 신청은 그대로 유지됩니다.`))) return;
-    await patchWaterpark({ applicationId: family.id });
+    // 병합된 가족은 신청서가 여러 건일 수 있어 전체를 제외
+    await patchWaterpark({ applicationIds: family.applicationIds || [family.id] });
   };
 
   const clearAll = async () => {

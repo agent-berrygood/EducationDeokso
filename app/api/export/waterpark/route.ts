@@ -2,12 +2,7 @@ import { queryMany } from '@/lib/db';
 import ExcelJS from 'exceljs';
 import { genderLabel } from '@/lib/labels';
 import { requireAdmin } from '@/lib/auth';
-
-function safeParse(val: any): any[] {
-  if (Array.isArray(val)) return val;
-  if (typeof val !== 'string') return [];
-  try { return JSON.parse(val); } catch { return []; }
-}
+import { mergeWaterparkFamilies } from '@/lib/waterpark';
 
 const DEPT_LABELS: Record<string, string> = {
   kinder: '나우킨더',
@@ -54,6 +49,10 @@ export async function GET(request: Request) {
       params
     );
 
+    // 전화번호+이름이 같은 신청서들을 한 가족으로 병합 후 이름순 정렬
+    const families = mergeWaterparkFamilies(rows as any)
+      .sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '', 'ko'));
+
     const workbook = new ExcelJS.Workbook();
 
     // === Sheet 1: 가족 단위 명단 ===
@@ -63,25 +62,25 @@ export async function GET(request: Request) {
     let totalParents = 0;
     let totalChildren = 0;
 
-    rows.forEach((r: any) => {
-      const parents = safeParse(r.waterfall_parents);
-      const children = Array.isArray(r.waterpark_children) ? r.waterpark_children : [];
+    families.forEach((f) => {
+      const parents = f.parents;
+      const children = f.children;
       totalParents += parents.length;
       totalChildren += children.length;
       ws1.addRow([
-        r.parent_name ?? '',
-        r.parent_phone ?? '',
-        r.depositor_name ?? '',
+        f.parentName ?? '',
+        f.parentPhone ?? '',
+        f.depositorName ?? '',
         parents.map((p: any) => `${p.name}(${p.relation})`).join(', '),
         children.map((c: any) => `${c.name}(${DEPT_LABELS[c.department] || c.department})`).join(', '),
         parents.length,
         children.length,
         parents.length + children.length,
-        r.created_at ? new Date(r.created_at).toISOString().slice(0, 10) : '',
+        f.createdAt ? new Date(f.createdAt).toISOString().slice(0, 10) : '',
       ]);
     });
 
-    if (rows.length > 0) {
+    if (families.length > 0) {
       const totalRow = ws1.addRow(['합계', '', '', '', '', totalParents, totalChildren, totalParents + totalChildren, '']);
       totalRow.font = { bold: true };
       totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F7FA' } };
@@ -94,14 +93,12 @@ export async function GET(request: Request) {
     ws2.addRow(['NO', '구분', '이름', '관계/부서', '성별', '대표 보호자', '연락처', '체크인']);
 
     let no = 0;
-    rows.forEach((r: any) => {
-      const parents = safeParse(r.waterfall_parents);
-      const children = Array.isArray(r.waterpark_children) ? r.waterpark_children : [];
-      parents.forEach((p: any) => {
-        ws2.addRow([++no, '보호자', p.name ?? '', p.relation ?? '', '', r.parent_name ?? '', p.phone || r.parent_phone || '', '']);
+    families.forEach((f) => {
+      f.parents.forEach((p: any) => {
+        ws2.addRow([++no, '보호자', p.name ?? '', p.relation ?? '', '', f.parentName ?? '', p.phone || f.parentPhone || '', '']);
       });
-      children.forEach((c: any) => {
-        ws2.addRow([++no, '자녀', c.name ?? '', DEPT_LABELS[c.department] || c.department || '', genderLabel(c.gender), r.parent_name ?? '', r.parent_phone ?? '', '']);
+      f.children.forEach((c: any) => {
+        ws2.addRow([++no, '자녀', c.name ?? '', DEPT_LABELS[c.department] || c.department || '', genderLabel(c.gender), f.parentName ?? '', f.parentPhone ?? '', '']);
       });
     });
     setColumnWidths(ws2, 14);

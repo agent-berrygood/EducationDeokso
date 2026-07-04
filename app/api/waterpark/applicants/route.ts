@@ -3,12 +3,7 @@ import { queryMany, query } from '@/lib/db';
 import { checkDepartmentAccess, requireAdmin } from '@/lib/auth';
 import { trackSubDepartments } from '@/lib/track-query';
 import type { DepartmentId } from '@/lib/types';
-
-function safeParse(val: any): any[] {
-  if (Array.isArray(val)) return val;
-  if (typeof val !== 'string') return [];
-  try { return JSON.parse(val); } catch { return []; }
-}
+import { mergeWaterparkFamilies } from '@/lib/waterpark';
 
 /**
  * GET /api/waterpark/applicants?department=kids
@@ -87,22 +82,9 @@ export async function GET(request: Request) {
       params
     );
 
-    const data = rows.map((r: any) => {
-      const parents = safeParse(r.waterfall_parents);
-      const children = Array.isArray(r.waterpark_children) ? r.waterpark_children : [];
-      return {
-        id: r.id,
-        parentName: r.parent_name,
-        parentPhone: r.parent_phone,
-        depositorName: r.depositor_name,
-        createdAt: r.created_at,
-        parents,            // 워터풀 동반 보호자 명단 [{name, relation, phone}]
-        children,           // 워터풀 참석 자녀 명단
-        parentCount: parents.length,
-        childCount: children.length,
-        totalCount: parents.length + children.length,
-      };
-    });
+    // 전화번호+이름이 같은 신청서들을 한 가족으로 병합 (같은 가족이 워터풀에서 쪼개지지 않도록)
+    const data = mergeWaterparkFamilies(rows as any)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const summary = {
       familyCount: data.length,
@@ -140,12 +122,15 @@ export async function PATCH(request: Request) {
     }
 
     const department = body?.department as string | undefined;
-    const applicationId = body?.applicationId as string | undefined;
+    // 병합된 가족은 신청서가 여러 건일 수 있어 배열(applicationIds)도 허용
+    const applicationIds: string[] = Array.isArray(body?.applicationIds)
+      ? body.applicationIds.filter((v: any) => typeof v === 'string')
+      : (typeof body?.applicationId === 'string' ? [body.applicationId] : []);
     const all = body?.all === true;
 
-    if (!applicationId && !all) {
+    if (applicationIds.length === 0 && !all) {
       return Response.json(
-        { success: false, error: 'applicationId 또는 all 플래그가 필요합니다.' },
+        { success: false, error: 'applicationId(s) 또는 all 플래그가 필요합니다.' },
         { status: 400 }
       );
     }
@@ -166,9 +151,9 @@ export async function PATCH(request: Request) {
 
     const conditions = ['attends_waterpark = TRUE'];
     const params: any[] = [];
-    if (applicationId) {
-      params.push(applicationId);
-      conditions.push(`application_id = $${params.length}`);
+    if (applicationIds.length > 0) {
+      params.push(applicationIds);
+      conditions.push(`application_id = ANY($${params.length}::uuid[])`);
     }
     // 부서 지정 시 해당 부서 자녀만 제외 (다른 부서 자녀의 워터풀 참석은 보존)
     if (department) {
