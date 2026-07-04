@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:waterpark-merge": "node scripts/test-waterpark-merge.mjs"
   },
   "dependencies": {
     "@tiptap/react": "^3.23.6",
@@ -31,6 +32,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "pg-mem": "^3.0.14",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
