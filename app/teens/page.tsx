@@ -17,6 +17,7 @@ interface EventConfig {
   campType?: string;
   campDuration?: number;
   posterUrl?: string;
+  scheduleImageUrl?: string;
   isStepRecruitmentActive?: boolean;
 }
 
@@ -237,8 +238,19 @@ export default function TeensPage() {
             />
           </div>
 
-          {/* 수련회 세부 일정 (2차원 동적 시간표 그리드 플래너) */}
-          {config.campSchedule && config.campSchedule.length > 0 && (() => {
+          {/* 일정표 사진이 등록된 경우 그리드 대신 이미지 노출 */}
+          {config.scheduleImageUrl ? (
+            <div className="py-12 border-t border-gray-100 text-left">
+              <h3 className="text-2xl font-extrabold text-gray-900 mb-6 flex items-center gap-2">
+                <span style={{ color: primaryColor }}>📅</span> 수련회 전체 일정표
+              </h3>
+              <div className="overflow-hidden rounded-2xl border border-gray-200 shadow-lg">
+                <img src={config.scheduleImageUrl} alt="수련회 일정표" className="w-full h-auto object-contain block" />
+              </div>
+            </div>
+          ) : (
+          /* 수련회 세부 일정 (2차원 동적 시간표 그리드 플래너) */
+          config.campSchedule && config.campSchedule.length > 0 && (() => {
             const uniqueDays = Array.from(new Set(config.campSchedule.map((s) => s.day))).sort((a, b) => a - b);
             
             return (
@@ -348,7 +360,7 @@ export default function TeensPage() {
                 </div>
               </div>
             );
-          })()}
+          })())}
 
           {/* 메인 페이지 이동 안내 + 스텝 신청 */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

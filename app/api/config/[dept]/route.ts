@@ -31,7 +31,7 @@ const CONFIG_COLUMNS = `
   track_key, track_label, sub_department_ids, operating_mode,
   sub_departments, events, tshirt_sizes, custom_field_mappings,
   step_tshirt_sizes, is_camp_active,
-  is_external_apply, external_apply_url`;
+  is_external_apply, external_apply_url, schedule_image_url`;
 
 /**
  * 마이그레이션(/api/init) 미적용 환경에서도 설정 조회/저장이 깨지지 않도록
@@ -53,6 +53,8 @@ async function ensureConfigSchema() {
   // 부서 단위 외부(구글폼 등) 신청 링크 — 활성 시 내부 신청 대신 외부 링크로 안내
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS is_external_apply BOOLEAN DEFAULT FALSE`);
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS external_apply_url TEXT`);
+  // 트랙 단위 일정표 이미지 — 직접 편집 대신 사진(일정표 이미지)으로 대체 가능 (base64 data URL)
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS schedule_image_url TEXT`);
   // UNIQUE(department) → UNIQUE(department, track_key) (멱등)
   await query(`ALTER TABLE event_configs DROP CONSTRAINT IF EXISTS event_configs_department_key`);
   await query(`DO $$
@@ -103,6 +105,7 @@ function serializeConfig(config: any) {
     isCampActive: config.is_camp_active ?? true,
     isExternalApply: config.is_external_apply ?? false,
     externalApplyUrl: config.external_apply_url || '',
+    scheduleImageUrl: config.schedule_image_url || '',
     waterparkInfo: parseObj(config.waterpark_info),
     trackKey: config.track_key || MAIN_TRACK_KEY,
     trackLabel: config.track_label || null,
@@ -199,8 +202,12 @@ export async function POST(
       isWaterparkActive, waterparkInfo,
       stepTshirtSizes, isCampActive,
       isExternalApply, externalApplyUrl,
+      scheduleImageUrl,
       trackKey: rawTrackKey, trackLabel, subDepartmentIds, operatingMode,
     } = body;
+
+    const validatedScheduleImage = typeof scheduleImageUrl === 'string' && scheduleImageUrl.trim() !== ''
+      ? scheduleImageUrl : null;
 
     const trackKey = (rawTrackKey && String(rawTrackKey).trim()) || MAIN_TRACK_KEY;
     const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
@@ -271,8 +278,8 @@ export async function POST(
           is_waterpark_active, waterpark_info,
           step_tshirt_sizes,
           track_key, track_label, sub_department_ids, operating_mode, is_camp_active,
-          is_external_apply, external_apply_url
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)`,
+          is_external_apply, external_apply_url, schedule_image_url
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`,
         [
           department, title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -284,7 +291,7 @@ export async function POST(
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
           trackKey, trackLabel || null, subDeptIdsJson, opMode, isCampActive ?? true,
-          isExternalApply ?? false, validatedExternalUrl,
+          isExternalApply ?? false, validatedExternalUrl, validatedScheduleImage,
         ]
       );
     } else {
@@ -302,8 +309,9 @@ export async function POST(
           track_label = $21, sub_department_ids = $22,
           is_camp_active = $23,
           is_external_apply = $24, external_apply_url = $25,
+          schedule_image_url = $26,
           updated_at = NOW()
-         WHERE department = $26 AND track_key = $27`,
+         WHERE department = $27 AND track_key = $28`,
         [
           title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -315,7 +323,7 @@ export async function POST(
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
           trackLabel || null, subDeptIdsJson, isCampActive ?? true,
-          isExternalApply ?? false, validatedExternalUrl,
+          isExternalApply ?? false, validatedExternalUrl, validatedScheduleImage,
           department, trackKey,
         ]
       );

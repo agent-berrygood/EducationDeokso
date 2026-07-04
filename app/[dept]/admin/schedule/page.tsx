@@ -89,6 +89,10 @@ export default function ScheduleEditorPage() {
   const [campDuration, setCampDuration] = useState<number>(3);
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
 
+  // 일정 입력 방식: 'manual'(직접 편집) | 'image'(일정표 사진 업로드)
+  const [scheduleMode, setScheduleMode] = useState<'manual' | 'image'>('manual');
+  const [scheduleImageUrl, setScheduleImageUrl] = useState<string>('');
+
   // 모달 상세 카드 편집 상태
   const [editingCard, setEditingCard] = useState<ScheduleItem | null>(null);
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
@@ -128,6 +132,10 @@ export default function ScheduleEditorPage() {
         setCampType(data.campType || 'continuous');
         setCampDuration(Number(data.campDuration || 3));
         setSchedule(data.campSchedule || []);
+        const img = data.scheduleImageUrl || '';
+        setScheduleImageUrl(img);
+        // 저장된 일정표 이미지가 있으면 사진 모드로 기본 진입
+        setScheduleMode(img ? 'image' : 'manual');
       }
     } catch (err) {
       alert('설정 데이터를 불러오는 중 오류가 발생했습니다.');
@@ -226,6 +234,20 @@ export default function ScheduleEditorPage() {
     setDraggedCardId(null);
   };
 
+  // 일정표 이미지 업로드 (base64 변환) — 포스터 업로드와 동일 정책(2MB 제한)
+  const handleScheduleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('파일 크기가 너무 큽니다. 데이터베이스 최적화를 위해 2MB 이하의 이미지만 업로드해주세요.');
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => setScheduleImageUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
   // 최종 DB 저장
   const handleSave = async () => {
     try {
@@ -238,6 +260,8 @@ export default function ScheduleEditorPage() {
         campType,
         campDuration,
         campSchedule: sortedSchedule,
+        // 사진 모드일 때만 일정표 이미지를 저장하고, 직접 편집 모드면 비워서 그리드가 노출되게 함
+        scheduleImageUrl: scheduleMode === 'image' ? scheduleImageUrl : '',
         // 기존 테마 필드 누락 방지
         title: config?.title,
         subtitle: config?.subtitle,
@@ -382,7 +406,74 @@ export default function ScheduleEditorPage() {
         </div>
       </header>
 
+      {/* 일정 입력 방식 선택 (직접 편집 / 일정표 사진) */}
+      <div className="px-6 mt-6">
+        <div className="inline-flex items-center gap-1 bg-slate-900 border border-slate-800 rounded-xl p-1">
+          <button
+            type="button"
+            onClick={() => setScheduleMode('manual')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition cursor-pointer ${
+              scheduleMode === 'manual' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            🗓️ 직접 편집
+          </button>
+          <button
+            type="button"
+            onClick={() => setScheduleMode('image')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition cursor-pointer ${
+              scheduleMode === 'image' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            🖼️ 일정표 사진으로 넣기
+          </button>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          {scheduleMode === 'image'
+            ? '일정표 이미지를 업로드하면, 부서 페이지에 직접 편집한 일정 대신 이 사진이 표시됩니다.'
+            : '카드를 드래그·편집해 일정표를 직접 구성합니다.'}
+        </p>
+      </div>
+
+      {/* 일정표 사진 업로드 모드 */}
+      {scheduleMode === 'image' && (
+        <main className="px-6 mt-6">
+          <div className="max-w-3xl mx-auto bg-slate-900/60 border border-slate-800 rounded-2xl p-6">
+            <label className="block text-sm font-bold text-slate-300 mb-3">일정표 이미지 업로드 (최대 2MB)</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleScheduleImageUpload}
+              className="block w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer"
+            />
+            {scheduleImageUrl ? (
+              <div className="mt-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-emerald-400">✓ 등록된 일정표 이미지 미리보기</span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleImageUrl('')}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition cursor-pointer"
+                  >
+                    🗑️ 이미지 제거
+                  </button>
+                </div>
+                <div className="rounded-xl overflow-hidden border border-slate-700 bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={scheduleImageUrl} alt="일정표 미리보기" className="w-full h-auto object-contain block" />
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 h-48 border border-dashed border-slate-700 rounded-xl flex items-center justify-center text-center text-sm text-slate-500 px-6">
+                아직 업로드된 일정표 이미지가 없습니다. 위에서 이미지를 선택해주세요.
+              </div>
+            )}
+          </div>
+        </main>
+      )}
+
       {/* 캔버스 본문 (가로 칸반 보드 레이아웃) */}
+      {scheduleMode === 'manual' && (
       <main className="px-6 mt-8 overflow-x-auto select-none">
         <div className="flex gap-6 min-h-[70vh] pb-8 items-start" style={{ width: 'max-content', minWidth: '100%' }}>
           {daysArray.map((dayNum) => {
@@ -480,6 +571,7 @@ export default function ScheduleEditorPage() {
           })}
         </div>
       </main>
+      )}
 
       {/* 카드 편집 디테일 사이드바/모달 팝업 */}
       {editingCard && (
