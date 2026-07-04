@@ -98,6 +98,14 @@ export default async function HomePage() {
                 {l.label} 신청하기 (외부 링크) →
               </a>
             ))}
+
+            {/* 회비 · 입금 계좌 재확인 배너 */}
+            <Link
+              href="/fees"
+              className="inline-flex items-center gap-2 mt-2 px-8 py-3 bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 font-bold text-base md:text-lg rounded-full transition-all duration-300 cursor-pointer"
+            >
+              💳 회비 · 입금 계좌 확인하기 →
+            </Link>
           </div>
         </header>
       </main>
