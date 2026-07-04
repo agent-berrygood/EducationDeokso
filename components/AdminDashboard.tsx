@@ -261,6 +261,31 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
     }
   };
 
+  // 전화번호+이름이 같은 신청서들을 한 가족(형제)으로 병합
+  const mergeFamily = async (ids: string[], parentName: string) => {
+    if (ids.length < 2) return;
+    if (!(await confirmDialog(
+      `${parentName}님의 신청 ${ids.length}건을 한 가족(형제)으로 합칩니다.\n` +
+      `자녀들이 하나의 신청서로 모이고 금액은 합산됩니다. 계속하시겠습니까?`
+    ))) return;
+    try {
+      setIsSaving(true);
+      const res = await fetch('/api/applications/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || 'Merge failed');
+      showToast(`${parentName}님의 신청 ${ids.length}건을 형제 데이터로 병합했습니다.`, 'success');
+      loadApplications();
+    } catch (err) {
+      showToast('형제 병합 도중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   // 부서별 명단 초기화 — 해당 부서 자녀만 삭제(다른 부서 형제자매 보존)
   const resetDepartment = async () => {
     try {
@@ -623,6 +648,28 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   };
 
   // 아이 단위(자녀 중심)의 리스토어 평탄화 연산
+  // 전화번호+이름이 같은데 신청서가 여러 건으로 쪼개진 가족 후보 탐지
+  const duplicateFamilies = useMemo(() => {
+    const normPhone = (p: string) => (p || '').replace(/\D/g, '');
+    const normName = (n: string) => (n || '').trim();
+    const groups = new Map<string, Application[]>();
+    for (const app of applications) {
+      const key = `${normPhone(app.parent_phone)}|${normName(app.parent_name)}`;
+      if (!normPhone(app.parent_phone) || !normName(app.parent_name)) continue;
+      const arr = groups.get(key) || [];
+      arr.push(app);
+      groups.set(key, arr);
+    }
+    return Array.from(groups.values())
+      .filter((arr) => arr.length >= 2)
+      .map((arr) => ({
+        parentName: arr[0].parent_name,
+        parentPhone: arr[0].parent_phone,
+        ids: arr.map((a) => a.id),
+        count: arr.length,
+      }));
+  }, [applications]);
+
   const processedChildren = useMemo(() => {
     const rows: any[] = [];
     try {
@@ -875,6 +922,39 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                   </button>
                 </div>
               </div>
+
+              {/* 형제 병합 제안 배너 — 전화번호+이름이 같은 신청서가 여러 건일 때 노출 */}
+              {duplicateFamilies.length > 0 && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300 font-bold text-sm">
+                    👪 형제로 합칠 수 있는 신청이 있습니다
+                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      (전화번호·이름이 동일)
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {duplicateFamilies.map((f) => (
+                      <div
+                        key={`${f.parentPhone}-${f.parentName}`}
+                        className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 rounded-lg px-3 py-2 border border-amber-200 dark:border-amber-800/60"
+                      >
+                        <div className="text-sm text-gray-700 dark:text-slate-200 min-w-0">
+                          <span className="font-bold">{f.parentName}</span>
+                          <span className="text-gray-400 ml-1">({f.parentPhone})</span>
+                          <span className="ml-2 text-xs font-semibold text-amber-700 dark:text-amber-400">신청 {f.count}건</span>
+                        </div>
+                        <button
+                          onClick={() => mergeFamily(f.ids, f.parentName)}
+                          disabled={isSaving}
+                          className="shrink-0 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition shadow-sm disabled:opacity-50 cursor-pointer"
+                        >
+                          형제로 합치기
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* 모바일 카드 뷰 (md 미만) — 가로 스크롤 테이블 대신 세로 카드 목록 */}
               <div className={`md:hidden rounded-xl border overflow-hidden shadow-md ${department === 'teens' ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'}`}>
