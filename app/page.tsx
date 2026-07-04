@@ -1,7 +1,8 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { queryMany } from '@/lib/db';
+
+// DB를 매 요청마다 조회해 관리자 설정 변경이 바로 반영되도록 (정적 프리렌더 방지)
+export const dynamic = 'force-dynamic';
 
 const DEPARTMENTS: { id: string; label: string }[] = [
   { id: 'kinder', label: '나우킨더' },
@@ -15,46 +16,42 @@ interface ExternalLink {
   url: string;
 }
 
-export default function HomePage() {
-  const [externalLinks, setExternalLinks] = useState<ExternalLink[]>([]);
-  // 내부 신청 가능한 부서가 하나라도 있는지 (전부 외부 신청/미운영이면 내부 신청 버튼 숨김)
-  const [hasInternalApply, setHasInternalApply] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const results = await Promise.all(
-          DEPARTMENTS.map(async (d) => {
-            try {
-              const res = await fetch(`/api/config/${d.id}`);
-              const json = await res.json();
-              return { dept: d, data: json.success ? json.data : null };
-            } catch {
-              return { dept: d, data: null };
-            }
-          })
-        );
-        const links: ExternalLink[] = [];
-        let anyInternal = false;
-        for (const { dept, data } of results) {
-          const campActive = data?.isCampActive ?? true;
-          const external = data?.isExternalApply ?? false;
-          const url = data?.externalApplyUrl || '';
-          if (!campActive) continue; // 미운영 부서는 어느 쪽에도 노출하지 않음
-          if (external) {
-            links.push({ id: dept.id, label: dept.label, url: url || '#' });
-          } else {
-            anyInternal = true; // 내부 신청 가능한 부서 존재
-          }
-        }
-        setExternalLinks(links);
-        setHasInternalApply(anyInternal);
-      } catch {
-        // 실패 시 기본 동작 유지 (내부 신청 버튼 노출)
-        setHasInternalApply(true);
+/**
+ * 홈 배너에 필요한 부서별 신청 상태를 서버에서 미리 조회.
+ * 클라이언트 useEffect fetch(및 3× ensureConfigSchema)를 없애 배너가 초기 HTML에 함께 렌더된다.
+ */
+async function getApplyState(): Promise<{ externalLinks: ExternalLink[]; hasInternalApply: boolean }> {
+  try {
+    const rows = await queryMany(
+      `SELECT department, is_camp_active, is_external_apply, external_apply_url
+         FROM event_configs
+        WHERE track_key = 'main' AND department = ANY($1::text[])`,
+      [DEPARTMENTS.map((d) => d.id)]
+    );
+    const byDept = new Map(rows.map((r: any) => [r.department, r]));
+    const externalLinks: ExternalLink[] = [];
+    let hasInternalApply = false;
+    for (const dept of DEPARTMENTS) {
+      const data = byDept.get(dept.id);
+      const campActive = data?.is_camp_active ?? true;
+      const external = data?.is_external_apply ?? false;
+      const url = data?.external_apply_url || '';
+      if (!campActive) continue; // 미운영 부서는 어느 쪽에도 노출하지 않음
+      if (external) {
+        externalLinks.push({ id: dept.id, label: dept.label, url: url || '#' });
+      } else {
+        hasInternalApply = true; // 내부 신청 가능한 부서 존재
       }
-    })();
-  }, []);
+    }
+    return { externalLinks, hasInternalApply };
+  } catch {
+    // 조회 실패 시 기본 동작 유지 (내부 신청 버튼 노출)
+    return { externalLinks: [], hasInternalApply: true };
+  }
+}
+
+export default async function HomePage() {
+  const { externalLinks, hasInternalApply } = await getApplyState();
 
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans flex flex-col justify-between">
