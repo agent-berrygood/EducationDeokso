@@ -23,6 +23,9 @@ interface Application {
   depositor_name: string;
   grand_total: number;
   created_at: string;
+  vehicle_info?: string | null;
+  carpool_available?: boolean;
+  carpool_capacity?: number | null;
   children: any[];
 }
 
@@ -640,6 +643,9 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
               allergies: parseAllergies(child.allergies),
               customAllergy: child.customAllergy || child.custom_allergy || '',
               attendsWaterpark: !!(child.attendsWaterpark ?? child.attends_waterpark),
+              vehicleInfo: app.vehicle_info || '',
+              carpoolAvailable: !!app.carpool_available,
+              carpoolCapacity: app.carpool_capacity ?? null,
               grandTotal: app.grand_total,
               createdAt: app.created_at,
               originalChild: child
@@ -891,6 +897,12 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
                           <div>단체티: {row.tshirtSize || '미선택'}</div>
                           <div className="col-span-2">보호자: {row.parentName} ({row.parentPhone})</div>
                           {row.depositorName !== row.parentName && <div className="col-span-2">입금자: {row.depositorName}</div>}
+                          {row.vehicleInfo && <div className="col-span-2">🚙 차량: {row.vehicleInfo}</div>}
+                          {row.carpoolAvailable && (
+                            <div className="col-span-2 text-emerald-600 dark:text-emerald-400 font-semibold">
+                              🚗 카풀 차량 지원{row.carpoolCapacity ? ` (${row.carpoolCapacity}명)` : ''}
+                            </div>
+                          )}
                           <div className="col-span-2 text-red-500">⚠️ 알러지: {row.allergies.join(', ') || '없음'}{row.customAllergy ? ` / 기타: ${row.customAllergy}` : ''}</div>
                           <div>
                             <span className={`px-2 py-0.5 rounded text-xs font-bold ${row.attendsWaterpark ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30' : 'bg-gray-100 text-gray-400 dark:bg-slate-800'}`}>

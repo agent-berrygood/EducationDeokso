@@ -21,6 +21,11 @@ export async function PUT(
       return Response.json({ success: false, error: 'ID 필수' }, { status: 400 });
     }
 
+    // 차량/카풀 컬럼 자동 보장 (POST 미실행 환경 대비)
+    await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS vehicle_info TEXT`);
+    await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS carpool_available BOOLEAN DEFAULT FALSE`);
+    await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS carpool_capacity INTEGER`);
+
     const body = await request.json();
     const parsed = applicationSubmitSchema.safeParse(body);
 
@@ -31,7 +36,8 @@ export async function PUT(
       );
     }
 
-    const { parentName, parentPhone, depositorName, waterfallParents, children, grandTotal } = parsed.data;
+    const { parentName, parentPhone, depositorName, waterfallParents, children, grandTotal,
+            vehicleInfo, carpoolAvailable, carpoolCapacity } = parsed.data;
 
     // 부서별 일차 상한 사전 로드 (세션 키 검증용)
     const usedDepts = Array.from(new Set(children.map((c) => c.department))) as DepartmentId[];
@@ -68,10 +74,16 @@ export async function PUT(
 
     // 1. 기존 신청서 메인 정보 업데이트
     await query(
-      `UPDATE applications 
-       SET parent_name = $1, parent_phone = $2, depositor_name = $3, grand_total = $4, waterfall_parents = $5::jsonb, updated_at = NOW()
+      `UPDATE applications
+       SET parent_name = $1, parent_phone = $2, depositor_name = $3, grand_total = $4, waterfall_parents = $5::jsonb,
+           vehicle_info = $7, carpool_available = $8, carpool_capacity = $9, updated_at = NOW()
        WHERE id = $6`,
-      [parentName, parentPhone, depositorName, grandTotal || 0, JSON.stringify(waterfallParents), id]
+      [
+        parentName, parentPhone, depositorName, grandTotal || 0, JSON.stringify(waterfallParents), id,
+        vehicleInfo?.trim() || null,
+        carpoolAvailable || false,
+        carpoolAvailable && carpoolCapacity ? carpoolCapacity : null,
+      ]
     );
 
     // 2. 기존 자녀 정보 삭제

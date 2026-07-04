@@ -53,6 +53,9 @@ interface DraftState {
   parentName: string;
   parentPhone: string;
   depositorName: string;
+  vehicleInfo: string;
+  carpoolAvailable: boolean;
+  carpoolCapacity: string;
   waterfallParents: WaterfallParent[];
   children: ChildDraft[];
 }
@@ -62,6 +65,9 @@ const initialDraft: DraftState = {
   parentName: '',
   parentPhone: '',
   depositorName: '',
+  vehicleInfo: '',
+  carpoolAvailable: false,
+  carpoolCapacity: '',
   waterfallParents: [{ name: '', relation: '모', phone: '' }],
   children: [makeEmptyChild()],
 };
@@ -344,6 +350,9 @@ export default function ApplyWizard() {
         parentName: draft.parentName,
         parentPhone: draft.parentPhone,
         depositorName: draft.depositorName,
+        vehicleInfo: draft.vehicleInfo.trim() || undefined,
+        carpoolAvailable: draft.carpoolAvailable,
+        carpoolCapacity: draft.carpoolAvailable && draft.carpoolCapacity ? Number(draft.carpoolCapacity) : undefined,
         // 워터풀 참석 자녀가 없거나 미입력 기본 행이 남아있을 수 있으므로 빈 항목은 항상 제외
         waterfallParents: draft.waterfallParents.filter((p) => p.name.trim()),
         grandTotal,
@@ -632,7 +641,53 @@ function Step1({ draft, patch, onNext }: Step1Props) {
               placeholder="입금하실 분 이름"
             />
           </Field>
+          <Field label="차량 정보 (선택)">
+            <input
+              type="text"
+              value={draft.vehicleInfo}
+              onChange={(e) => patch({ vehicleInfo: e.target.value })}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-cyan-400 focus:outline-none text-black"
+              placeholder="예) 12가 3456 (흰색 카니발)"
+            />
+            <p className="mt-1 text-xs text-slate-400">주차 안내 및 카풀 편성을 위해 차량 번호·차종을 적어주세요.</p>
+          </Field>
         </div>
+      </section>
+
+      {/* 덕소지역 카풀 차량 지원 */}
+      <section className="bg-white p-6 rounded-2xl shadow-sm border border-emerald-200">
+        <h2 className="text-xl font-bold mb-1 text-emerald-700">🚗 덕소지역 카풀 차량 지원</h2>
+        <p className="text-sm text-slate-500 mb-4 leading-relaxed">
+          덕소지역에서 함께 이동할 카풀 차량 자원봉사가 필요합니다.
+          차량을 지원해주실 수 있는 학부모님께서는 아래에 체크하고 <strong className="text-emerald-700">태워주실 수 있는 인원</strong>을 적어주세요.
+          (카풀이 필요한 신청이 아니라, 차량을 지원해주시는 경우에만 체크해주세요.)
+        </p>
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.carpoolAvailable}
+            onChange={(e) => patch({ carpoolAvailable: e.target.checked, carpoolCapacity: e.target.checked ? draft.carpoolCapacity : '' })}
+            className="w-5 h-5 accent-emerald-500 mt-0.5"
+          />
+          <span className="text-sm font-semibold text-slate-800">카풀 차량을 지원할 수 있습니다.</span>
+        </label>
+        {draft.carpoolAvailable && (
+          <div className="mt-3">
+            <label className="block text-sm font-semibold text-slate-700 mb-1">지원 차량이 태울 수 있는 인원</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={draft.carpoolCapacity}
+                onChange={(e) => patch({ carpoolCapacity: e.target.value })}
+                className="w-28 px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-400 focus:outline-none text-black"
+                placeholder="예) 4"
+              />
+              <span className="text-sm text-slate-500">명</span>
+            </div>
+          </div>
+        )}
       </section>
 
       <div className="flex justify-end gap-3">
@@ -1365,6 +1420,20 @@ function Step3({
               {draft.children.map((c) => `${c.name}(${c.department})`).join(', ')}
             </dd>
           </div>
+          {draft.vehicleInfo.trim() && (
+            <div className="flex justify-between border-b pb-2">
+              <dt className="text-black">차량 정보</dt>
+              <dd className="font-semibold text-right">{draft.vehicleInfo}</dd>
+            </div>
+          )}
+          {draft.carpoolAvailable && (
+            <div className="flex justify-between border-b pb-2">
+              <dt className="text-black">카풀 차량 지원</dt>
+              <dd className="font-semibold text-right text-emerald-700">
+                지원 가능{draft.carpoolCapacity ? ` (${draft.carpoolCapacity}명)` : ''}
+              </dd>
+            </div>
+          )}
         </dl>
       </section>
 

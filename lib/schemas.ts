@@ -61,6 +61,12 @@ export const applicationSubmitSchema = z.object({
   waterfallParents: z.array(waterfallParentSchema),
   children: z.array(childInputSchema).min(1, '자녀 1명 이상 필수'),
   grandTotal: z.number().nonnegative(),
+  /** 학부모 차량 정보 (차량번호/차종 등, 선택) */
+  vehicleInfo: z.string().optional(),
+  /** 덕소지역 카풀 차량 지원 가능 여부 */
+  carpoolAvailable: z.boolean().optional(),
+  /** 지원 차량이 태울 수 있는 인원 (carpoolAvailable=true일 때) */
+  carpoolCapacity: z.number().int().nonnegative().optional(),
 });
 
 export const customFieldSchema = z.object({

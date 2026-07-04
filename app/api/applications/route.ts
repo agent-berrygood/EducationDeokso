@@ -18,6 +18,10 @@ async function ensureApplicationsSchema() {
   await query(`CREATE INDEX IF NOT EXISTS idx_children_dept_sub ON application_children(department, sub_department)`);
   await query(`CREATE INDEX IF NOT EXISTS idx_apps_created ON applications(created_at DESC)`);
   await query(`ALTER TABLE application_children ADD COLUMN IF NOT EXISTS partial_attendance_reason TEXT`);
+  // 학부모 차량 정보 + 덕소지역 카풀 지원 (가족 단위)
+  await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS vehicle_info TEXT`);
+  await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS carpool_available BOOLEAN DEFAULT FALSE`);
+  await query(`ALTER TABLE applications ADD COLUMN IF NOT EXISTS carpool_capacity INTEGER`);
 }
 
 /**
@@ -90,6 +94,7 @@ export async function GET(request: Request) {
       SELECT
         a.id, a.parent_name, a.parent_phone, a.depositor_name,
         a.grand_total, a.waterfall_parents, a.created_at,
+        a.vehicle_info, a.carpool_available, a.carpool_capacity,
         json_agg(
           json_build_object(
             'id', ac.id,
@@ -146,7 +151,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const { parentName, parentPhone, depositorName, waterfallParents, children, grandTotal } = parsed.data;
+    const { parentName, parentPhone, depositorName, waterfallParents, children, grandTotal,
+            vehicleInfo, carpoolAvailable, carpoolCapacity } = parsed.data;
 
     // 부서별 일차 상한 사전 로드 (세션 키 검증용)
     const usedDepts = Array.from(new Set(children.map((c) => c.department))) as DepartmentId[];
@@ -183,9 +189,16 @@ export async function POST(request: Request) {
 
     // 신청서 생성
     const applicationResult = await queryOne(
-      `INSERT INTO applications (parent_name, parent_phone, depositor_name, grand_total, waterfall_parents)
-       VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING *`,
-      [parentName, parentPhone, depositorName, grandTotal || 0, JSON.stringify(waterfallParents)]
+      `INSERT INTO applications (parent_name, parent_phone, depositor_name, grand_total, waterfall_parents,
+        vehicle_info, carpool_available, carpool_capacity)
+       VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8) RETURNING *`,
+      [
+        parentName, parentPhone, depositorName, grandTotal || 0, JSON.stringify(waterfallParents),
+        vehicleInfo?.trim() || null,
+        carpoolAvailable || false,
+        // 카풀 지원 체크 시에만 인원 저장
+        carpoolAvailable && carpoolCapacity ? carpoolCapacity : null,
+      ]
     );
 
     const applicationId = applicationResult.id;

@@ -56,6 +56,11 @@ export default function ApplicationEditModal({
         depositorName: formData.depositor_name,
         waterfallParents: typeof formData.waterfall_parents === 'string' ? JSON.parse(formData.waterfall_parents || '[]') : formData.waterfall_parents || [],
         grandTotal: formData.grand_total,
+        vehicleInfo: formData.vehicle_info || undefined,
+        carpoolAvailable: !!formData.carpool_available,
+        carpoolCapacity: formData.carpool_available && formData.carpool_capacity
+          ? Number(formData.carpool_capacity)
+          : undefined,
         children: (formData.children || []).map((c: any) => ({
           name: c.name,
           birthDate: c.birth_date,
@@ -140,6 +145,45 @@ export default function ApplicationEditModal({
                   onChange={(e) => handleParentChange('depositor_name', e.target.value)}
                   className="w-full px-3 py-2 border rounded focus:ring-indigo-500 bg-white dark:bg-slate-900 dark:border-slate-700"
                 />
+              </div>
+              <div className="md:col-span-3">
+                <label className="block text-sm font-medium mb-1">차량 정보</label>
+                <input
+                  type="text"
+                  value={formData.vehicle_info || ''}
+                  onChange={(e) => handleParentChange('vehicle_info', e.target.value)}
+                  placeholder="예) 12가 3456 (흰색 카니발)"
+                  className="w-full px-3 py-2 border rounded focus:ring-indigo-500 bg-white dark:bg-slate-900 dark:border-slate-700"
+                />
+              </div>
+              <div className="md:col-span-3 flex flex-wrap items-center gap-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!formData.carpool_available}
+                    onChange={(e) => setFormData((prev: any) => ({
+                      ...prev,
+                      carpool_available: e.target.checked,
+                      carpool_capacity: e.target.checked ? prev.carpool_capacity : null,
+                    }))}
+                    className="w-4 h-4 accent-emerald-600"
+                  />
+                  <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">🚗 덕소지역 카풀 차량 지원</span>
+                </label>
+                {formData.carpool_available && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600 dark:text-gray-300">지원 가능 인원</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={formData.carpool_capacity ?? ''}
+                      onChange={(e) => handleParentChange('carpool_capacity', e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-20 px-3 py-2 border rounded bg-white dark:bg-slate-900 dark:border-slate-700"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300">명</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
