@@ -43,6 +43,8 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
   const [applications, setApplications] = useState<Application[]>([]);
 
   const [config, setConfig] = useState<any>(null);
+  // 편집 모달 티셔츠 드롭다운용 — 부서의 모든 트랙 사이즈 합집합 (신청현황 탭에서도 옵션이 뜨도록)
+  const [availableTshirtSizes, setAvailableTshirtSizes] = useState<string[]>([]);
   const [fees, setFees] = useState<FeesConfig | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -230,7 +232,31 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
         const json = await res.json();
         if (json?.success) {
           setOperatingMode(json.data.operatingMode === 'split' ? 'split' : 'union');
-          setTracks(json.data.tracks || []);
+          const trackList = json.data.tracks || [];
+          setTracks(trackList);
+
+          // 편집 모달 티셔츠 옵션 — 모든 트랙 config의 tshirtSizes 합집합.
+          // (신청현황 탭에서는 config가 로드되지 않으므로 여기서 별도로 확보한다.)
+          try {
+            const keys: string[] = trackList.length > 0
+              ? trackList.map((t: any) => t.trackKey)
+              : ['main'];
+            const cfgs = await Promise.all(
+              keys.map(async (tk) => {
+                try {
+                  const r = await fetch(`/api/config/${department}?track=${encodeURIComponent(tk)}`);
+                  const j = await r.json();
+                  return (j?.success ? j.data?.tshirtSizes : null) || [];
+                } catch {
+                  return [];
+                }
+              })
+            );
+            const union = Array.from(new Set(cfgs.flat().filter((s: any) => typeof s === 'string')));
+            setAvailableTshirtSizes(union as string[]);
+          } catch {
+            setAvailableTshirtSizes([]);
+          }
         }
       } catch {
         showToast('트랙/운영모드 정보를 불러오지 못했습니다. 새로고침 후 다시 시도해주세요.', 'error');
@@ -1242,6 +1268,7 @@ export default function AdminDashboard({ department, subDepartment: externalSubD
           <ApplicationEditModal
             application={editingApp}
             config={config}
+            tshirtSizes={availableTshirtSizes}
             onClose={() => setEditingApp(null)}
             onSaved={() => {
               setEditingApp(null);

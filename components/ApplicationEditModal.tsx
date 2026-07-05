@@ -2,14 +2,44 @@ import React, { useState, useEffect } from 'react';
 import { useToast } from '@/components/ui/Feedback';
 import { getPresetSubDepartments } from '@/lib/subDepartments';
 
+/**
+ * 목록 API(GET /api/applications)는 자녀를 camelCase(tshirtSize, birthDate, subDepartment…)로 반환하지만
+ * 이 모달은 내부적으로 snake_case(child.tshirt_size 등)로 읽고/쓴다. 두 표기를 모두 안전하게 받도록
+ * 로드 시점에 snake_case 형태로 정규화한다. (camelCase 우선, 기존 snake 값 폴백)
+ */
+function normalizeChild(c: any) {
+  const customs: Record<string, any> = {};
+  for (let i = 1; i <= 20; i++) {
+    customs[`custom_${i}`] = c[`custom${i}`] ?? c[`custom_${i}`] ?? null;
+  }
+  return {
+    ...c,
+    name: c.name ?? '',
+    birth_date: c.birthDate ?? c.birth_date ?? '',
+    gender: c.gender ?? '',
+    department: c.department ?? '',
+    sub_department: c.subDepartment ?? c.sub_department ?? '',
+    tshirt_size: c.tshirtSize ?? c.tshirt_size ?? '',
+    allergies: c.allergies ?? '',
+    custom_allergy: c.customAllergy ?? c.custom_allergy ?? '',
+    attends_waterpark: c.attendsWaterpark ?? c.attends_waterpark ?? false,
+    attended_sessions: c.attendedSessions ?? c.attended_sessions ?? [],
+    partial_attendance_reason: c.partialAttendanceReason ?? c.partial_attendance_reason ?? '',
+    ...customs,
+  };
+}
+
 export default function ApplicationEditModal({
   application,
   config,
+  tshirtSizes,
   onClose,
   onSaved,
 }: {
   application: any;
   config: any;
+  /** 사이즈 드롭다운 옵션 (부서의 모든 트랙 사이즈 합집합). 없으면 config.tshirtSizes로 폴백 */
+  tshirtSizes?: string[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -19,7 +49,10 @@ export default function ApplicationEditModal({
 
   useEffect(() => {
     if (application) {
-      setFormData({ ...application, children: application.children || [] });
+      setFormData({
+        ...application,
+        children: (application.children || []).map(normalizeChild),
+      });
     }
   }, [application]);
 
@@ -228,16 +261,28 @@ export default function ApplicationEditModal({
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">단체티 사이즈</label>
-                    <select
-                      value={child.tshirt_size || ''}
-                      onChange={(e) => handleChildChange(idx, 'tshirt_size', e.target.value)}
-                      className="w-full px-3 py-2 border rounded focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:border-slate-700"
-                    >
-                      <option value="">미선택</option>
-                      {(config?.tshirtSizes || []).map((sz: string) => (
-                        <option key={sz} value={sz}>{sz}</option>
-                      ))}
-                    </select>
+                    {(() => {
+                      // 옵션: 전달받은 sizes(부서 전체 트랙 합집합) → config 폴백. 현재 값이 목록에 없으면 함께 포함(값 보존)
+                      const baseSizes: string[] = (tshirtSizes && tshirtSizes.length > 0)
+                        ? tshirtSizes
+                        : (config?.tshirtSizes || []);
+                      const current = child.tshirt_size || '';
+                      const options = current && !baseSizes.includes(current)
+                        ? [...baseSizes, current]
+                        : baseSizes;
+                      return (
+                        <select
+                          value={current}
+                          onChange={(e) => handleChildChange(idx, 'tshirt_size', e.target.value)}
+                          className="w-full px-3 py-2 border rounded focus:ring-indigo-500 bg-gray-50 dark:bg-slate-800 dark:border-slate-700"
+                        >
+                          <option value="">미선택</option>
+                          {options.map((sz: string) => (
+                            <option key={sz} value={sz}>{sz}</option>
+                          ))}
+                        </select>
+                      );
+                    })()}
                   </div>
                   
                   <div className="lg:col-span-2">

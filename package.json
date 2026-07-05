@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:waterpark-merge": "node scripts/test-waterpark-merge.mjs",
-    "test:waterpark-only-merge": "node scripts/test-waterpark-only-merge.mjs"
+    "test:waterpark-only-merge": "node scripts/test-waterpark-only-merge.mjs",
+    "test:partial-attendance-export": "node scripts/test-partial-attendance-export.mjs"
   },
   "dependencies": {
     "@tiptap/react": "^3.23.6",
