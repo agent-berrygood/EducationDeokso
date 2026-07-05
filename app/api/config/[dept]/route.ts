@@ -31,7 +31,7 @@ const CONFIG_COLUMNS = `
   track_key, track_label, sub_department_ids, operating_mode,
   sub_departments, events, tshirt_sizes, custom_field_mappings,
   step_tshirt_sizes, is_camp_active,
-  is_external_apply, external_apply_url, schedule_image_url`;
+  is_external_apply, external_apply_url, schedule_image_url, account`;
 
 /**
  * 마이그레이션(/api/init) 미적용 환경에서도 설정 조회/저장이 깨지지 않도록
@@ -55,6 +55,8 @@ async function ensureConfigSchema() {
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS external_apply_url TEXT`);
   // 트랙 단위 일정표 이미지 — 직접 편집 대신 사진(일정표 이미지)으로 대체 가능 (base64 data URL)
   await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS schedule_image_url TEXT`);
+  // 트랙 단위 입금 계좌 — 분리 운영 트랙마다 다른 계좌 안내 (NULL이면 글로벌 fees_config 폴백)
+  await query(`ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS account VARCHAR(120)`);
   // UNIQUE(department) → UNIQUE(department, track_key) (멱등)
   await query(`ALTER TABLE event_configs DROP CONSTRAINT IF EXISTS event_configs_department_key`);
   await query(`DO $$
@@ -106,6 +108,7 @@ function serializeConfig(config: any) {
     isExternalApply: config.is_external_apply ?? false,
     externalApplyUrl: config.external_apply_url || '',
     scheduleImageUrl: config.schedule_image_url || '',
+    account: config.account || '',
     waterparkInfo: parseObj(config.waterpark_info),
     trackKey: config.track_key || MAIN_TRACK_KEY,
     trackLabel: config.track_label || null,
@@ -202,12 +205,13 @@ export async function POST(
       isWaterparkActive, waterparkInfo,
       stepTshirtSizes, isCampActive,
       isExternalApply, externalApplyUrl,
-      scheduleImageUrl,
+      scheduleImageUrl, account,
       trackKey: rawTrackKey, trackLabel, subDepartmentIds, operatingMode,
     } = body;
 
     const validatedScheduleImage = typeof scheduleImageUrl === 'string' && scheduleImageUrl.trim() !== ''
       ? scheduleImageUrl : null;
+    const validatedAccount = typeof account === 'string' && account.trim() !== '' ? account.trim() : null;
 
     const trackKey = (rawTrackKey && String(rawTrackKey).trim()) || MAIN_TRACK_KEY;
     const validatedStartDate = campStartDate && campStartDate.trim() !== '' ? campStartDate : null;
@@ -278,8 +282,8 @@ export async function POST(
           is_waterpark_active, waterpark_info,
           step_tshirt_sizes,
           track_key, track_label, sub_department_ids, operating_mode, is_camp_active,
-          is_external_apply, external_apply_url, schedule_image_url
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)`,
+          is_external_apply, external_apply_url, schedule_image_url, account
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30)`,
         [
           department, title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -291,7 +295,7 @@ export async function POST(
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
           trackKey, trackLabel || null, subDeptIdsJson, opMode, isCampActive ?? true,
-          isExternalApply ?? false, validatedExternalUrl, validatedScheduleImage,
+          isExternalApply ?? false, validatedExternalUrl, validatedScheduleImage, validatedAccount,
         ]
       );
     } else {
@@ -309,9 +313,9 @@ export async function POST(
           track_label = $21, sub_department_ids = $22,
           is_camp_active = $23,
           is_external_apply = $24, external_apply_url = $25,
-          schedule_image_url = $26,
+          schedule_image_url = $26, account = $27,
           updated_at = NOW()
-         WHERE department = $27 AND track_key = $28`,
+         WHERE department = $28 AND track_key = $29`,
         [
           title || null, eventType || null, subtitle || null, scripture || null,
           primaryColor || null, bgColor || null,
@@ -323,7 +327,7 @@ export async function POST(
           isWaterparkActive ?? true, JSON.stringify(waterparkInfo || {}),
           JSON.stringify(Array.isArray(stepTshirtSizes) ? stepTshirtSizes : []),
           trackLabel || null, subDeptIdsJson, isCampActive ?? true,
-          isExternalApply ?? false, validatedExternalUrl, validatedScheduleImage,
+          isExternalApply ?? false, validatedExternalUrl, validatedScheduleImage, validatedAccount,
           department, trackKey,
         ]
       );

@@ -69,6 +69,25 @@ export const applicationSubmitSchema = z.object({
   carpoolCapacity: z.number().int().nonnegative().optional(),
 });
 
+/** 워터풀 단독 신청 — 성경학교와 별개로 워터풀선데이만 신청 */
+export const waterparkChildInputSchema = z.object({
+  name: z.string().min(1, '자녀 이름 필수'),
+  gender: z.enum(['male', 'female']).optional(),
+  birthDate: z.string().optional(),
+  department: departmentSchema.optional(),
+  subDepartment: z.string().optional(),
+});
+
+export const waterparkApplicationSubmitSchema = z.object({
+  parentName: z.string().min(1, '보호자 이름 필수'),
+  parentPhone: z.string().min(1, '연락처 필수'),
+  depositorName: z.string().min(1, '입금자 이름 필수'),
+  // 워터풀 동반 보호자 — 최소 1명 (자녀와 함께 입장)
+  waterfallParents: z.array(waterfallParentSchema).min(1, '동반 보호자를 1명 이상 입력하세요'),
+  children: z.array(waterparkChildInputSchema).min(1, '참가 자녀를 1명 이상 입력하세요'),
+  grandTotal: z.number().nonnegative(),
+});
+
 export const customFieldSchema = z.object({
   id: z.string(),
   label: z.string().min(1),
@@ -138,6 +157,7 @@ export const staffApplicationSubmitSchema = z.object({
 });
 
 export type ApplicationSubmit = z.infer<typeof applicationSubmitSchema>;
+export type WaterparkApplicationSubmit = z.infer<typeof waterparkApplicationSubmitSchema>;
 export type EventConfigUpdate = z.infer<typeof eventConfigUpdateSchema>;
 export type AdminLogin = z.infer<typeof adminLoginSchema>;
 export type StaffApplicationSubmit = z.infer<typeof staffApplicationSubmitSchema>;

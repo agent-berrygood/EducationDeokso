@@ -1,8 +1,7 @@
-import { queryMany } from '@/lib/db';
 import ExcelJS from 'exceljs';
 import { genderLabel } from '@/lib/labels';
 import { requireAdmin } from '@/lib/auth';
-import { mergeWaterparkFamilies } from '@/lib/waterpark';
+import { fetchWaterparkFamilies } from '@/lib/waterpark-query';
 
 const DEPT_LABELS: Record<string, string> = {
   kinder: '나우킨더',
@@ -21,36 +20,10 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const department = searchParams.get('department');
+    const track = searchParams.get('track');
 
-    const params: any[] = [];
-    let deptHaving = '';
-    if (department) {
-      params.push(department);
-      deptHaving = `AND bool_or(ac.attends_waterpark AND ac.department = $1)`;
-    }
-
-    const rows = await queryMany(
-      `SELECT
-         a.id, a.parent_name, a.parent_phone, a.depositor_name,
-         a.waterfall_parents, a.created_at,
-         json_agg(
-           json_build_object(
-             'name', ac.name,
-             'gender', ac.gender,
-             'department', ac.department,
-             'subDepartment', ac.sub_department
-           ) ORDER BY ac.department, ac.name
-         ) FILTER (WHERE ac.attends_waterpark) AS waterpark_children
-       FROM applications a
-       INNER JOIN application_children ac ON a.id = ac.application_id
-       GROUP BY a.id
-       HAVING bool_or(ac.attends_waterpark) ${deptHaving}
-       ORDER BY a.parent_name`,
-      params
-    );
-
-    // 전화번호+이름이 같은 신청서들을 한 가족으로 병합 후 이름순 정렬
-    const families = mergeWaterparkFamilies(rows as any)
+    // 성경학교 워터풀 참석자 + 워터풀 단독 신청을 병합 후 이름순 정렬
+    const families = (await fetchWaterparkFamilies({ department, track }))
       .sort((a, b) => (a.parentName || '').localeCompare(b.parentName || '', 'ko'));
 
     const workbook = new ExcelJS.Workbook();

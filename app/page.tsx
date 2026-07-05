@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { queryMany } from '@/lib/db';
+import { queryMany, queryOne } from '@/lib/db';
 
 // DB를 매 요청마다 조회해 관리자 설정 변경이 바로 반영되도록 (정적 프리렌더 방지)
 export const dynamic = 'force-dynamic';
@@ -50,8 +50,26 @@ async function getApplyState(): Promise<{ externalLinks: ExternalLink[]; hasInte
   }
 }
 
+/** 워터풀선데이 단독 신청 링크 노출 여부 — 자녀/보호자 입장료 또는 계좌가 설정된 경우에만 */
+async function hasWaterparkApply(): Promise<boolean> {
+  try {
+    const row: any = await queryOne(
+      `SELECT child_waterpark, parent_waterpark, waterpark_account FROM fees_config LIMIT 1`
+    );
+    if (!row) return false;
+    return Number(row.child_waterpark || 0) > 0
+      || Number(row.parent_waterpark || 0) > 0
+      || (typeof row.waterpark_account === 'string' && row.waterpark_account.trim() !== '');
+  } catch {
+    return false;
+  }
+}
+
 export default async function HomePage() {
-  const { externalLinks, hasInternalApply } = await getApplyState();
+  const [{ externalLinks, hasInternalApply }, waterparkApply] = await Promise.all([
+    getApplyState(),
+    hasWaterparkApply(),
+  ]);
 
   return (
     <div className="bg-slate-900 text-white min-h-screen font-sans flex flex-col justify-between">
@@ -98,6 +116,16 @@ export default async function HomePage() {
                 {l.label} 신청하기 (외부 링크) →
               </a>
             ))}
+
+            {/* 워터풀선데이 단독 신청 */}
+            {waterparkApply && (
+              <Link
+                href="/waterpark-apply"
+                className="inline-flex items-center gap-2 px-8 py-3 bg-cyan-900/40 hover:bg-cyan-800/60 border border-cyan-700 hover:border-cyan-400/60 text-cyan-200 hover:text-cyan-100 font-bold text-base md:text-lg rounded-full transition-all duration-300 cursor-pointer"
+              >
+                💦 워터풀선데이만 신청하기 →
+              </Link>
+            )}
 
             {/* 회비 · 입금 계좌 재확인 배너 */}
             <Link

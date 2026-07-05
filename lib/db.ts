@@ -273,6 +273,45 @@ const MIGRATIONS: Migration[] = [
       `ALTER TABLE staff_application_entries ADD COLUMN IF NOT EXISTS tshirt_size VARCHAR(20)`,
     ],
   },
+  {
+    version: 13,
+    description: 'Add per-track deposit account to event_configs (분리 운영 트랙별 계좌)',
+    up: [
+      // 트랙(연합/분리)마다 독립된 입금 계좌 — 미취학부처럼 성경학교를 분리 운영하는 부서가
+      // 트랙마다 다른 계좌를 안내할 수 있도록. NULL이면 글로벌 fees_config 계좌로 폴백.
+      `ALTER TABLE event_configs ADD COLUMN IF NOT EXISTS account VARCHAR(120)`,
+    ],
+  },
+  {
+    version: 14,
+    description: 'Add waterpark-only application tables (워터풀 단독 신청)',
+    up: [
+      // 성경학교 신청과 별개로 워터풀선데이만 신청하는 가족을 위한 테이블.
+      // 관리자 워터풀 명단/엑셀에서는 전화+이름 기준으로 성경학교 워터풀 참석자와 병합된다.
+      `CREATE TABLE IF NOT EXISTS waterpark_applications (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        parent_name VARCHAR(100) NOT NULL,
+        parent_phone VARCHAR(20) NOT NULL,
+        depositor_name VARCHAR(100) NOT NULL,
+        grand_total DECIMAL(10, 2) DEFAULT 0,
+        waterfall_parents JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE TABLE IF NOT EXISTS waterpark_application_children (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        waterpark_application_id UUID NOT NULL REFERENCES waterpark_applications(id) ON DELETE CASCADE,
+        name VARCHAR(100) NOT NULL,
+        birth_date DATE,
+        gender VARCHAR(10),
+        department VARCHAR(50),
+        sub_department VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW()
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_wp_children_app ON waterpark_application_children(waterpark_application_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_wp_children_dept ON waterpark_application_children(department)`,
+    ],
+  },
 ];
 
 async function ensureMigrationsTable() {

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { queryOne } from '@/lib/db';
+import { queryOne, queryMany } from '@/lib/db';
 
 // 관리자 계좌/회비 변경이 즉시 반영되도록 매 요청 렌더 (정적 캐시 방지)
 export const dynamic = 'force-dynamic';
@@ -26,11 +26,40 @@ async function getFees() {
     if (!row) return null;
     const num = (v: any) => Number(v || 0);
     const txt = (v: any) => (typeof v === 'string' ? v.trim() : '');
+
+    // 트랙(연합/분리) 정보 — 분리 운영 부서는 트랙마다 별도 계좌를 안내한다.
+    let cfgRows: any[] = [];
+    try {
+      cfgRows = await queryMany(
+        `SELECT department, track_key, track_label, account, operating_mode
+           FROM event_configs WHERE department = ANY($1::text[])`,
+        [DEPARTMENTS.map((d) => d.id)]
+      );
+    } catch {
+      cfgRows = []; // account/track 컬럼 미적용 환경에서도 안전하게 폴백
+    }
+
     const depts: { id: string; label: string; emoji: string; fee: number; account: string }[] = [];
     for (const d of DEPARTMENTS) {
       const fee = num(row[d.id]);
-      const account = txt(row[`${d.id}_account`]);
-      if (fee > 0 || account) depts.push({ ...d, fee, account });
+      const globalAccount = txt(row[`${d.id}_account`]);
+      const deptCfgs = cfgRows.filter((r) => r.department === d.id);
+      const mainCfg = deptCfgs.find((r) => (r.track_key || 'main') === 'main');
+      const isSplit = mainCfg?.operating_mode === 'split';
+      const nonMain = deptCfgs.filter((r) => (r.track_key || 'main') !== 'main');
+
+      if (isSplit && nonMain.length > 0) {
+        // 분리 운영: 트랙(성경학교)마다 카드 하나씩
+        for (const t of nonMain) {
+          const account = txt(t.account) || globalAccount;
+          const label = `${d.label} · ${t.track_label || t.track_key}`;
+          if (fee > 0 || account) depts.push({ ...d, label, fee, account });
+        }
+      } else {
+        // 연합 운영: 트랙 전용 계좌가 있으면 우선, 없으면 글로벌 부서 계좌
+        const account = txt(mainCfg?.account) || globalAccount;
+        if (fee > 0 || account) depts.push({ ...d, fee, account });
+      }
     }
     const waterpark = {
       childFee: num(row.child_waterpark),
@@ -78,8 +107,8 @@ export default async function FeesPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {data.depts.map((d) => (
-              <div key={d.id} className="bg-slate-800/60 border border-slate-700 rounded-2xl p-6">
+            {data.depts.map((d, i) => (
+              <div key={`${d.id}-${i}`} className="bg-slate-800/60 border border-slate-700 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-xl font-bold flex items-center gap-2">
                     <span>{d.emoji}</span> {d.label}

@@ -59,6 +59,8 @@ export interface SettingsForm {
   externalApplyUrl: string;
   /** 해당 트랙의 표시 이름 (편집용) */
   trackLabel: string;
+  /** 이 트랙 전용 입금 계좌 (비우면 글로벌 요금설정 계좌로 폴백) */
+  account: string;
 }
 
 export interface TrackInfo {

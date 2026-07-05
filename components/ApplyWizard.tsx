@@ -568,6 +568,7 @@ export default function ApplyWizard() {
           draft={draft}
           breakdown={breakdown}
           fees={fees}
+          configCache={configCache}
           onPrev={() => setStep(2)}
           onSubmit={handleSubmit}
           submitting={submitting}
@@ -1381,17 +1382,25 @@ function deptAccount(fees: FeesConfig | null, d: DepartmentId): string | null {
 }
 
 function Step3({
-  draft, breakdown, fees, onPrev, onSubmit, submitting, agreedPrivacy, setAgreedPrivacy,
+  draft, breakdown, fees, configCache, onPrev, onSubmit, submitting, agreedPrivacy, setAgreedPrivacy,
 }: {
   draft: DraftState;
   breakdown: Breakdown;
   fees: FeesConfig | null;
+  configCache: Record<string, EventConfig | null>;
   onPrev: () => void;
   onSubmit: () => void;
   submitting: boolean;
   agreedPrivacy: boolean;
   setAgreedPrivacy: (v: boolean) => void;
 }) {
+  // 자녀의 세부부서 → (트랙 해석된) 설정에서 트랙 전용 계좌를 우선 사용, 없으면 글로벌 부서 계좌로 폴백
+  const resolveChildAccount = (c: ChildDraft): string | null => {
+    const cfg = configCache[`${c.department}::${c.subDepartment || ''}`] as any;
+    const trackAcc = cfg?.account;
+    if (trackAcc && String(trackAcc).trim()) return String(trackAcc).trim();
+    return deptAccount(fees, c.department as DepartmentId);
+  };
   const usedDepartments = useMemo<DepartmentId[]>(() => {
     const order: DepartmentId[] = ['kinder', 'kids', 'teens'];
     return order.filter((d) => deptCount(breakdown, d) > 0);
@@ -1511,24 +1520,41 @@ function Step3({
           <p>· 워터풀선데이 회비: 처음 입력하신 입금자명 <strong className="text-slate-800">&quot;{draft.depositorName}&quot;</strong>으로 입금해 주세요.</p>
         </div>
         <div className="space-y-3">
-          {usedDepartments.map((d) => {
-            const acc = deptAccount(fees, d);
-            const subtotal = deptTotal(breakdown, d);
-            // 해당 부서 자녀별로 "세부부서 약칭 + 이름" 입금자명 생성 (예: 유년 홍길동)
-            const depositorNames = draft.children
-              .filter((c) => c.department === d)
-              .map((c) => `"${[subDepartmentShortLabel(c.subDepartment), c.name].filter(Boolean).join(' ')}"`)
-              .join(', ');
-            return (
-              <AccountInfoCard
-                key={d}
-                title={`${DEPT_META[d].label} 회비 입금 계좌`}
-                account={acc}
-                amount={subtotal}
-                meta={`${deptCount(breakdown, d)}명`}
-                depositorNote={`입금자명: ${depositorNames} (세부부서 약칭 + 자녀 이름)`}
-              />
-            );
+          {usedDepartments.flatMap((d) => {
+            const unit = deptUnit(fees, d);
+            const deptChildren = draft.children.filter((c) => c.department === d);
+            // 분리 운영으로 트랙마다 계좌가 다를 수 있으므로 자녀를 계좌별로 그룹화
+            const groups = new Map<string, ChildDraft[]>();
+            for (const c of deptChildren) {
+              const key = resolveChildAccount(c) ?? '__none__';
+              const arr = groups.get(key) ?? [];
+              arr.push(c);
+              groups.set(key, arr);
+            }
+            const multi = groups.size > 1;
+            return Array.from(groups.entries()).map(([accKey, kids]) => {
+              const acc = accKey === '__none__' ? null : accKey;
+              // 해당 그룹 자녀별로 "세부부서 약칭 + 이름" 입금자명 생성 (예: 유년 홍길동)
+              const depositorNames = kids
+                .map((c) => `"${[subDepartmentShortLabel(c.subDepartment), c.name].filter(Boolean).join(' ')}"`)
+                .join(', ');
+              // 분리 운영 트랙이면 트랙(성경학교) 이름을 카드 제목에 표기
+              const cfg0 = configCache[`${d}::${kids[0].subDepartment || ''}`] as any;
+              const trackLabel = cfg0?.operatingMode === 'split'
+                ? (cfg0?.trackLabel || cfg0?.title || '')
+                : '';
+              const titleSuffix = multi && trackLabel ? ` · ${trackLabel}` : '';
+              return (
+                <AccountInfoCard
+                  key={`${d}-${accKey}`}
+                  title={`${DEPT_META[d].label}${titleSuffix} 회비 입금 계좌`}
+                  account={acc}
+                  amount={kids.length * unit}
+                  meta={`${kids.length}명`}
+                  depositorNote={`입금자명: ${depositorNames} (세부부서 약칭 + 자녀 이름)`}
+                />
+              );
+            });
           })}
 
           {showWaterparkAccount && (

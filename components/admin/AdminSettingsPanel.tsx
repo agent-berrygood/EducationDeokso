@@ -312,6 +312,25 @@ export default function AdminSettingsPanel({
                 />
               </div>
             </div>
+
+            {/* 트랙 전용 입금 계좌 — 분리 운영 시 트랙마다 다른 계좌를 안내할 수 있다 */}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                💳 이 {operatingMode === 'split' && activeTrackKey !== 'main' ? '트랙(성경학교)' : '부서'} 전용 입금 계좌
+              </label>
+              <input
+                type="text"
+                value={settingsForm.account}
+                onChange={(e) => setSettingsForm({ ...settingsForm, account: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900"
+                placeholder="예: 국민은행 123-45-6789 홍길동"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                {operatingMode === 'split'
+                  ? '분리 운영 부서는 트랙(성경학교)마다 별도 계좌를 안내할 수 있습니다. 이 트랙 신청자의 확인화면·회비 안내에 이 계좌가 표시됩니다.'
+                  : '비워두면 글로벌 요금설정의 부서 계좌가 사용됩니다. 값을 입력하면 이 부서 신청자에게 이 계좌가 우선 표시됩니다.'}
+              </p>
+            </div>
             <div>
               <label className="block text-sm font-semibold mb-2">📢 공식 홍보 포스터 등록 (다이렉트 파일 업로드 지원)</label>
               <div className="flex flex-col md:flex-row gap-4 items-center">

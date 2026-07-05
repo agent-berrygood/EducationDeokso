@@ -78,6 +78,8 @@ export interface EventConfig {
   is_external_apply?: boolean;
   /** 외부 신청 링크 URL (is_external_apply=true일 때 메인페이지에 노출) */
   external_apply_url?: string | null;
+  /** 트랙(연합/분리) 전용 입금 계좌 — 비면 글로벌 fees_config 계좌로 폴백 (config API에서 camelCase 'account'로 직렬화) */
+  account?: string | null;
 }
 
 export interface WaterparkInfo {

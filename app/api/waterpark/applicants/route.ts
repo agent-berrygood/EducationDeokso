@@ -1,9 +1,8 @@
 import { cookies } from 'next/headers';
-import { queryMany, query } from '@/lib/db';
+import { query } from '@/lib/db';
 import { checkDepartmentAccess, requireAdmin } from '@/lib/auth';
-import { trackSubDepartments } from '@/lib/track-query';
 import type { DepartmentId } from '@/lib/types';
-import { mergeWaterparkFamilies } from '@/lib/waterpark';
+import { fetchWaterparkFamilies } from '@/lib/waterpark-query';
 
 /**
  * GET /api/waterpark/applicants?department=kids
@@ -43,47 +42,8 @@ export async function GET(request: Request) {
 
     const track = searchParams.get('track');
 
-    const params: any[] = [];
-    let deptHaving = '';
-    if (department) {
-      params.push(department);
-      // 해당 부서 자녀 중 워터풀 참석자가 1명 이상인 가족만
-      let deptCond = `ac.attends_waterpark AND ac.department = $1`;
-      // 트랙(분리) 필터: 트랙이 커버하는 세부부서로 추가 제한
-      if (track) {
-        const trackSubs = await trackSubDepartments(department, track);
-        if (trackSubs.length > 0) {
-          params.push(trackSubs);
-          deptCond += ` AND ac.sub_department = ANY($${params.length}::text[])`;
-        }
-      }
-      deptHaving = `AND bool_or(${deptCond})`;
-    }
-
-    const rows = await queryMany(
-      `SELECT
-         a.id, a.parent_name, a.parent_phone, a.depositor_name,
-         a.waterfall_parents, a.created_at,
-         json_agg(
-           json_build_object(
-             'id', ac.id,
-             'name', ac.name,
-             'gender', ac.gender,
-             'department', ac.department,
-             'subDepartment', ac.sub_department,
-             'birthDate', ac.birth_date
-           ) ORDER BY ac.department, ac.name
-         ) FILTER (WHERE ac.attends_waterpark) AS waterpark_children
-       FROM applications a
-       INNER JOIN application_children ac ON a.id = ac.application_id
-       GROUP BY a.id
-       HAVING bool_or(ac.attends_waterpark) ${deptHaving}
-       ORDER BY a.created_at DESC`,
-      params
-    );
-
-    // 전화번호+이름이 같은 신청서들을 한 가족으로 병합 (같은 가족이 워터풀에서 쪼개지지 않도록)
-    const data = mergeWaterparkFamilies(rows as any)
+    // 성경학교 워터풀 참석자 + 워터풀 단독 신청을 전화+이름 기준으로 병합한 명단
+    const data = (await fetchWaterparkFamilies({ department, track }))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const summary = {
@@ -166,10 +126,46 @@ export async function PATCH(request: Request) {
       params
     );
 
+    // 워터풀 단독 신청 제외 — 성경학교 신청과 달리 보존할 다른 참가 정보가 없으므로 삭제한다.
+    // 병합된 가족의 applicationIds에는 두 테이블의 id가 섞여 있으므로 각 테이블에 대해 안전하게 처리한다.
+    let waterparkOnlyRemoved = 0;
+    try {
+      if (department) {
+        // 해당 부서 자녀만 제거 후, 자녀가 모두 사라진 단독 신청 정리
+        const delParams: any[] = [department];
+        let idCond = '';
+        if (applicationIds.length > 0) {
+          delParams.push(applicationIds);
+          idCond = ` AND waterpark_application_id = ANY($2::uuid[])`;
+        }
+        const del = await query(
+          `DELETE FROM waterpark_application_children WHERE department = $1${idCond}`,
+          delParams
+        );
+        waterparkOnlyRemoved = del.rowCount ?? 0;
+        await query(
+          `DELETE FROM waterpark_applications wa
+             WHERE NOT EXISTS (
+               SELECT 1 FROM waterpark_application_children c WHERE c.waterpark_application_id = wa.id
+             )${applicationIds.length > 0 ? ' AND wa.id = ANY($1::uuid[])' : ''}`,
+          applicationIds.length > 0 ? [applicationIds] : []
+        );
+      } else if (applicationIds.length > 0) {
+        const del = await query(`DELETE FROM waterpark_applications WHERE id = ANY($1::uuid[])`, [applicationIds]);
+        waterparkOnlyRemoved = del.rowCount ?? 0;
+      } else if (all) {
+        const del = await query(`DELETE FROM waterpark_applications`);
+        waterparkOnlyRemoved = del.rowCount ?? 0;
+      }
+    } catch (e) {
+      // 워터풀 단독 테이블이 없는 환경 등에서는 성경학교 제외만 수행하고 무시
+      console.error('워터풀 단독 신청 제외 처리 오류:', e);
+    }
+
     return Response.json({
       success: true,
       message: '워터풀 명단에서 제외했습니다. (성경학교 신청은 유지됩니다)',
-      data: { childrenRemoved: result.rowCount ?? 0 },
+      data: { childrenRemoved: (result.rowCount ?? 0) + waterparkOnlyRemoved },
     });
   } catch (error) {
     console.error('PATCH /waterpark/applicants 오류:', error);
