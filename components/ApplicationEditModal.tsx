@@ -88,30 +88,40 @@ export default function ApplicationEditModal({
         parentPhone: formData.parent_phone,
         depositorName: formData.depositor_name,
         waterfallParents: typeof formData.waterfall_parents === 'string' ? JSON.parse(formData.waterfall_parents || '[]') : formData.waterfall_parents || [],
-        grandTotal: formData.grand_total,
+        // grand_total은 DB(DECIMAL)에서 문자열로 오므로 숫자로 변환 (스키마 z.number())
+        grandTotal: Number(formData.grand_total) || 0,
         vehicleInfo: formData.vehicle_info || undefined,
         carpoolAvailable: !!formData.carpool_available,
         carpoolCapacity: formData.carpool_available && formData.carpool_capacity
           ? Number(formData.carpool_capacity)
           : undefined,
-        children: (formData.children || []).map((c: any) => ({
+        children: (formData.children || []).map((c: any) => {
+          // 참석 세션: 스키마는 YYYY-MM-DD만 허용 → 날짜 형식만 유지(레거시 세션키 등 제외해 검증 실패 방지)
+          const rawSessions = typeof c.attended_sessions === 'string'
+            ? (() => { try { return JSON.parse(c.attended_sessions || '[]'); } catch { return []; } })()
+            : (c.attended_sessions || []);
+          const attendedSessions = (Array.isArray(rawSessions) ? rawSessions : [])
+            .filter((s: any) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s));
+          return {
           name: c.name,
           birthDate: c.birth_date,
-          gender: c.gender,
+          // 성별 미선택('')은 undefined로 (스키마 enum optional은 빈 문자열 거부)
+          gender: c.gender || undefined,
           department: c.department,
           subDepartment: c.sub_department,
           tshirtSize: c.tshirt_size,
           allergies: typeof c.allergies === 'string' ? c.allergies : (c.allergies?.join(',') || ''),
           customAllergy: c.custom_allergy,
           attendsWaterpark: c.attends_waterpark,
-          attendedSessions: typeof c.attended_sessions === 'string' ? JSON.parse(c.attended_sessions || '[]') : c.attended_sessions || [],
+          attendedSessions,
           partialAttendanceReason: c.partial_attendance_reason,
           // 커스텀 필드
           custom1: c.custom_1, custom2: c.custom_2, custom3: c.custom_3, custom4: c.custom_4, custom5: c.custom_5,
           custom6: c.custom_6, custom7: c.custom_7, custom8: c.custom_8, custom9: c.custom_9, custom10: c.custom_10,
           custom11: c.custom_11, custom12: c.custom_12, custom13: c.custom_13, custom14: c.custom_14, custom15: c.custom_15,
           custom16: c.custom_16, custom17: c.custom_17, custom18: c.custom_18, custom19: c.custom_19, custom20: c.custom_20,
-        }))
+          };
+        })
       };
 
       const res = await fetch(`/api/applications/${application.id}`, {
