@@ -74,6 +74,7 @@ export async function GET(request: Request) {
     const rows = await queryMany(
       `SELECT
         a.id, a.parent_name, a.parent_phone, a.depositor_name, a.grand_total, a.created_at,
+        a.vehicle_info, a.carpool_available, a.carpool_capacity,
         ac.id AS child_id, ac.name, ac.birth_date, ac.gender, ac.sub_department,
         ac.tshirt_size, ac.allergies, ac.custom_allergy, ac.attends_waterpark,
         ac.attended_sessions, ac.partial_attendance_reason,
@@ -94,6 +95,7 @@ export async function GET(request: Request) {
     const headers1 = [
       '부모이름', '부모폰', '입금자',
       '자녀이름', '생년월일', '성별', '하위부서', '셔츠사이즈', '알러지', '물놀이',
+      '차량정보', '카풀지원', '카풀인원',
       ...customFields.map((f: any) => f.label),
       '신청날짜',
     ];
@@ -111,6 +113,9 @@ export async function GET(request: Request) {
         r.tshirt_size ?? '',
         r.allergies ?? '',
         r.attends_waterpark ? '참석' : '불참',
+        r.vehicle_info ?? '',
+        r.carpool_available ? '가능' : '',
+        r.carpool_capacity ?? '',
         ...customFields.map((f: any) => r[`custom_${f.columnIndex}`] ?? ''),
         r.created_at ?? '',
       ]);
