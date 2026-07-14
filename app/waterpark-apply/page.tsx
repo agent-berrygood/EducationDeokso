@@ -190,6 +190,10 @@ export default function WaterparkApplyPage() {
           <section className="bg-white p-6 rounded-2xl shadow-sm border">
             <h2 className="text-xl font-bold mb-1 text-black">참가 자녀</h2>
             <p className="text-sm text-black mb-4">워터풀선데이에 참가할 자녀 정보를 입력해 주세요.</p>
+            <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 mb-4 text-sm text-sky-900 leading-relaxed">
+              💡 우리 교회 친구가 아닌 어린이도 함께 참여할 수 있어요! 다만 재정 지원은 <strong>우리 교회 소속 어린이</strong>에게 적용되는 점 양해 부탁드립니다.
+              이 경우 아래 <strong>&lsquo;동반 보호자&rsquo;</strong>로 등록해 주시면 되며, 워터파크 요금은 <strong>부모님과 동일한 금액</strong>으로 안내드리고 있어요.
+            </div>
             <div className="space-y-4">
               {children.map((c, idx) => (
                 <div key={c.uid} className="border rounded-xl p-4">
