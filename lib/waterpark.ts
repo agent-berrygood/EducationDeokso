@@ -15,6 +15,17 @@ function safeParse(val: any): any[] {
 
 const normPhone = (p: any) => String(p ?? '').replace(/\D/g, '');
 const normName = (n: any) => String(n ?? '').trim();
+/** 중복 판정용 이름 키 — 표기 흔들림("전은총 " vs "전은총")을 흡수한다. */
+const nameKey = (n: any) => String(n ?? '').replace(/\s+/g, '');
+
+/** 먼저 잡힌 사람 레코드에, 뒤에 온 중복 레코드의 값으로 빈 항목만 채워 넣는다. */
+function backfill(target: any, extra: any, fields: string[]) {
+  if (!target || !extra) return;
+  for (const f of fields) {
+    const cur = target[f];
+    if ((cur === undefined || cur === null || cur === '') && extra[f]) target[f] = extra[f];
+  }
+}
 
 export interface RawWaterparkRow {
   id: string;
@@ -42,12 +53,18 @@ export interface MergedWaterparkFamily {
 
 /**
  * 신청서 단위 원본 행을 전화번호+이름 기준으로 가족 병합한다.
- * 자녀는 id(없으면 이름+부서+세부부서) 기준, 보호자는 이름+관계+연락처 기준으로 중복 제거.
+ *
+ * 중복 제거는 "한 가족 안에서 같은 이름 = 같은 사람"을 전제로 이름 기준으로 한다.
+ *  - 보호자: 이름만. 관계/연락처는 신청서마다 빠지거나 달라서 키에 넣으면 같은 사람이 갈라진다.
+ *  - 자녀: 이름+부서. id는 성경학교(application_children)와 워터풀 단독
+ *    (waterpark_application_children)이 서로 다른 테이블이라 같은 아이도 id가 달라
+ *    키로 쓸 수 없다. 두 경로로 신청한 가족의 자녀가 두 번 세어진다.
+ * 중복된 레코드에만 있는 값(연락처/성별 등)은 대표 레코드의 빈 항목에 채워 넣는다.
  */
 export function mergeWaterparkFamilies(rows: RawWaterparkRow[]): MergedWaterparkFamily[] {
   const groups = new Map<string, RawWaterparkRow[]>();
   for (const r of rows) {
-    const key = `${normPhone(r.parent_phone)}|${normName(r.parent_name)}`;
+    const key = `${normPhone(r.parent_phone)}|${nameKey(r.parent_name)}`;
     const arr = groups.get(key) || [];
     arr.push(r);
     groups.set(key, arr);
@@ -62,19 +79,27 @@ export function mergeWaterparkFamilies(rows: RawWaterparkRow[]): MergedWaterpark
     const head = sorted[0];
 
     const parents: any[] = [];
-    const seenParent = new Set<string>();
+    const seenParent = new Map<string, any>();
     const children: any[] = [];
-    const seenChild = new Set<string>();
+    const seenChild = new Map<string, any>();
 
     for (const r of sorted) {
       for (const p of safeParse(r.waterfall_parents)) {
-        const pk = `${normName(p?.name)}|${p?.relation ?? ''}|${normPhone(p?.phone)}`;
-        if (!seenParent.has(pk)) { seenParent.add(pk); parents.push(p); }
+        const pk = nameKey(p?.name);
+        const kept = seenParent.get(pk);
+        if (kept) { backfill(kept, p, ['relation', 'phone']); continue; }
+        const copy = { ...p, name: normName(p?.name) };
+        seenParent.set(pk, copy);
+        parents.push(copy);
       }
       const kids = Array.isArray(r.waterpark_children) ? r.waterpark_children : [];
       for (const c of kids) {
-        const ck = c?.id ? String(c.id) : `${normName(c?.name)}|${c?.department ?? ''}|${c?.subDepartment ?? ''}`;
-        if (!seenChild.has(ck)) { seenChild.add(ck); children.push(c); }
+        const ck = `${nameKey(c?.name)}|${c?.department ?? ''}`;
+        const kept = seenChild.get(ck);
+        if (kept) { backfill(kept, c, ['gender', 'birthDate', 'subDepartment']); continue; }
+        const copy = { ...c, name: normName(c?.name) };
+        seenChild.set(ck, copy);
+        children.push(copy);
       }
     }
 

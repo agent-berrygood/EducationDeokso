@@ -5,20 +5,22 @@
 // 병합/부서필터/단독신청 삭제 경로를 검증한다. 로직 변경 시 이 테스트도 함께 갱신할 것.
 import { newDb } from 'pg-mem';
 
-// lib/waterpark.ts mergeWaterparkFamilies와 동일 규칙 (자녀 dedup: id 또는 이름|부서|세부부서)
+// lib/waterpark.ts mergeWaterparkFamilies와 동일 규칙 (dedup: 보호자=이름, 자녀=이름|부서)
 const safeParse = (v)=>Array.isArray(v)?v:(typeof v!=='string'?[]:(()=>{try{return JSON.parse(v)}catch{return[]}})());
 const normPhone = p=>String(p??'').replace(/\D/g,'');
 const normName = n=>String(n??'').trim();
+const nameKey = n=>String(n??'').replace(/\s+/g,'');
+function backfill(t,e,fs){ if(!t||!e) return; for(const f of fs){ const c=t[f]; if((c===undefined||c===null||c==='')&&e[f]) t[f]=e[f]; } }
 function mergeWaterparkFamilies(rows){
   const groups=new Map();
-  for(const r of rows){const key=`${normPhone(r.parent_phone)}|${normName(r.parent_name)}`;const a=groups.get(key)||[];a.push(r);groups.set(key,a);}
+  for(const r of rows){const key=`${normPhone(r.parent_phone)}|${nameKey(r.parent_name)}`;const a=groups.get(key)||[];a.push(r);groups.set(key,a);}
   const fam=[];
   for(const arr of groups.values()){
     const sorted=[...arr].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
-    const head=sorted[0];const parents=[],sp=new Set(),children=[],sc=new Set();
+    const head=sorted[0];const parents=[],sp=new Map(),children=[],sc=new Map();
     for(const r of sorted){
-      for(const p of safeParse(r.waterfall_parents)){const pk=`${normName(p?.name)}|${p?.relation??''}|${normPhone(p?.phone)}`;if(!sp.has(pk)){sp.add(pk);parents.push(p);}}
-      for(const c of (Array.isArray(r.waterpark_children)?r.waterpark_children:[])){const ck=c?.id?String(c.id):`${normName(c?.name)}|${c?.department??''}|${c?.subDepartment??''}`;if(!sc.has(ck)){sc.add(ck);children.push(c);}}
+      for(const p of safeParse(r.waterfall_parents)){const pk=nameKey(p?.name);const k=sp.get(pk);if(k){backfill(k,p,['relation','phone']);continue;}const cp={...p,name:normName(p?.name)};sp.set(pk,cp);parents.push(cp);}
+      for(const c of (Array.isArray(r.waterpark_children)?r.waterpark_children:[])){const ck=`${nameKey(c?.name)}|${c?.department??''}`;const k=sc.get(ck);if(k){backfill(k,c,['gender','birthDate','subDepartment']);continue;}const cc={...c,name:normName(c?.name)};sc.set(ck,cc);children.push(cc);}
     }
     fam.push({id:head.id,applicationIds:sorted.map(r=>r.id),parentName:head.parent_name,parents,children,parentCount:parents.length,childCount:children.length,totalCount:parents.length+children.length});
   }
@@ -55,14 +57,18 @@ await q(`INSERT INTO application_children (id,application_id,name,department,sub
   ('a1111111-1111-1111-1111-111111111111',$1,'김하나','kids','junior',true),
   ('a2222222-2222-2222-2222-222222222222',$1,'김세찬','kids','junior',false)`,[A]);
 
+// 김철수 단독신청의 보호자 '김철수'는 성경학교 쪽과 같은 사람이지만 관계/연락처가 비어 있다
+// (실데이터의 "김민철(부) x2" 케이스) → 이름 기준 1명으로 합쳐지고 빈 값은 채워져야 한다.
 await q(`INSERT INTO waterpark_applications (id,parent_name,parent_phone,depositor_name,waterfall_parents,created_at) VALUES
   ($1,'김철수 ','01011112222','김철수',$3,'2026-07-05'),
   ($2,'정보라','010-5555-6666','정보라',$4,'2026-07-06')`,
   [W,V,
-   JSON.stringify([{name:'이영희',relation:'모',phone:'01033334444'}]),
+   JSON.stringify([{name:'김철수'},{name:'이영희',relation:'모',phone:'01033334444'}]),
    JSON.stringify([{name:'정보라',relation:'모',phone:'01055556666'}])]);
+// '김하나 '는 성경학교에도 있는 같은 아이 — 테이블이 달라 id가 다르므로 id 기준 dedup으로는 안 걸린다.
 await q(`INSERT INTO waterpark_application_children (id,waterpark_application_id,name,department,sub_department) VALUES
   ('d1111111-1111-1111-1111-111111111111',$1,'김막내','kinder','infant'),
+  ('d2222222-2222-2222-2222-222222222222',$1,'김하나 ','kids','junior'),
   ('e1111111-1111-1111-1111-111111111111',$2,'정하늘','kids','senior')`,[W,V]);
 
 // pg-mem은 다인자 json_build_object/json_agg를 완전히 지원하지 않으므로 평면 조회 후 조립
@@ -110,8 +116,14 @@ const kim = all.find(f=>f.parentName.trim()==='김철수');
 assert(!!kim, '김철수 가족 존재');
 assert(kim && kim.applicationIds.length===2, `김철수 = 성경학교+워터풀단독 2건 병합 (실제 ${kim&&kim.applicationIds.length})`);
 // 김하나(성경학교 워터풀) + 김막내(워터풀단독), 김세찬은 미참석 제외
+// 김하나는 단독신청에도 중복 등록됐지만 이름+부서 기준으로 1명이어야 한다.
 assert(kim && kim.children.map(c=>c.name).sort().join(',')==='김막내,김하나', `자녀 통합 정확 (실제 ${kim&&kim.children.map(c=>c.name).sort().join(',')})`);
+assert(kim && kim.childCount===2, `두 경로 중복 신청 자녀 1명으로 집계 (실제 ${kim&&kim.childCount})`);
 assert(kim && kim.parents.map(p=>p.name).sort().join(',')==='김철수,이영희', `보호자 통합(성경학교+단독) (실제 ${kim&&kim.parents.map(p=>p.name).sort().join(',')})`);
+assert(kim && kim.parentCount===2, `연락처 없는 동명 보호자 1명으로 집계 (실제 ${kim&&kim.parentCount})`);
+const cs = kim && kim.parents.find(p=>p.name==='김철수');
+assert(cs && cs.relation==='부' && cs.phone==='01011112222', `중복 병합 시 관계/연락처 보존 (실제 ${cs&&cs.relation}/${cs&&cs.phone})`);
+assert(kim && kim.totalCount===4, `총 인원 4 (실제 ${kim&&kim.totalCount})`);
 const jung = all.find(f=>f.parentName.trim()==='정보라');
 assert(jung && jung.children.length===1 && jung.children[0].name==='정하늘', '정보라 단독 가정 존재');
 

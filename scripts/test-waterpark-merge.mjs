@@ -8,16 +8,18 @@ import { newDb } from 'pg-mem';
 const safeParse = (v)=>Array.isArray(v)?v:(typeof v!=='string'?[]:(()=>{try{return JSON.parse(v)}catch{return[]}})());
 const normPhone = p=>String(p??'').replace(/\D/g,'');
 const normName = n=>String(n??'').trim();
+const nameKey = n=>String(n??'').replace(/\s+/g,'');
+function backfill(t,e,fs){ if(!t||!e) return; for(const f of fs){ const c=t[f]; if((c===undefined||c===null||c==='')&&e[f]) t[f]=e[f]; } }
 function mergeWaterparkFamilies(rows){
   const groups=new Map();
-  for(const r of rows){const key=`${normPhone(r.parent_phone)}|${normName(r.parent_name)}`;const a=groups.get(key)||[];a.push(r);groups.set(key,a);}
+  for(const r of rows){const key=`${normPhone(r.parent_phone)}|${nameKey(r.parent_name)}`;const a=groups.get(key)||[];a.push(r);groups.set(key,a);}
   const fam=[];
   for(const arr of groups.values()){
     const sorted=[...arr].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
-    const head=sorted[0];const parents=[],sp=new Set(),children=[],sc=new Set();
+    const head=sorted[0];const parents=[],sp=new Map(),children=[],sc=new Map();
     for(const r of sorted){
-      for(const p of safeParse(r.waterfall_parents)){const pk=`${normName(p?.name)}|${p?.relation??''}|${normPhone(p?.phone)}`;if(!sp.has(pk)){sp.add(pk);parents.push(p);}}
-      for(const c of (Array.isArray(r.waterpark_children)?r.waterpark_children:[])){const ck=c?.id?String(c.id):`${normName(c?.name)}|${c?.department??''}`;if(!sc.has(ck)){sc.add(ck);children.push(c);}}
+      for(const p of safeParse(r.waterfall_parents)){const pk=nameKey(p?.name);const k=sp.get(pk);if(k){backfill(k,p,['relation','phone']);continue;}const cp={...p,name:normName(p?.name)};sp.set(pk,cp);parents.push(cp);}
+      for(const c of (Array.isArray(r.waterpark_children)?r.waterpark_children:[])){const ck=`${nameKey(c?.name)}|${c?.department??''}`;const k=sc.get(ck);if(k){backfill(k,c,['gender','birthDate','subDepartment']);continue;}const cc={...c,name:normName(c?.name)};sc.set(ck,cc);children.push(cc);}
     }
     fam.push({id:head.id,applicationIds:sorted.map(r=>r.id),parentName:head.parent_name,parents,children,parentCount:parents.length,childCount:children.length,totalCount:parents.length+children.length});
   }

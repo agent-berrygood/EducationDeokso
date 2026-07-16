@@ -29,8 +29,17 @@ export async function GET(request: Request) {
     const workbook = new ExcelJS.Workbook();
 
     // === Sheet 1: 가족 단위 명단 ===
+    // 이름은 한 셀에 한 명씩. 컬럼 수는 실제 최대 인원에 맞춰 늘린다(최소 1칸).
     const ws1 = workbook.addWorksheet('가족단위');
-    ws1.addRow(['대표 보호자', '연락처', '입금자', '동반 보호자 명단', '참석 자녀 명단', '보호자 수', '자녀 수', '총 인원', '신청일']);
+    const maxParents = Math.max(1, ...families.map((f) => f.parents.length));
+    const maxChildren = Math.max(1, ...families.map((f) => f.children.length));
+    const parentCols = Array.from({ length: maxParents }, (_, i) => `보호자${i + 1}`);
+    const childCols = Array.from({ length: maxChildren }, (_, i) => `자녀${i + 1}`);
+    ws1.addRow([
+      '대표 보호자', '연락처', '입금자',
+      ...parentCols, ...childCols,
+      '보호자 수', '자녀 수', '총 인원', '신청일',
+    ]);
 
     let totalParents = 0;
     let totalChildren = 0;
@@ -40,12 +49,21 @@ export async function GET(request: Request) {
       const children = f.children;
       totalParents += parents.length;
       totalChildren += children.length;
+      // 빈 칸까지 채워 컬럼 정렬을 맞춘다
+      const parentCells = parentCols.map((_, i) => {
+        const p = parents[i];
+        return p ? `${p.name}${p.relation ? `(${p.relation})` : ''}` : '';
+      });
+      const childCells = childCols.map((_, i) => {
+        const c = children[i];
+        return c ? `${c.name}(${DEPT_LABELS[c.department] || c.department})` : '';
+      });
       ws1.addRow([
         f.parentName ?? '',
         f.parentPhone ?? '',
         f.depositorName ?? '',
-        parents.map((p: any) => `${p.name}(${p.relation})`).join(', '),
-        children.map((c: any) => `${c.name}(${DEPT_LABELS[c.department] || c.department})`).join(', '),
+        ...parentCells,
+        ...childCells,
         parents.length,
         children.length,
         parents.length + children.length,
@@ -54,12 +72,17 @@ export async function GET(request: Request) {
     });
 
     if (families.length > 0) {
-      const totalRow = ws1.addRow(['합계', '', '', '', '', totalParents, totalChildren, totalParents + totalChildren, '']);
+      const totalRow = ws1.addRow([
+        '합계', '', '',
+        ...parentCols.map(() => ''), ...childCols.map(() => ''),
+        totalParents, totalChildren, totalParents + totalChildren, '',
+      ]);
       totalRow.font = { bold: true };
       totalRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0F7FA' } };
     }
-    setColumnWidths(ws1, 18);
+    setColumnWidths(ws1, 14);
     ws1.getRow(1).font = { bold: true };
+    ws1.views = [{ state: 'frozen', xSplit: 3, ySplit: 1 }];
 
     // === Sheet 2: 개별 명단 (현장 체크인용) ===
     const ws2 = workbook.addWorksheet('개별명단');
